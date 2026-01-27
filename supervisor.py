@@ -26,6 +26,62 @@ from utils.message_handlers import MessageRouter
 logger = setup_logger('supervisor')
 
 
+def process_wrapper(target_func: Callable, process_name: str, ipc_queue, shared_state, config: dict):
+    """
+    进程包装器 - 捕获所有异常并记录
+    这是每个子进程的入口点（模块级别函数，避免 pickle 错误）
+    """
+    try:
+        # 重新配置日志（子进程需要独立配置）
+        logger = setup_logger(process_name)
+        logger.info(f"🔧 {process_name} 进程启动")
+        
+        # 执行实际业务逻辑
+        target_func(ipc_queue, shared_state, config)
+        
+    except KeyboardInterrupt:
+        logger.info(f"⚠️ {process_name} 收到中断信号")
+    except Exception as e:
+        logger.error(f"💥 {process_name} 进程崩溃: {e}", exc_info=True)
+    finally:
+        logger.info(f"🛑 {process_name} 进程退出")
+
+
+def run_ai_detector(queue, shared_state, config):
+    """AI 检测进程入口"""
+    from modules.detector_process import AIDetectorProcess
+    detector = AIDetectorProcess(queue, shared_state, config)
+    detector.run()
+
+
+def run_audio_processor(queue, shared_state, config):
+    """音频处理进程入口"""
+    from modules.audio_process import AudioProcessorProcess
+    audio = AudioProcessorProcess(queue, shared_state, config)
+    audio.run()
+
+
+def run_mqtt_client(queue, shared_state, config):
+    """MQTT 通信进程入口"""
+    from modules.mqtt_process import MQTTClientProcess
+    mqtt_client = MQTTClientProcess(queue, shared_state, config)
+    mqtt_client.run()
+
+
+def run_stream_manager(queue, shared_state, config):
+    """流媒体进程入口"""
+    from modules.stream_process import StreamManagerProcess
+    stream = StreamManagerProcess(queue, shared_state, config)
+    stream.run()
+
+
+def run_device_controller(queue, shared_state, config):
+    """硬件控制进程入口"""
+    from modules.device_process import DeviceControllerProcess
+    device = DeviceControllerProcess(queue, shared_state, config)
+    device.run()
+
+
 @dataclass
 class ProcessConfig:
     """进程配置"""
@@ -76,8 +132,8 @@ class ProcessSupervisor:
         self.running = True
         self.shutdown_event = threading.Event()
         
-        # 初始化消息路由器
-        self.message_router = MessageRouter(self)
+        # 消息路由器（延迟初始化，避免 pickle 错误）
+        self.message_router = None
         
         # 初始化进程配置
         self._init_process_configs()
@@ -104,31 +160,31 @@ class ProcessSupervisor:
         self.process_configs = [
             ProcessConfig(
                 name='device_controller',
-                target=self._run_device_controller,
+                target=run_device_controller,
                 critical=True,
                 startup_delay=delays['device_controller']
             ),
             ProcessConfig(
                 name='mqtt_client',
-                target=self._run_mqtt_client,
+                target=run_mqtt_client,
                 critical=True,
                 startup_delay=delays['mqtt_client']
             ),
             ProcessConfig(
                 name='audio_processor',
-                target=self._run_audio_processor,
+                target=run_audio_processor,
                 critical=False,
                 startup_delay=delays['audio_processor']
             ),
             ProcessConfig(
                 name='ai_detector',
-                target=self._run_ai_detector,
+                target=run_ai_detector,
                 critical=True,
                 startup_delay=delays['ai_detector']
             ),
             ProcessConfig(
                 name='stream_manager',
-                target=self._run_stream_manager,
+                target=run_stream_manager,
                 critical=False,
                 startup_delay=delays['stream_manager']
             ),
@@ -178,10 +234,10 @@ class ProcessSupervisor:
     def _start_single_process(self, config: ProcessConfig) -> bool:
         """启动单个子进程"""
         try:
-            # 创建进程
+            # 创建进程 - 使用模块级别函数避免序列化 self
             process = mp.Process(
-                target=self._process_wrapper,
-                args=(config.target, config.name),
+                target=process_wrapper,
+                args=(config.target, config.name, self.ipc_queue, self.shared_state, self.config),
                 name=config.name,
                 daemon=False
             )
@@ -198,26 +254,6 @@ class ProcessSupervisor:
         except Exception as e:
             logger.error(f"❌ 进程 {config.name} 启动失败: {e}")
             return False
-    
-    def _process_wrapper(self, target_func: Callable, process_name: str):
-        """
-        进程包装器 - 捕获所有异常并记录
-        这是每个子进程的入口点
-        """
-        try:
-            # 重新配置日志（子进程需要独立配置）
-            logger = setup_logger(process_name)
-            logger.info(f"🔧 {process_name} 进程启动")
-            
-            # 执行实际业务逻辑
-            target_func(self.ipc_queue, self.shared_state, self.config)
-            
-        except KeyboardInterrupt:
-            logger.info(f"⚠️ {process_name} 收到中断信号")
-        except Exception as e:
-            logger.error(f"💥 {process_name} 进程崩溃: {e}", exc_info=True)
-        finally:
-            logger.info(f"🛑 {process_name} 进程退出")
     
     def _start_monitor_threads(self):
         """启动所有监控线程"""
@@ -292,6 +328,9 @@ class ProcessSupervisor:
     def _message_router(self):
         """消息路由线程 - 处理进程间通信"""
         logger.info("📬 消息路由线程启动")
+        
+        # 延迟初始化消息路由器（避免在 __init__ 中创建导致 pickle 错误）
+        self.message_router = MessageRouter(self)
         logger.info(f"已注册消息类型: {self.message_router.get_registered_types()}")
         
         while self.running:
@@ -420,40 +459,6 @@ class ProcessSupervisor:
         
         logger.info("✅ 所有进程已停止，Supervisor 退出")
     
-    # ========== 子进程入口函数 ==========
-    
-    def _run_ai_detector(self, queue, shared_state, config):
-        """AI 检测进程入口"""
-        from modules.detector_process import AIDetectorProcess
-        detector = AIDetectorProcess(queue, shared_state, config)
-        detector.run()
-    
-    def _run_audio_processor(self, queue, shared_state, config):
-        """音频处理进程入口"""
-        from modules.audio_process import AudioProcessorProcess
-        audio = AudioProcessorProcess(queue, shared_state, config)
-        audio.run()
-    
-    def _run_mqtt_client(self, queue, shared_state, config):
-        """MQTT 通信进程入口"""
-        from modules.mqtt_process import MQTTClientProcess
-        mqtt_client = MQTTClientProcess(queue, shared_state, config)
-        mqtt_client.run()
-    
-    def _run_stream_manager(self, queue, shared_state, config):
-        """流媒体进程入口"""
-        from modules.stream_process import StreamManagerProcess
-        stream = StreamManagerProcess(queue, shared_state, config)
-        stream.run()
-    
-    def _run_device_controller(self, queue, shared_state, config):
-        """硬件控制进程入口"""
-        from modules.device_process import DeviceControllerProcess
-        device = DeviceControllerProcess(queue, shared_state, config)
-        device.run()
-
-
-# ========== 程序入口 ==========
 
 if __name__ == '__main__':
     # 设置多进程启动方法
