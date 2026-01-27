@@ -20,6 +20,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from utils.logger import setup_logger
 from utils.ipc import IPCHelper
+from utils.message_handlers import MessageRouter
 
 # 全局日志
 logger = setup_logger('supervisor')
@@ -74,6 +75,9 @@ class ProcessSupervisor:
         # 控制标志
         self.running = True
         self.shutdown_event = threading.Event()
+        
+        # 初始化消息路由器
+        self.message_router = MessageRouter(self)
         
         # 初始化进程配置
         self._init_process_configs()
@@ -288,110 +292,21 @@ class ProcessSupervisor:
     def _message_router(self):
         """消息路由线程 - 处理进程间通信"""
         logger.info("📬 消息路由线程启动")
+        logger.info(f"已注册消息类型: {self.message_router.get_registered_types()}")
         
         while self.running:
             try:
                 # 从队列获取消息（阻塞等待）
                 msg = self.ipc_queue.get(timeout=1)
                 
-                # 处理消息
-                self._handle_message(msg)
+                # 路由消息到对应的处理器
+                self.message_router.route(msg)
                 
             except:
                 continue
     
-    def _handle_message(self, msg: dict):
-        """处理单条进程间消息"""
-        msg_type = msg.get('type')
-        
-        if msg_type == 'anomaly_detected':
-            # AI 检测到异常
-            logger.warning(f"🚨 检测到异常: {msg.get('data')}")
-            self._on_anomaly_detected(msg.get('data', {}))
-            
-        elif msg_type == 'audio_anomaly':
-            # 检测到异常声音
-            logger.warning(f"🔊 检测到异常声音")
-            self._on_audio_anomaly(msg.get('data', {}))
-            
-        elif msg_type == 'mqtt_command':
-            # 收到平台指令
-            logger.info(f"📥 收到平台指令: {msg.get('action')}")
-            self._on_platform_command(msg)
-            
-        elif msg_type == 'heartbeat':
-            # 进程心跳
-            process_name = msg.get('from')
-            if process_name:
-                self.shared_state['last_heartbeat'][process_name] = time.time()
-        
-        else:
-            logger.debug(f"收到消息: {msg_type}")
-    
-    def _on_anomaly_detected(self, data: dict):
-        """处理 AI 检测异常事件"""
-        # 切换到报警状态
-        self._set_global_state(self.STATE_ALARM)
-        
-        # 通知 MQTT 上报
-        self.ipc_queue.put({
-            'type': 'report_alarm',
-            'to': 'mqtt_client',
-            'data': data
-        })
-        
-        # 通知硬件控制切换灯光
-        self.ipc_queue.put({
-            'type': 'set_light',
-            'to': 'device_controller',
-            'mode': 'alarm'
-        })
-    
-    def _on_audio_anomaly(self, data: dict):
-        """处理音频异常事件"""
-        # 切换到警戒状态
-        self._set_global_state(self.STATE_ALERT)
-        
-        # 通知硬件控制
-        self.ipc_queue.put({
-            'type': 'set_light',
-            'to': 'device_controller',
-            'mode': 'alert'
-        })
-    
-    def _on_platform_command(self, msg: dict):
-        """处理平台下发的指令"""
-        action = msg.get('action')
-        
-        if action == 'start_stream':
-            # 开始推流
-            self.ipc_queue.put({
-                'type': 'start_stream',
-                'to': 'stream_manager',
-                'data': msg.get('data')
-            })
-            
-        elif action == 'stop_stream':
-            # 停止推流
-            self.ipc_queue.put({
-                'type': 'stop_stream',
-                'to': 'stream_manager'
-            })
-            
-        elif action == 'remote_speak':
-            # 远程喊话
-            self.ipc_queue.put({
-                'type': 'play_audio',
-                'to': 'audio_processor',
-                'data': msg.get('data')
-            })
-    
-    def _set_global_state(self, new_state: str):
-        """设置全局状态"""
-        old_state = self.shared_state['global_state']
-        if old_state != new_state:
-            self.shared_state['global_state'] = new_state
-            logger.info(f"🔄 全局状态切换: {old_state} → {new_state}")
+    # 消息处理逻辑已迁移到 utils/message_handlers.py
+    # 如需添加新的消息类型处理，请在 message_handlers.py 中创建新的 Handler 类
     
     def _health_reporter(self):
         """健康状态上报线程"""
