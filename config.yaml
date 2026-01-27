@@ -2,19 +2,21 @@
 
 # 设备信息
 device:
-  id: "RPI_001"  # 设备唯一标识
+  id: "697882367f2e6c302f4e7aac_RPI_001_0_0_2026012710"  # 设备唯一标识
   name: "智慧门_001"
   location: "示例门店"
 
 # MQTT 配置（华为云 IoT）
 mqtt:
-  broker_host: "iot.huaweicloud.com"
-  broker_port: 1883
-  username: ""  # 华为云设备接入用户名
-  password: ""  # 华为云设备接入密码
-  client_id_prefix: "smartdoor"
+  broker_host: "bf0f7e134a.st1.iotda-device.cn-north-4.myhuaweicloud.com"
+  broker_port: 8883
+  username: "697882367f2e6c302f4e7aac_RPI_001"  # 华为云设备接入用户名
+  password: "243901f880ad7786739d057529c496b3c233f082466a13d8a8037fd43ca7bef4"  # 华为云设备接入密码
+  client_id: "697882367f2e6c302f4e7aac_RPI_001_0_0_2026012710"
   keepalive: 60
   qos: 1
+  tls_ca: "./certs/root.pem"  # 华为云根证书路径（root.pem）
+  tls_insecure: true  # 仅排查时可设为 true，跳过证书校验
   
   # 注意：MQTT 话题现在由 utils/mqtt_topics.py 中的 TopicManager 统一管理
   # 旧的 topics 配置已废弃，无需手动配置话题模板

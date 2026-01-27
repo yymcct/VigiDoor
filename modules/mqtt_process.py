@@ -5,6 +5,7 @@ MQTT 通信进程
 import time
 import json
 import threading
+import os
 from utils.logger import setup_logger
 from utils.ipc import IPCHelper
 from utils.mqtt_topics import TopicManager
@@ -72,8 +73,8 @@ class MQTTClientProcess:
             import paho.mqtt.client as mqtt
             
             self.client = mqtt.Client(
-                client_id=f"{self.config['mqtt']['client_id_prefix']}_{self.device_id}",
-                clean_session=False
+                client_id=f"{self.device_id}",#{self.config['mqtt']['client_id_prefix']}_
+                clean_session=False,
             )
             
             # 设置回调
@@ -100,6 +101,16 @@ class MQTTClientProcess:
             password = self.config['mqtt'].get('password')
             if username and password:
                 self.client.username_pw_set(username, password)
+
+            # TLS 证书（如果提供）
+            ca_path = self.config['mqtt'].get('tls_ca')
+            if ca_path:
+                ca_path = os.path.abspath(ca_path)
+                if not os.path.isfile(ca_path):
+                    raise FileNotFoundError(f"TLS CA 证书不存在: {ca_path}")
+                self.client.tls_set(ca_certs=ca_path)
+                if self.config['mqtt'].get('tls_insecure', False):
+                    self.client.tls_insecure_set(True)
             
             # 初始化发布器和分发器
             self.publisher = MQTTPublisher(self.client, self.topic_manager, logger)
@@ -116,6 +127,11 @@ class MQTTClientProcess:
         """连接 MQTT 服务器"""
         try:
             logger.info(f"🔄 尝试连接 MQTT 服务器...")
+
+            if not self.client:
+                logger.error("❌ MQTT 客户端未初始化，无法连接")
+                time.sleep(10)
+                return
             
             self.client.connect(
                 host=self.broker_host,
@@ -172,21 +188,22 @@ class MQTTClientProcess:
             logger.error(f"处理 MQTT 消息失败: {e}", exc_info=True)
     
     def _publish_online_status(self):
-        """发布上线消息"""
+        """发布上线消息（重构，使用 publish_lifecycle_online 方法）"""
         try:
-            from utils.mqtt_messages import LifecycleOnlineMessage
+            device_name = self.config['device']['name']
+            location = self.config['device'].get('location', '')
+            firmware_version = self.config['device'].get('firmware_version', '1.0.0')
+            # ip_address = self.config['device'].get('ip_address', '')
+            # mac_address = self.config['device'].get('mac_address', '')
             
-            online_msg = LifecycleOnlineMessage(
-                device_id=self.device_id,
-                data={
-                    "device_name": self.config['device']['name'],
-                    "firmware_version": self.config['device'].get('firmware_version', '1.0.0')
-                }
+            self.publisher.publish_lifecycle_online(
+                device_name=device_name,
+                location=location,
+                firmware_version=firmware_version,
+                ip_address='',
+                mac_address=''
             )
-            
-            self.publisher.publish(online_msg, retain=True)
             logger.info("📤 已发送上线消息")
-            
         except Exception as e:
             logger.error(f"发送上线消息失败: {e}")
     
@@ -217,7 +234,6 @@ class MQTTClientProcess:
     def _ipc_message_handler(self):
         """处理来自其他进程的消息"""
         while self.running:
-            data = msg.get('data', {})
             msg = self.ipc.receive(timeout=1.0)
             if msg:
                 self._handle_ipc_message(msg)
