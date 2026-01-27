@@ -48,6 +48,18 @@ coverage.xml
 *.cover
 *.py.cover
 .hypothesis/
+
+# VigiDoor 特定文件
+logs/*.log
+data/snapshots/*
+data/cache/*
+models/*.pt
+models/*.tflite
+venv/
+.vscode/
+*.swp
+*.swo
+*~
 .pytest_cache/
 cover/
 

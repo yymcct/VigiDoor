@@ -1,0 +1,38 @@
+[Unit]
+Description=VigiDoor Smart Security System
+Documentation=https://github.com/your-org/vigidoor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/yymcct/ws/VigiDoor
+
+# 启动命令
+ExecStart=/usr/bin/python3 -u /home/yymcct/ws/VigiDoor/supervisor.py
+ExecStop=/bin/kill -SIGTERM $MAINPID
+
+# 自动重启策略
+Restart=always
+RestartSec=10
+StartLimitInterval=300
+StartLimitBurst=5
+
+# 环境变量
+Environment="PYTHONUNBUFFERED=1"
+Environment="PYTHONPATH=/home/yymcct/ws/VigiDoor"
+
+# 资源限制
+MemoryLimit=512M
+CPUQuota=80%
+TasksMax=50
+
+# 日志配置
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=vigidoor
+
+[Install]
+WantedBy=multi-user.target

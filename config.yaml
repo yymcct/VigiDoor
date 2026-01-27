@@ -1,0 +1,117 @@
+# VigiDoor 智慧安防门配置文件
+
+# 设备信息
+device:
+  id: "RPI_001"  # 设备唯一标识
+  name: "智慧门_001"
+  location: "示例门店"
+
+# MQTT 配置（华为云 IoT）
+mqtt:
+  broker_host: "iot.huaweicloud.com"
+  broker_port: 1883
+  username: ""  # 华为云设备接入用户名
+  password: ""  # 华为云设备接入密码
+  client_id_prefix: "smartdoor"
+  keepalive: 60
+  qos: 1
+  
+  # 主题配置
+  topics:
+    status: "devices/{device_id}/status"
+    alarm: "devices/{device_id}/alarm"
+    heartbeat: "devices/{device_id}/heartbeat"
+    command: "devices/{device_id}/command"
+    config: "devices/{device_id}/config"
+    health: "devices/{device_id}/health"
+
+# AI 检测配置
+ai_detector:
+  model_path: "./models/yolov8n.pt"  # YOLO 模型路径
+  confidence_threshold: 0.7  # 置信度阈值
+  target_classes: [0]  # 检测目标类别（0=人）
+  fps: 10  # 检测帧率
+  frame_skip: 3  # 跳帧处理（每3帧检测一次）
+  
+  # 摄像头配置
+  camera:
+    width: 1280
+    height: 720
+    format: "RGB888"
+
+# 流媒体配置
+stream:
+  zlm_server: "rtmp://your-zlm-server:1935/live"  # ZLMediaKit 服务器地址
+  stream_key: "{device_id}"  # 推流密钥
+  video_codec: "h264"
+  audio_codec: "aac"
+  bitrate: "1000k"
+  fps: 25
+  resolution: "1280x720"
+
+# 音频配置
+audio:
+  sample_rate: 16000
+  channels: 1
+  chunk_size: 1024
+  
+  # 异常检测阈值
+  anomaly_threshold: 0.8
+
+# 硬件控制配置
+hardware:
+  # WS2812B 灯带
+  led_strip:
+    pin: 18  # GPIO 引脚
+    count: 8  # LED 数量
+    brightness: 128  # 亮度 (0-255)
+    
+    # 状态颜色
+    colors:
+      safe: [0, 255, 0]      # 绿色
+      alert: [255, 255, 0]   # 黄色
+      alarm: [255, 0, 0]     # 红色
+
+# 日志配置
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  max_file_size: 10485760  # 10MB
+  backup_count: 5
+  format: "%(asctime)s [%(levelname)s] [%(processName)s] %(message)s"
+
+# 进程管理配置
+supervisor:
+  # 重启策略
+  restart_limit: 5  # 时间窗口内最大重启次数
+  restart_window: 300  # 时间窗口（秒）
+  
+  # 心跳配置
+  heartbeat_interval: 5  # 心跳检查间隔（秒）
+  heartbeat_timeout: 30  # 心跳超时（秒）
+  
+  # 进程启动延迟（秒）
+  startup_delays:
+    device_controller: 0
+    mqtt_client: 0.5
+    audio_processor: 1.0
+    ai_detector: 2.0
+    stream_manager: 0
+
+# 系统监控配置
+monitoring:
+  health_report_interval: 60  # 健康上报间隔（秒）
+  watchdog_feed_interval: 30  # 看门狗喂狗间隔（秒）
+  
+  # 资源限制告警
+  thresholds:
+    cpu_usage: 80  # CPU使用率 %
+    memory_usage: 80  # 内存使用率 %
+    disk_usage: 90  # 磁盘使用率 %
+    temperature: 70  # CPU温度 °C
+
+# 数据存储配置
+storage:
+  snapshot_dir: "./data/snapshots"  # 告警快照目录
+  cache_dir: "./data/cache"  # 临时缓存目录
+  max_snapshot_age: 86400  # 快照保留时间（秒，1天）
+  max_cache_size: 1073741824  # 最大缓存大小（字节，1GB）
