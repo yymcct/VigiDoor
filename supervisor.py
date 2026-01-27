@@ -126,6 +126,7 @@ class ProcessSupervisor:
             'device_id': self.config['device']['id'],
             'is_streaming': False,
             'last_heartbeat': {},
+            'start_time': time.time(),  # 添加启动时间，用于计算 uptime
         })
         
         # 控制标志

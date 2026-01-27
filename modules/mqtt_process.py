@@ -1,6 +1,5 @@
 """
 MQTT 通信进程
-负责与云平台通信
 """
 
 import time
@@ -8,6 +7,9 @@ import json
 import threading
 from utils.logger import setup_logger
 from utils.ipc import IPCHelper
+from utils.mqtt_topics import TopicManager
+from utils.mqtt_publisher import MQTTPublisher
+from utils.mqtt_handlers import MQTTMessageDispatcher
 
 logger = setup_logger('mqtt_client')
 
@@ -37,9 +39,9 @@ class MQTTClientProcess:
         self.client = None
         self.is_connected = False
         
-        # 消息缓存队列
-        self.message_buffer = []
-        self.max_buffer_size = 100
+        self.topic_manager = TopicManager(self.device_id)
+        self.publisher = None  # 延迟初始化（需要 MQTT client）
+        self.dispatcher = None  # 延迟初始化
         
         logger.info(f"MQTT 通信进程初始化完成")
         logger.info(f"  Broker: {self.broker_host}:{self.broker_port}")
@@ -79,12 +81,16 @@ class MQTTClientProcess:
             self.client.on_disconnect = self._on_disconnect
             self.client.on_message = self._on_message
             
-            # 设置遗嘱消息
-            topics = self.config['mqtt']['topics']
-            status_topic = topics['status'].format(device_id=self.device_id)
+            # 设置遗嘱消息（设备离线）
+            offline_topic = self.topic_manager.build(TopicManager.LIFECYCLE_OFFLINE)
+            from utils.mqtt_messages import LifecycleOfflineMessage
+            offline_msg = LifecycleOfflineMessage(
+                device_id=self.device_id,
+                data={"reason": "unexpected", "last_heartbeat": int(time.time() * 1000)}
+            )
             self.client.will_set(
-                topic=status_topic,
-                payload=json.dumps({"online": False, "timestamp": time.time()}),
+                topic=offline_topic,
+                payload=offline_msg.to_json(),
                 qos=1,
                 retain=True
             )
@@ -94,6 +100,12 @@ class MQTTClientProcess:
             password = self.config['mqtt'].get('password')
             if username and password:
                 self.client.username_pw_set(username, password)
+            
+            # 初始化发布器和分发器
+            self.publisher = MQTTPublisher(self.client, self.topic_manager, logger)
+            self.dispatcher = MQTTMessageDispatcher(
+                self.ipc, self.topic_manager, self.publisher, logger
+            )
             
             logger.info("✅ MQTT 客户端初始化成功")
             
@@ -124,14 +136,8 @@ class MQTTClientProcess:
             logger.info("✅ MQTT 连接成功")
             self.is_connected = True
             
-            # 订阅指令主题
-            topics = self.config['mqtt']['topics']
-            qos = self.config['mqtt']['qos']
-            
-            subscribe_topics = [
-                (topics['command'].format(device_id=self.device_id), qos),
-                (topics['config'].format(device_id=self.device_id), qos),
-            ]
+            # 使用 TopicManager 获取订阅列表
+            subscribe_topics = self.topic_manager.get_device_subscribe_topics()
             self.client.subscribe(subscribe_topics)
             logger.info(f"📥 已订阅主题: {[t[0] for t in subscribe_topics]}")
             
@@ -139,7 +145,7 @@ class MQTTClientProcess:
             self._publish_online_status()
             
             # 发送缓存的消息
-            self._flush_message_buffer()
+            self.publisher.flush_buffer()
             
         else:
             logger.error(f"❌ MQTT 连接失败，返回码: {rc}")
@@ -156,46 +162,49 @@ class MQTTClientProcess:
     def _on_message(self, client, userdata, msg):
         """收到消息回调"""
         try:
-            payload = json.loads(msg.payload.decode())
-            logger.info(f"📥 收到平台指令: {payload}")
+            topic = msg.topic
+            payload = msg.payload.decode()
+            logger.info(f"📥 收到消息: {topic}")
             
-            # 转发给 Supervisor
-            self.ipc.send(
-                msg_type='mqtt_command',
-                target='supervisor',
-                data={
-                    'action': payload.get('action'),
-                    'data': payload.get('data')
-                }
-            )
+            self.dispatcher.dispatch(topic, payload)
             
         except Exception as e:
-            logger.error(f"处理 MQTT 消息失败: {e}")
+            logger.error(f"处理 MQTT 消息失败: {e}", exc_info=True)
     
     def _publish_online_status(self):
         """发布上线消息"""
-        topics = self.config['mqtt']['topics']
-        status_topic = topics['status'].format(device_id=self.device_id)
-        
-        payload = json.dumps({
-            "online": True,
-            "timestamp": time.time(),
-            "device_name": self.config['device']['name']
-        })
-        
-        self.client.publish(status_topic, payload, qos=1, retain=True)
-        logger.info("📤 已发送上线消息")
+        try:
+            from utils.mqtt_messages import LifecycleOnlineMessage
+            
+            online_msg = LifecycleOnlineMessage(
+                device_id=self.device_id,
+                data={
+                    "device_name": self.config['device']['name'],
+                    "firmware_version": self.config['device'].get('firmware_version', '1.0.0')
+                }
+            )
+            
+            self.publisher.publish(online_msg, retain=True)
+            logger.info("📤 已发送上线消息")
+            
+        except Exception as e:
+            logger.error(f"发送上线消息失败: {e}")
     
     def _heartbeat_loop(self):
         """心跳循环"""
-        topics = self.config['mqtt']['topics']
-        heartbeat_topic = topics['heartbeat'].format(device_id=self.device_id)
-        
         while self.running:
             if self.is_connected:
                 try:
-                    payload = json.dumps({"timestamp": time.time()})
-                    self.client.publish(heartbeat_topic, payload, qos=0)
+                    # 获取当前全局状态
+                    global_state = self.state.get('global_state', 'safe')
+                    uptime = int(time.time() - self.state.get('start_time', time.time()))
+                    
+                    # 使用 Publisher 发送心跳
+                    self.publisher.publish_lifecycle_heartbeat(
+                        uptime=uptime,
+                        global_state=global_state
+                    )
+                    
                 except Exception as e:
                     logger.error(f"心跳发送失败: {e}")
                     self.is_connected = False
@@ -208,80 +217,54 @@ class MQTTClientProcess:
     def _ipc_message_handler(self):
         """处理来自其他进程的消息"""
         while self.running:
+            data = msg.get('data', {})
             msg = self.ipc.receive(timeout=1.0)
             if msg:
                 self._handle_ipc_message(msg)
+                
     
     def _handle_ipc_message(self, msg):
         """处理 IPC 消息"""
         msg_type = msg.get('type')
+        data = msg.get('data', {})
         
         if msg_type == 'report_alarm':
-            # 上报告警
-            self._publish_alarm(msg.get('data', {}))
+            # 判断告警类型并上报
+            alarm_type = data.get('alarm_type', '')
+            if 'audio' in alarm_type or 'sound' in alarm_type:
+                self.publisher.publish_alarm_audio(data)
+            elif 'vision' in alarm_type or 'person' in alarm_type or 'object' in alarm_type:
+                self.publisher.publish_alarm_vision(data)
+            else:
+                # 默认作为视觉告警
+                self.publisher.publish_alarm_vision(data)
+            logger.info("📤 告警已上报")
             
         elif msg_type == 'report_health':
             # 上报健康状态
-            self._publish_health(msg.get('data', {}))
+            self.publisher.publish_health_metrics(data)
+            logger.debug("📤 健康状态已上报")
             
         elif msg_type == 'critical_alarm':
-            # 严重告警
-            self._publish_critical_alarm(msg.get('data', {}))
+            # 严重系统告警
+            self.publisher.publish_alarm_system(data)
+            logger.error("📤 严重告警已上报")
+        
+        elif msg_type == 'stream_status_changed':
+            # 推流状态变更
+            self.publisher.publish_status_stream(data)
+            logger.info("📤 推流状态已上报")
+        
+        elif msg_type == 'hardware_status_changed':
+            # 硬件状态变更
+            self.publisher.publish_status_hardware(data)
+            logger.info("📤 硬件状态已上报")
+        
+        elif msg_type == 'process_status_changed':
+            # 进程状态变更
+            self.publisher.publish_health_process(data)
+            logger.info("📤 进程状态已上报")
         
         elif msg_type == 'shutdown':
             logger.info("收到关闭信号")
             self.running = False
-    
-    def _publish_alarm(self, alarm_data: dict):
-        """发布告警消息"""
-        topics = self.config['mqtt']['topics']
-        alarm_topic = topics['alarm'].format(device_id=self.device_id)
-        
-        payload = json.dumps(alarm_data)
-        
-        if self.is_connected:
-            self.client.publish(alarm_topic, payload, qos=1)
-            logger.info("📤 告警已上报")
-        else:
-            # 缓存消息
-            self._buffer_message(alarm_topic, payload, qos=1)
-    
-    def _publish_health(self, health_data: dict):
-        """发布健康状态"""
-        topics = self.config['mqtt']['topics']
-        health_topic = topics['health'].format(device_id=self.device_id)
-        
-        payload = json.dumps(health_data)
-        
-        if self.is_connected:
-            self.client.publish(health_topic, payload, qos=0)
-            logger.debug("📤 健康状态已上报")
-    
-    def _publish_critical_alarm(self, alarm_data: dict):
-        """发布严重告警"""
-        topics = self.config['mqtt']['topics']
-        alarm_topic = topics['alarm'].format(device_id=self.device_id)
-        
-        payload = json.dumps(alarm_data)
-        
-        if self.is_connected:
-            self.client.publish(alarm_topic, payload, qos=2)  # QoS 2 确保送达
-            logger.error("📤 严重告警已上报")
-    
-    def _buffer_message(self, topic, payload, qos):
-        """缓存消息"""
-        if len(self.message_buffer) < self.max_buffer_size:
-            self.message_buffer.append((topic, payload, qos))
-            logger.warning(f"⚠️ MQTT 未连接，消息已缓存（队列: {len(self.message_buffer)}）")
-        else:
-            logger.error("❌ 消息缓存队列已满，丢弃消息")
-    
-    def _flush_message_buffer(self):
-        """发送缓存的消息"""
-        if self.message_buffer:
-            logger.info(f"📤 发送缓存的 {len(self.message_buffer)} 条消息")
-            
-            for topic, payload, qos in self.message_buffer:
-                self.client.publish(topic, payload, qos)
-            
-            self.message_buffer.clear()

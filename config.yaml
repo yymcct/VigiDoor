@@ -16,14 +16,8 @@ mqtt:
   keepalive: 60
   qos: 1
   
-  # 主题配置
-  topics:
-    status: "devices/{device_id}/status"
-    alarm: "devices/{device_id}/alarm"
-    heartbeat: "devices/{device_id}/heartbeat"
-    command: "devices/{device_id}/command"
-    config: "devices/{device_id}/config"
-    health: "devices/{device_id}/health"
+  # 注意：MQTT 话题现在由 utils/mqtt_topics.py 中的 TopicManager 统一管理
+  # 旧的 topics 配置已废弃，无需手动配置话题模板
 
 # AI 检测配置
 ai_detector:
