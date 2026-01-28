@@ -7,7 +7,8 @@ import json
 import threading
 import os
 from utils.logger import setup_logger
-from utils.ipc import IPCHelper
+from core.ipc import IPCClient, MessageType
+from core.ipc.registry import ProcessName
 from mqtt import TopicManager, MQTTPublisher, MQTTMessageDispatcher
 
 logger = setup_logger('mqtt_client')
@@ -24,8 +25,8 @@ class MQTTClientProcess:
     4. 处理平台下发的控制指令
     """
     
-    def __init__(self, ipc_queue, shared_state, config):
-        self.ipc = IPCHelper(ipc_queue, 'mqtt_client')
+    def __init__(self, ipc_client: IPCClient, shared_state, config):
+        self.ipc = ipc_client
         self.state = shared_state
         self.config = config
         self.running = True
@@ -234,7 +235,8 @@ class MQTTClientProcess:
         while self.running:
             msg = self.ipc.receive(timeout=1.0)
             if msg:
-                self._handle_ipc_message(msg)
+                msg_dict = msg.to_dict() if hasattr(msg, 'to_dict') else msg
+                self._handle_ipc_message(msg_dict)
                 
     
     def _handle_ipc_message(self, msg):

@@ -175,8 +175,7 @@ def test_handlers():
     print("="*60)
     
     from mqtt import TopicManager, MQTTPublisher, MQTTMessageDispatcher
-    import multiprocessing as mp
-    from utils.ipc import IPCHelper
+    from core.ipc import MessageBus, ProcessName
     
     # 创建模拟组件
     class MockMQTTClient:
@@ -185,8 +184,8 @@ def test_handlers():
                 rc = 0
             return Result()
     
-    ipc_queue = mp.Queue()
-    ipc = IPCHelper(ipc_queue, 'test')
+    bus = MessageBus(max_queue_size=10)
+    ipc = bus.get_client(ProcessName.MQTT_CLIENT)
     tm = TopicManager("RPI_001")
     publisher = MQTTPublisher(MockMQTTClient(), tm)
     dispatcher = MQTTMessageDispatcher(ipc, tm, publisher)
@@ -248,8 +247,8 @@ def test_integration():
     publisher = MQTTPublisher(MockClient(), tm)
     
     print("3️⃣ 构建告警消息...")
-    alarm_data = {
-        "alarm_type": "person_detected",
+        bus = MessageBus(max_queue_size=10)
+        ipc = bus.get_client(ProcessName.MQTT_CLIENT)
         "confidence": 0.95,
         "object_count": 2,
         "severity": "high"
@@ -276,11 +275,12 @@ def main():
         test_publisher()
         test_handlers()
         test_integration()
-        
-        print("\n" + "🎉 "*20)
-        print("所有测试通过！MQTT 重构成功！")
-        print("🎉 "*20 + "\n")
-        
+            try:
+                ipc_msg = bus.get_client(ProcessName.STREAM_MANAGER).receive(timeout=0.1)
+                if ipc_msg:
+                    print(f"   转发到: {ipc_msg.target}")
+                    print(f"   消息类型: {ipc_msg.msg_type}")
+            except:
         return 0
         
     except Exception as e:

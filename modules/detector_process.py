@@ -7,7 +7,8 @@ import time
 import os
 import numpy as np
 from utils.logger import setup_logger
-from utils.ipc import IPCHelper
+from core.ipc import IPCClient, MessageType
+from core.ipc.registry import ProcessName
 from utils.frame_buffer import SharedFrameBuffer
 
 logger = setup_logger('ai_detector')
@@ -26,8 +27,8 @@ class AIDetectorProcess:
     6. 判断是否为异常事件并上报到 Supervisor
     """
     
-    def __init__(self, ipc_queue, shared_state, config):
-        self.ipc = IPCHelper(ipc_queue, 'ai_detector')
+    def __init__(self, ipc_client: IPCClient, shared_state, config):
+        self.ipc = ipc_client
         self.state = shared_state
         self.config = config
         self.running = True

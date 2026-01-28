@@ -7,7 +7,9 @@ import time
 import numpy as np
 import cv2
 from utils.logger import setup_logger
-from utils.ipc import IPCHelper
+from core.ipc import IPCClient, MessageType
+from core.ipc.message import FrameReadyMessage
+from core.ipc.registry import ProcessName
 from utils.frame_buffer import SharedFrameBuffer
 
 logger = setup_logger('camera_process')
@@ -24,8 +26,8 @@ class CameraProcess:
     4. 监控采集帧率，异常时上报Supervisor
     """
     
-    def __init__(self, ipc_queue, shared_state, config):
-        self.ipc = IPCHelper(ipc_queue, 'camera_process')
+    def __init__(self, ipc_client: IPCClient, shared_state, config):
+        self.ipc = ipc_client
         self.state = shared_state
         self.config = config
         self.running = True
@@ -211,9 +213,11 @@ class CameraProcess:
                 
                 # 检查关闭信号
                 msg = self.ipc.receive(timeout=0.001)
-                if msg and msg.get('type') == 'shutdown':
-                    logger.info("收到关闭信号")
-                    break
+                if msg:
+                    msg_dict = msg.to_dict() if hasattr(msg, 'to_dict') else msg
+                    if msg_dict.get('type') in ['shutdown', MessageType.SHUTDOWN.value]:
+                        logger.info("收到关闭信号")
+                        break
                 
                 # 帧率控制
                 elapsed = time.time() - loop_start
@@ -265,8 +269,10 @@ class CameraProcess:
                 
                 # 检查关闭信号
                 msg = self.ipc.receive(timeout=0.001)
-                if msg and msg.get('type') == 'shutdown':
-                    break
+                if msg:
+                    msg_dict = msg.to_dict() if hasattr(msg, 'to_dict') else msg
+                    if msg_dict.get('type') in ['shutdown', MessageType.SHUTDOWN.value]:
+                        break
                 
                 # 帧率控制
                 elapsed = time.time() - loop_start
@@ -303,23 +309,20 @@ class CameraProcess:
         return frame
     
     def _notify_frame_ready(self, frame_id):
-        """通知其他进程新帧就绪"""
-        self.ipc.send(
-            msg_type='frame_ready',
-            target='broadcast',  # 广播给所有进程
-            data={
-                'frame_id': frame_id,
-                'timestamp': time.time(),
-                'width': self.width,
-                'height': self.height
-            }
+        msg = FrameReadyMessage(
+            frame_id=frame_id,
+            timestamp=time.time(),
+            width=self.width,
+            height=self.height,
+            target=ProcessName.STREAM_MANAGER
         )
+        self.ipc.send_message(msg)
     
     def _send_heartbeat(self):
         """发送心跳（包含FPS信息）"""
         self.ipc.send(
-            msg_type='heartbeat',
-            target='supervisor',
+            msg_type=MessageType.HEARTBEAT,
+            target=ProcessName.SUPERVISOR,
             data={
                 'fps': self.current_fps,
                 'frame_count': self.frame_count

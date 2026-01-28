@@ -5,7 +5,8 @@
 
 import time
 from utils.logger import setup_logger
-from utils.ipc import IPCHelper
+from core.ipc import IPCClient, MessageType
+from core.ipc.registry import ProcessName
 
 logger = setup_logger('audio_processor')
 
@@ -20,8 +21,8 @@ class AudioProcessorProcess:
     3. 播放远程喊话音频
     """
     
-    def __init__(self, ipc_queue, shared_state, config):
-        self.ipc = IPCHelper(ipc_queue, 'audio_processor')
+    def __init__(self, ipc_client: IPCClient, shared_state, config):
+        self.ipc = ipc_client
         self.state = shared_state
         self.config = config
         self.running = True
@@ -62,13 +63,14 @@ class AudioProcessorProcess:
                 # 处理消息
                 msg = self.ipc.receive(timeout=0.1)
                 if msg:
-                    msg_type = msg.get('type')
+                    msg_dict = msg.to_dict() if hasattr(msg, 'to_dict') else msg
+                    msg_type = msg_dict.get('type')
                     
-                    if msg_type == 'play_audio':
+                    if msg_type == 'play_audio' or msg_type == MessageType.CMD_PLAY_AUDIO.value:
                         logger.info("🔊 收到远程喊话指令")
-                        self._play_audio(msg.get('data'))
+                        self._play_audio(msg_dict.get('data'))
                     
-                    elif msg_type == 'shutdown':
+                    elif msg_type == 'shutdown' or msg_type == MessageType.SHUTDOWN.value:
                         logger.info("收到关闭信号")
                         break
                 
@@ -123,8 +125,8 @@ class AudioProcessorProcess:
         logger.warning("🔊 检测到异常声音")
         
         self.ipc.send(
-            msg_type='audio_anomaly',
-            target='supervisor',
+            msg_type=MessageType.AUDIO_ANOMALY,
+            target=ProcessName.SUPERVISOR,
             data={
                 'event_type': 'audio_anomaly',
                 'timestamp': time.time()

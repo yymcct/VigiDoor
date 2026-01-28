@@ -5,7 +5,8 @@
 
 import time
 from utils.logger import setup_logger
-from utils.ipc import IPCHelper
+from core.ipc import IPCClient, MessageType
+from core.ipc.registry import ProcessName
 
 logger = setup_logger('device_controller')
 
@@ -24,8 +25,8 @@ class DeviceControllerProcess:
     MODE_ALERT = "alert"    # 黄色
     MODE_ALARM = "alarm"    # 红色闪烁
     
-    def __init__(self, ipc_queue, shared_state, config):
-        self.ipc = IPCHelper(ipc_queue, 'device_controller')
+    def __init__(self, ipc_client: IPCClient, shared_state, config):
+        self.ipc = ipc_client
         self.state = shared_state
         self.config = config
         self.running = True
@@ -58,12 +59,15 @@ class DeviceControllerProcess:
                 # 检查状态变化
                 msg = self.ipc.receive(timeout=0.1)
                 if msg:
-                    if msg.get('type') == 'set_light':
-                        mode = msg.get('mode')
+                    msg_dict = msg.to_dict() if hasattr(msg, 'to_dict') else msg
+                    msg_type = msg_dict.get('type')
+                    
+                    if msg_type in ['set_light', MessageType.CMD_SET_LIGHT.value]:
+                        mode = msg_dict.get('mode') or msg_dict.get('data', {}).get('mode')
                         if mode:
                             self._set_mode(strip, mode)
                     
-                    elif msg.get('type') == 'shutdown':
+                    elif msg_type in ['shutdown', MessageType.SHUTDOWN.value]:
                         logger.info("收到关闭信号")
                         break
                 

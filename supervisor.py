@@ -12,32 +12,34 @@ import os
 import sys
 import yaml
 from dataclasses import dataclass, field
-from typing import Dict, List, Callable, Optional
-from datetime import datetime
+from typing import Dict, List, Callable
 
 # 添加项目根目录到 Python 路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from utils.logger import setup_logger
-from utils.ipc import IPCHelper
-from utils.message_handlers import MessageRouter
 
-# 全局日志
+from core.ipc import MessageBus
+from core.ipc.message import MessageType, IPCMessage, ShutdownMessage, CommandMessage
+from core.ipc.registry import ProcessName
+
 logger = setup_logger('supervisor')
 
 
-def process_wrapper(target_func: Callable, process_name: str, ipc_queue, shared_state, config: dict):
+def process_wrapper(target_func: Callable, process_name: str, ipc_queue_or_client, shared_state, config: dict):
     """
     进程包装器 - 捕获所有异常并记录
     这是每个子进程的入口点（模块级别函数，避免 pickle 错误）
+    
+    Args:
+        ipc_queue_or_client: IPCClient 实例
     """
     try:
         # 重新配置日志（子进程需要独立配置）
         logger = setup_logger(process_name)
         logger.info(f"🔧 {process_name} 进程启动")
         
-        # 执行实际业务逻辑
-        target_func(ipc_queue, shared_state, config)
+        target_func(ipc_queue_or_client, shared_state, config)
         
     except KeyboardInterrupt:
         logger.info(f"⚠️ {process_name} 收到中断信号")
@@ -103,13 +105,13 @@ class ProcessConfig:
 
 class ProcessSupervisor:
     """
-    进程监督者 - 系统的核心大脑
+    进程监督者 - 系统协调中心
     
     职责：
     1. 管理所有子进程的生命周期
     2. 监控进程健康状态
     3. 自动重启崩溃进程
-    4. 路由进程间消息
+    4. 消费全局协调消息（作为普通消费者）
     5. 管理全局状态机
     """
     
@@ -119,15 +121,15 @@ class ProcessSupervisor:
     STATE_ALARM = "alarm"    # 报警状态（红灯闪烁）
     
     def __init__(self, config_path: str = "./config.yaml"):
-        # 加载配置
         self.config = self._load_config(config_path)
         
         # 进程管理
         self.processes: Dict[str, mp.Process] = {}
         self.process_configs: List[ProcessConfig] = []
         
-        # 进程间通信
-        self.ipc_queue = mp.Queue(maxsize=1000)
+        self.message_bus = MessageBus(max_queue_size=1000)
+        
+        # 共享状态
         self.shared_state = mp.Manager().dict({
             'global_state': self.STATE_SAFE,
             'device_id': self.config['device']['id'],
@@ -139,9 +141,6 @@ class ProcessSupervisor:
         # 控制标志
         self.running = True
         self.shutdown_event = threading.Event()
-        
-        # 消息路由器（延迟初始化，避免 pickle 错误）
-        self.message_router = None
         
         # 初始化进程配置
         self._init_process_configs()
@@ -205,23 +204,18 @@ class ProcessSupervisor:
         ]
     
     def start(self):
-        """启动 Supervisor 主服务"""
-        logger.info("🚀 Supervisor 启动中...")
+        logger.info("🚀 Supervisor 主服务启动中...")
         
         # 注册信号处理
         signal.signal(signal.SIGTERM, self._signal_handler)
         signal.signal(signal.SIGINT, self._signal_handler)
         
-        # 创建必要的目录
         self._create_directories()
         
-        # 启动所有子进程
         self._start_all_processes()
         
-        # 启动监控线程
         self._start_monitor_threads()
         
-        # 主循环（保持运行）
         self._main_loop()
     
     def _create_directories(self):
@@ -248,10 +242,11 @@ class ProcessSupervisor:
     def _start_single_process(self, config: ProcessConfig) -> bool:
         """启动单个子进程"""
         try:
-            # 创建进程 - 使用模块级别函数避免序列化 self
+            ipc_obj = self.message_bus.get_client(config.name)
+            
             process = mp.Process(
                 target=process_wrapper,
-                args=(config.target, config.name, self.ipc_queue, self.shared_state, self.config),
+                args=(config.target, config.name, ipc_obj, self.shared_state, self.config),
                 name=config.name,
                 daemon=False
             )
@@ -273,7 +268,7 @@ class ProcessSupervisor:
         """启动所有监控线程"""
         threads = [
             threading.Thread(target=self._heartbeat_monitor, name="HeartbeatMonitor", daemon=True),
-            threading.Thread(target=self._message_router, name="MessageRouter", daemon=True),
+            threading.Thread(target=self._message_consumer, name="MessageConsumer", daemon=True),
             threading.Thread(target=self._health_reporter, name="HealthReporter", daemon=True),
         ]
         
@@ -339,27 +334,136 @@ class ProcessSupervisor:
         config.restart_history.append(now)
         return True
     
-    def _message_router(self):
-        """消息路由线程 - 处理进程间通信"""
-        logger.info("📬 消息路由线程启动")
+    def _message_consumer(self):
+        """消息处理线程 - Supervisor作为普通消费者
         
-        # 延迟初始化消息路由器（避免在 __init__ 中创建导致 pickle 错误）
-        self.message_router = MessageRouter(self)
-        logger.info(f"已注册消息类型: {self.message_router.get_registered_types()}")
+        Supervisor只是一个特殊的消费者：
+        1. 消费需要全局协调的消息（anomaly_detected, mqtt_command等）
+        2. 改变全局状态（shared_state）
+        3. 主动发送指令给其他进程
+        """
+        logger.info("📬 Supervisor消息处理线程启动")
         
+        supervisor_client = self.message_bus.get_client(ProcessName.SUPERVISOR)
         while self.running:
             try:
-                # 从队列获取消息（阻塞等待）
-                msg = self.ipc_queue.get(timeout=1)
-                
-                # 路由消息到对应的处理器
-                self.message_router.route(msg)
-                
-            except:
+                msg = supervisor_client.receive(timeout=1)
+                if msg:
+                    self._handle_message(msg)
+            except Exception as e:
+                if self.running:
+                    logger.debug(f"消息接收超时或错误: {e}")
                 continue
     
-    # 消息处理逻辑已迁移到 utils/message_handlers.py
-    # 如需添加新的消息类型处理，请在 message_handlers.py 中创建新的 Handler 类
+    def _handle_message(self, msg: IPCMessage) -> None:
+        """根据消息类型处理业务逻辑"""
+        msg_type = msg.msg_type
+        if msg_type in (MessageType.HEARTBEAT, 'heartbeat'):
+            self._handle_heartbeat(msg)
+        elif msg_type in (MessageType.ANOMALY_DETECTED, 'anomaly_detected'):
+            self._handle_anomaly_detected(msg)
+        elif msg_type in (MessageType.AUDIO_ANOMALY, 'audio_anomaly'):
+            self._handle_audio_anomaly(msg)
+        elif msg_type in (MessageType.MQTT_COMMAND, 'mqtt_command'):
+            self._handle_mqtt_command(msg)
+        else:
+            logger.debug(f"未处理的消息类型: {msg_type}")
+    
+    def _handle_heartbeat(self, msg: IPCMessage) -> None:
+        """处理心跳消息"""
+        process_name = msg.sender
+        if process_name:
+            self.shared_state['last_heartbeat'][process_name] = time.time()
+            logger.debug(f"收到 {process_name} 心跳")
+    
+    def _handle_anomaly_detected(self, msg: IPCMessage) -> None:
+        """处理 AI 检测到的异常"""
+        data = msg.data or {}
+        logger.warning(f"🚨 检测到异常: {data}")
+        
+        self._set_global_state('alarm')
+        
+        alarm_msg = CommandMessage(
+            cmd_type=MessageType.REPORT_ALARM,
+            target=ProcessName.MQTT_CLIENT,
+            cmd_data=data
+        )
+        self.message_bus.send(ProcessName.MQTT_CLIENT, alarm_msg)
+        
+        light_msg = CommandMessage(
+            cmd_type=MessageType.CMD_SET_LIGHT,
+            target=ProcessName.DEVICE_CONTROLLER,
+            cmd_data={'mode': 'alarm'}
+        )
+        self.message_bus.send(ProcessName.DEVICE_CONTROLLER, light_msg)
+    
+    def _handle_audio_anomaly(self, msg: IPCMessage) -> None:
+        """处理音频异常"""
+        data = msg.data or {}
+        logger.warning("🔊 检测到异常声音")
+        
+        self._set_global_state('alert')
+        
+        light_msg = CommandMessage(
+            cmd_type=MessageType.CMD_SET_LIGHT,
+            target=ProcessName.DEVICE_CONTROLLER,
+            cmd_data={'mode': 'alert'}
+        )
+        self.message_bus.send(ProcessName.DEVICE_CONTROLLER, light_msg)
+    
+    def _handle_mqtt_command(self, msg: IPCMessage) -> None:
+        """处理平台下发的指令"""
+        data = msg.data or {}
+        action = data.get('action')
+        logger.info(f"📥 收到平台指令: {action}")
+        
+        handler_map = {
+            'start_stream': self._handle_start_stream,
+            'stop_stream': self._handle_stop_stream,
+            'remote_speak': self._handle_remote_speak,
+        }
+        
+        handler = handler_map.get(action)
+        if handler:
+            handler(msg)
+        else:
+            logger.warning(f"未知的平台指令: {action}")
+    
+    def _handle_start_stream(self, msg: IPCMessage) -> None:
+        """处理开始推流指令"""
+        data = msg.data or {}
+        stream_msg = CommandMessage(
+            cmd_type=MessageType.CMD_START_STREAM,
+            target=ProcessName.STREAM_MANAGER,
+            cmd_data=data
+        )
+        self.message_bus.send(ProcessName.STREAM_MANAGER, stream_msg)
+    
+    def _handle_stop_stream(self, msg: IPCMessage) -> None:
+        """处理停止推流指令"""
+        stream_msg = CommandMessage(
+            cmd_type=MessageType.CMD_STOP_STREAM,
+            target=ProcessName.STREAM_MANAGER,
+            cmd_data={}
+        )
+        self.message_bus.send(ProcessName.STREAM_MANAGER, stream_msg)
+    
+    def _handle_remote_speak(self, msg: IPCMessage) -> None:
+        """处理远程喊话指令"""
+        data = msg.data or {}
+        audio_msg = CommandMessage(
+            cmd_type=MessageType.CMD_PLAY_AUDIO,
+            target=ProcessName.AUDIO_PROCESSOR,
+            cmd_data=data
+        )
+        self.message_bus.send(ProcessName.AUDIO_PROCESSOR, audio_msg)
+    
+    def _set_global_state(self, state: str) -> None:
+        """设置全局状态"""
+        old_state = self.shared_state['global_state']
+        if old_state != state:
+            self.shared_state['global_state'] = state
+            logger.info(f"🔄 全局状态切换: {old_state} → {state}")
     
     def _health_reporter(self):
         """健康状态上报线程"""
@@ -371,11 +475,13 @@ class ProcessSupervisor:
                 metrics = self._collect_system_metrics()
                 
                 # 通过 MQTT 上报
-                self.ipc_queue.put({
-                    'type': 'report_health',
-                    'to': 'mqtt_client',
-                    'data': metrics
-                })
+                from core.ipc.message import StatusMessage
+                msg = StatusMessage(
+                    status_type=MessageType.REPORT_HEALTH,
+                    status_data=metrics
+                )
+                msg.target = ProcessName.MQTT_CLIENT
+                self.message_bus.send(ProcessName.MQTT_CLIENT, msg)
                 
                 # 每分钟上报一次
                 time.sleep(self.config['monitoring']['health_report_interval'])
@@ -421,14 +527,16 @@ class ProcessSupervisor:
             'device_id': self.shared_state['device_id']
         }
         
-        self.ipc_queue.put({
-            'type': 'critical_alarm',
-            'to': 'mqtt_client',
-            'data': alarm_data
-        })
+        from core.ipc.message import AlarmMessage, MessagePriority
+        msg = AlarmMessage(
+            alarm_type=MessageType.CRITICAL_ALARM,
+            alarm_data=alarm_data
+        )
+        msg.target = ProcessName.MQTT_CLIENT
+        msg.priority = MessagePriority.CRITICAL
+        self.message_bus.send(ProcessName.MQTT_CLIENT, msg)
     
     def _main_loop(self):
-        """主循环 - 保持进程运行"""
         logger.info("♻️  Supervisor 主循环启动")
         
         try:
@@ -451,10 +559,8 @@ class ProcessSupervisor:
         
         # 通知所有子进程准备关闭
         for name in self.processes.keys():
-            self.ipc_queue.put({
-                'type': 'shutdown',
-                'to': name
-            })
+            shutdown_msg = ShutdownMessage(target=name, reason='supervisor_shutdown')
+            self.message_bus.send(name, shutdown_msg)
         
         # 等待子进程优雅退出
         time.sleep(2)
@@ -470,6 +576,10 @@ class ProcessSupervisor:
                 if process.is_alive():
                     logger.warning(f"  强制杀死进程 {name}")
                     process.kill()
+        
+        # 关闭消息总线
+        self.message_bus.close()
+        logger.info("✅ 消息总线已关闭")
         
         logger.info("✅ 所有进程已停止，Supervisor 退出")
     

@@ -20,8 +20,8 @@ def test_imports():
         from utils.logger import setup_logger
         print("✅ utils.logger 导入成功")
         
-        from utils.ipc import IPCHelper, IPCMessage
-        print("✅ utils.ipc 导入成功")
+        from core.ipc import IPCClient, MessageBus
+        print("✅ core.ipc 导入成功")
         
         import yaml
         print("✅ yaml 导入成功")
@@ -97,22 +97,28 @@ def test_ipc():
     print("=" * 60)
     
     try:
-        import multiprocessing as mp
-        from utils.ipc import IPCHelper, IPCMessage
+        from core.ipc import MessageBus, ProcessName
+        from core.ipc.message import IPCMessage, MessageType
         
-        # 创建消息队列
-        queue = mp.Queue()
+        bus = MessageBus(max_queue_size=10)
+        sender = bus.get_client(ProcessName.CAMERA)
+        receiver = bus.get_client(ProcessName.SUPERVISOR)
         
-        # 创建 IPC 助手
-        ipc = IPCHelper(queue, 'test_process')
-        
-        # 发送消息
-        ipc.send('test_message', target='receiver', data={'key': 'value'})
+        msg = IPCMessage(
+            msg_type=MessageType.HEARTBEAT,
+            target=ProcessName.SUPERVISOR,
+            data={'key': 'value'},
+        )
+        sender.send_message(msg)
         print("✅ 消息发送成功")
         
-        # 接收消息
-        msg = queue.get(timeout=1)
-        print(f"✅ 消息接收成功: {msg['type']}")
+        received = receiver.receive(timeout=1)
+        if received:
+            print(f"✅ 消息接收成功: {received.msg_type}")
+        else:
+            raise RuntimeError("未收到消息")
+        
+        bus.close()
         
         print("\n✅ IPC 系统测试通过！\n")
         return True

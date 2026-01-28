@@ -9,19 +9,19 @@ import logging
 
 from mqtt.messages import CommandMessage
 from mqtt.publisher import MQTTPublisher
-from utils.ipc import IPCHelper
+from core.ipc import IPCClient
 
 
 class MQTTMessageHandler(ABC):
     """MQTT 消息处理器基类"""
     
-    def __init__(self, ipc: IPCHelper, publisher: MQTTPublisher, 
+    def __init__(self, ipc: IPCClient, publisher: MQTTPublisher, 
                  logger: Optional[logging.Logger] = None):
         """
         初始化消息处理器
         
         Args:
-            ipc: IPC 通信助手
+            ipc: IPC 客户端
             publisher: MQTT 发布器
             logger: 日志记录器
         """
@@ -56,7 +56,7 @@ class MQTTMessageHandler(ABC):
             是否处理成功
         """
         pass
-    
+    #TODO 应答消息要和华为云再联合调试一下
     def send_response(self, command_type: str, request_msg_id: str,
                      status: str, message: str = "", error_code: Optional[int] = None):
         """

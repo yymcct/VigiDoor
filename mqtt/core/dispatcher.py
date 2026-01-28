@@ -12,7 +12,7 @@ from mqtt.core.base import MQTTMessageHandler
 from mqtt.topics import TopicManager
 from mqtt.messages import MessageFactory, CommandMessage
 from mqtt.publisher import MQTTPublisher
-from utils.ipc import IPCHelper
+from core.ipc import IPCClient
 
 
 class MQTTMessageDispatcher:
@@ -26,14 +26,14 @@ class MQTTMessageDispatcher:
     4. 处理响应
     """
     
-    def __init__(self, ipc: IPCHelper, topic_manager: TopicManager,
+    def __init__(self, ipc: IPCClient, topic_manager: TopicManager,
                  publisher: MQTTPublisher,
                  logger: Optional[logging.Logger] = None):
         """
         初始化分发器
         
         Args:
-            ipc: IPC 通信助手
+            ipc: IPC 客户端
             topic_manager: 话题管理器
             publisher: MQTT 发布器
             logger: 日志记录器

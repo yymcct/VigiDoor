@@ -11,7 +11,8 @@ from datetime import datetime
 from enum import Enum
 import numpy as np
 from utils.logger import setup_logger
-from utils.ipc import IPCHelper
+from core.ipc import IPCClient, MessageType
+from core.ipc.registry import ProcessName
 from utils.frame_buffer import SharedFrameBuffer
 
 logger = setup_logger('stream_manager')
@@ -48,8 +49,8 @@ class StreamManagerProcess:
     4. 推流到ZLMediaKit（RTSP/RTMP）
     """
     
-    def __init__(self, ipc_queue, shared_state, config):
-        self.ipc = IPCHelper(ipc_queue, 'stream_manager')
+    def __init__(self, ipc_client: IPCClient, shared_state, config):
+        self.ipc = ipc_client
         self.state = shared_state
         self.config = config
         self.running = True
@@ -78,6 +79,11 @@ class StreamManagerProcess:
         self.latest_detections = []
         self.detection_lock = threading.Lock()
         
+        # 帧就绪通知（消息驱动，替代轮询）
+        self.frame_ready_event = threading.Event()
+        self.latest_frame_id = -1
+        self.frame_id_lock = threading.Lock()
+        
         # 组合完整推流URL
         self.stream_url = f"{self.zlm_server}/{self.stream_key}"
         
@@ -96,7 +102,10 @@ class StreamManagerProcess:
                 # 处理消息
                 msg = self.ipc.receive(timeout=1.0)
                 if msg:
-                    msg_type = msg.get('type')
+                    # 直接访问IPCMessage对象属性
+                    msg_dict = msg.to_dict()
+                    msg_type = msg_dict.get('type')
+                    msg_data = msg_dict.get('data', {})
                     
                     if msg_type == 'start_stream':
                         logger.info("📤 收到开始推流指令")
@@ -108,7 +117,11 @@ class StreamManagerProcess:
                     
                     elif msg_type == 'detection_result':
                         # 接收AI检测结果（用于OSD渲染）
-                        self._update_detection_result(msg.get('data', {}))
+                        self._update_detection_result(msg_data)
+                    
+                    elif msg_type == 'frame_ready' or msg_type == MessageType.FRAME_READY.value:
+                        # 接收新帧就绪通知（消息驱动，避免轮询）
+                        self._on_frame_ready(msg_data)
                     
                     elif msg_type == 'shutdown':
                         logger.info("收到关闭信号")
@@ -129,6 +142,14 @@ class StreamManagerProcess:
         """更新检测结果（用于OSD渲染）"""
         with self.detection_lock:
             self.latest_detections = data.get('detections', [])
+    
+    def _on_frame_ready(self, data):
+        """处理新帧就绪通知（消息驱动）"""
+        frame_id = data.get('frame_id', -1)
+        with self.frame_id_lock:
+            self.latest_frame_id = frame_id
+        # 通知OSD渲染线程有新帧
+        self.frame_ready_event.set()
     
     def _start_stream(self):
         """启动推流"""
@@ -226,8 +247,8 @@ class StreamManagerProcess:
     # ==================== 线程1：OSD渲染 ====================
     
     def _osd_render_loop(self):
-        """OSD渲染线程 - 叠加时间戳和检测框"""
-        logger.info("🎨 OSD渲染线程启动")
+        """OSD渲染线程 - 叠加时间戳和检测框（事件驱动优化）"""
+        logger.info("🎨 OSD渲染线程启动（事件驱动模式）")
         
         last_frame_id = -1
         
@@ -236,18 +257,22 @@ class StreamManagerProcess:
             
             while self.stream_state in [StreamState.STARTING, StreamState.STREAMING]:
                 try:
+                    # 等待新帧就绪通知（事件驱动，避免CPU轮询）
+                    if not self.frame_ready_event.wait(timeout=1.0):
+                        continue
+                    
+                    self.frame_ready_event.clear()
+                    
                     # 读取最新帧
                     frame_data = self.frame_buffer.read_frame(copy=True)
                     
                     if frame_data is None:
-                        time.sleep(0.01)
                         continue
                     
                     frame, frame_id, timestamp = frame_data
                     
-                    # 避免重复处理
+                    # 避免重复处理（检查是否是新帧）
                     if frame_id <= last_frame_id:
-                        time.sleep(0.01)
                         continue
                     
                     last_frame_id = frame_id
