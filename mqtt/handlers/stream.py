@@ -4,6 +4,8 @@
 
 from mqtt.core.base import MQTTMessageHandler
 from mqtt.messages import CommandMessage
+from core.ipc.message import CommandMessage as IPCCommandMessage, MessageType
+from core.ipc.registry import ProcessName
 
 
 class CommandStreamHandler(MQTTMessageHandler):
@@ -25,20 +27,23 @@ class CommandStreamHandler(MQTTMessageHandler):
         
         try:
             if action == 'start':
-                # 转发给 stream_manager 进程
-                self.ipc.send(
-                    msg_type='start_stream',
-                    target='stream_manager',
-                    data=message.data
+                # 使用强类型消息直接发送给 stream_manager 进程
+                stream_msg = IPCCommandMessage(
+                    cmd_type=MessageType.CMD_START_STREAM,
+                    target=ProcessName.STREAM_MANAGER,
+                    cmd_data=message.data
                 )
+                self.ipc.send_message(stream_msg)
                 self.send_response('stream', message.msg_id, 'success', '推流指令已接收')
                 
             elif action == 'stop':
-                # 转发给 stream_manager 进程
-                self.ipc.send(
-                    msg_type='stop_stream',
-                    target='stream_manager'
+                # 使用强类型消息直接发送给 stream_manager 进程
+                stream_msg = IPCCommandMessage(
+                    cmd_type=MessageType.CMD_STOP_STREAM,
+                    target=ProcessName.STREAM_MANAGER,
+                    cmd_data={}
                 )
+                self.ipc.send_message(stream_msg)
                 self.send_response('stream', message.msg_id, 'success', '停止推流指令已接收')
                 
             else:

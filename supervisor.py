@@ -418,8 +418,6 @@ class ProcessSupervisor:
         logger.info(f"📥 收到平台指令: {action}")
         
         handler_map = {
-            'start_stream': self._handle_start_stream,
-            'stop_stream': self._handle_stop_stream,
             'remote_speak': self._handle_remote_speak,
         }
         
@@ -428,25 +426,6 @@ class ProcessSupervisor:
             handler(msg)
         else:
             logger.warning(f"未知的平台指令: {action}")
-    
-    def _handle_start_stream(self, msg: IPCMessage) -> None:
-        """处理开始推流指令"""
-        data = msg.data or {}
-        stream_msg = CommandMessage(
-            cmd_type=MessageType.CMD_START_STREAM,
-            target=ProcessName.STREAM_MANAGER,
-            cmd_data=data
-        )
-        self.message_bus.send(ProcessName.STREAM_MANAGER, stream_msg)
-    
-    def _handle_stop_stream(self, msg: IPCMessage) -> None:
-        """处理停止推流指令"""
-        stream_msg = CommandMessage(
-            cmd_type=MessageType.CMD_STOP_STREAM,
-            target=ProcessName.STREAM_MANAGER,
-            cmd_data={}
-        )
-        self.message_bus.send(ProcessName.STREAM_MANAGER, stream_msg)
     
     def _handle_remote_speak(self, msg: IPCMessage) -> None:
         """处理远程喊话指令"""

@@ -53,8 +53,6 @@ class MessageType(str, Enum):
     RESPONSE = "response"
     
     # ========== 兼容旧代码 ==========
-    START_STREAM = "start_stream"
-    STOP_STREAM = "stop_stream"
     SET_LIGHT = "set_light"
     PLAY_AUDIO = "play_audio"
     STREAM_STATUS_CHANGED = "stream_status_changed"

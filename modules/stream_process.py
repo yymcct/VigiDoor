@@ -1,5 +1,5 @@
 """
-流媒体管理进程（重构版）
+流媒体管理进程
 采用双线程架构：OSD渲染 + FFmpeg编码推流
 """
 
@@ -87,13 +87,13 @@ class StreamManagerProcess:
         # 组合完整推流URL
         self.stream_url = f"{self.zlm_server}/{self.stream_key}"
         
-        logger.info(f"流媒体管理进程初始化完成（重构版）")
+        logger.info(f"流媒体管理进程初始化完成")
         logger.info(f"  设备ID: {config['device']['id']}")
         logger.info(f"  推流地址: {self.stream_url}")
     
     def run(self):
         """主循环"""
-        logger.info("📹 流媒体管理进程启动（重构版）")
+        logger.info("📹 流媒体管理进程启动")
         
         last_heartbeat = time.time()
         
@@ -107,11 +107,11 @@ class StreamManagerProcess:
                     msg_type = msg_dict.get('type')
                     msg_data = msg_dict.get('data', {})
                     
-                    if msg_type == 'start_stream':
+                    if msg_type == MessageType.CMD_START_STREAM.value:
                         logger.info("📤 收到开始推流指令")
                         self._start_stream()
                     
-                    elif msg_type == 'stop_stream':
+                    elif msg_type == MessageType.CMD_STOP_STREAM.value:
                         logger.info("⏹️  收到停止推流指令")
                         self._stop_stream()
                     
@@ -119,11 +119,11 @@ class StreamManagerProcess:
                         # 接收AI检测结果（用于OSD渲染）
                         self._update_detection_result(msg_data)
                     
-                    elif msg_type == 'frame_ready' or msg_type == MessageType.FRAME_READY.value:
+                    elif msg_type == MessageType.FRAME_READY.value:
                         # 接收新帧就绪通知（消息驱动，避免轮询）
                         self._on_frame_ready(msg_data)
                     
-                    elif msg_type == 'shutdown':
+                    elif msg_type == MessageType.SHUTDOWN.value:
                         logger.info("收到关闭信号")
                         break
                 
