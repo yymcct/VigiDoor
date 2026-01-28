@@ -86,7 +86,7 @@ def run_device_controller(queue, shared_state, config):
 
 def run_camera(queue, shared_state, config):
     """视频采集进程入口"""
-    from modules.camera_process import CameraProcess
+    from modules.camera import CameraProcess
     camera = CameraProcess(queue, shared_state, config)
     camera.run()
 

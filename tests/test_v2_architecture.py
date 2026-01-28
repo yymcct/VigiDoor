@@ -90,7 +90,7 @@ def test_camera_process():
         
         # 启动采集进程
         print("启动采集进程...")
-        from modules.camera_process import CameraProcess
+        from modules.camera import CameraProcess
         
         process = mp.Process(
             target=lambda: CameraProcess(ipc_queue, shared_state, config).run(),
@@ -158,7 +158,7 @@ def test_detector_enhancement():
         
         # 先启动采集进程（提供帧数据）
         print("启动采集进程...")
-        from modules.camera_process import CameraProcess
+        from modules.camera import CameraProcess
         
         camera_proc = mp.Process(
             target=lambda: CameraProcess(ipc_queue, shared_state, config).run(),
