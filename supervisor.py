@@ -82,6 +82,13 @@ def run_device_controller(queue, shared_state, config):
     device.run()
 
 
+def run_camera(queue, shared_state, config):
+    """视频采集进程入口"""
+    from modules.camera_process import CameraProcess
+    camera = CameraProcess(queue, shared_state, config)
+    camera.run()
+
+
 @dataclass
 class ProcessConfig:
     """进程配置"""
@@ -160,6 +167,12 @@ class ProcessSupervisor:
         
         self.process_configs = [
             ProcessConfig(
+                name='camera',
+                target=run_camera,
+                critical=True,
+                startup_delay=delays.get('camera', 0)
+            ),
+            ProcessConfig(
                 name='device_controller',
                 target=run_device_controller,
                 critical=True,
@@ -177,12 +190,12 @@ class ProcessSupervisor:
                 critical=False,
                 startup_delay=delays['audio_processor']
             ),
-            ProcessConfig(
-                name='ai_detector',
-                target=run_ai_detector,
-                critical=True,
-                startup_delay=delays['ai_detector']
-            ),
+            # ProcessConfig(
+            #     name='ai_detector',
+            #     target=run_ai_detector,
+            #     critical=True,
+            #     startup_delay=delays['ai_detector']
+            # ),
             ProcessConfig(
                 name='stream_manager',
                 target=run_stream_manager,

@@ -26,18 +26,19 @@ ai_detector:
   model_path: "./models/yolov8n.pt"  # YOLO 模型路径
   confidence_threshold: 0.7  # 置信度阈值
   target_classes: [0]  # 检测目标类别（0=人）
-  fps: 10  # 检测帧率
-  frame_skip: 3  # 跳帧处理（每3帧检测一次）
+  detect_interval: 8  # 检测间隔（每N帧检测一次）
   
-  # 摄像头配置
-  camera:
-    width: 1280
-    height: 720
-    format: "RGB888"
+# 摄像头配置（新增）
+camera:
+  width: 1280
+  height: 720
+  target_fps: 25  # 目标帧率
+  format: "RGB888"  # 像素格式
+  shared_memory_name: "vigidoor_frames"  # 共享内存名称
 
 # 流媒体配置
 stream:
-  zlm_server: "rtmp://your-zlm-server:1935/live"  # ZLMediaKit 服务器地址
+  zlm_server: "rtsp://192.168.38.166/live"  # ZLMediaKit 服务器地址
   stream_key: "{device_id}"  # 推流密钥
   video_codec: "h264"
   audio_codec: "aac"
@@ -87,11 +88,12 @@ supervisor:
   
   # 进程启动延迟（秒）
   startup_delays:
-    device_controller: 0
-    mqtt_client: 0.5
-    audio_processor: 1.0
+    camera: 0                # 摄像头最先启动
+    device_controller: 0.5
+    mqtt_client: 1.0
+    audio_processor: 1.5
     ai_detector: 2.0
-    stream_manager: 0
+    stream_manager: 2.5
 
 # 系统监控配置
 monitoring:

@@ -321,7 +321,7 @@ class MQTTMessageDispatcher:
             # 1. 解析消息
             message = MessageFactory.parse_message(topic, payload)
             if message is None:
-                self.logger.warning(f"消息解析失败: {topic}")
+                self.logger.warning(f"消息解析失败: {topic}，{payload}")
                 return False
             
             # 2. 基础验证
@@ -329,9 +329,9 @@ class MQTTMessageDispatcher:
                 return False
             
             # 3. 时间戳检查（防止重放攻击）
-            if self._is_expired(message):
-                self.logger.warning(f"收到过期消息: {message.msg_id}")
-                return False
+            # if self._is_expired(message):
+            #     self.logger.warning(f"收到过期消息: {message.msg_id}")
+            #     return False
             
             # 4. 去重检查
             if self._is_duplicate(message.msg_id):

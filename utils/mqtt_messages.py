@@ -369,16 +369,46 @@ class MessageFactory:
         """
         try:
             data = json.loads(payload)
-            device_id = data.get('device_id', '')
+            
+            # 如果消息外层有包装（如有 content 字段），则提取真实内容
+            if 'content' in data and isinstance(data['content'], dict):
+                data = data['content']
             
             # 根据话题创建对应的消息对象
             for keyword, message_class in cls.MESSAGE_TYPE_MAP.items():
                 if keyword in topic:
-                    return message_class(**data)
+                    # 过滤出消息类支持的字段
+                    valid_fields = cls._filter_valid_fields(message_class, data)
+                    return message_class(**valid_fields)
             
             # 默认解析为基类
-            return MQTTMessageBase(**data)
+            valid_fields = cls._filter_valid_fields(MQTTMessageBase, data)
+            return MQTTMessageBase(**valid_fields)
             
         except Exception as e:
             print(f"消息解析失败: {e}")
             return None
+    
+    @staticmethod
+    def _filter_valid_fields(message_class, data: dict) -> dict:
+        """
+        过滤出 dataclass 支持的字段
+        
+        Args:
+            message_class: 消息类
+            data: 原始数据字典
+        
+        Returns:
+            只包含 dataclass 定义字段的字典
+        """
+        from dataclasses import fields as dataclass_fields
+        
+        # 使用 dataclasses.fields() 获取所有字段（包括继承的）
+        try:
+            valid_field_names = {f.name for f in dataclass_fields(message_class)}
+        except Exception:
+            # 如果不是 dataclass，返回空字典
+            return {}
+        
+        # 只保留有效字段
+        return {k: v for k, v in data.items() if k in valid_field_names}
