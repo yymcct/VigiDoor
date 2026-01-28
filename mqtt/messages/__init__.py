@@ -3,7 +3,7 @@ MQTT 消息模块
 使用 dataclass 定义标准化的消息结构，支持自动序列化和验证
 
 使用方式：
-    from utils.mqtt_messages import AlarmVisionMessage, MessageFactory
+    from mqtt.messages import AlarmVisionMessage, MessageFactory
     
     # 创建消息
     msg = AlarmVisionMessage(

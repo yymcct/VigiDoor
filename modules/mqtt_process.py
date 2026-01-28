@@ -8,9 +8,7 @@ import threading
 import os
 from utils.logger import setup_logger
 from utils.ipc import IPCHelper
-from utils.mqtt_topics import TopicManager
-from utils.mqtt_publisher import MQTTPublisher
-from utils.mqtt_handlers import MQTTMessageDispatcher
+from mqtt import TopicManager, MQTTPublisher, MQTTMessageDispatcher
 
 logger = setup_logger('mqtt_client')
 
@@ -84,7 +82,7 @@ class MQTTClientProcess:
             
             # 设置遗嘱消息（设备离线）
             offline_topic = self.topic_manager.build(TopicManager.LIFECYCLE_OFFLINE)
-            from utils.mqtt_messages import LifecycleOfflineMessage
+            from mqtt.messages import LifecycleOfflineMessage
             offline_msg = LifecycleOfflineMessage(
                 device_id=self.device_id,
                 data={"reason": "unexpected", "last_heartbeat": int(time.time() * 1000)}

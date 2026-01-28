@@ -17,7 +17,7 @@ def test_topic_manager():
     print("📋 测试 TopicManager")
     print("="*60)
     
-    from utils.mqtt_topics import TopicManager
+    from mqtt import TopicManager
     
     tm = TopicManager("RPI_001")
     
@@ -57,7 +57,7 @@ def test_message_models():
     print("📦 测试消息模型")
     print("="*60)
     
-    from utils.mqtt_messages import (
+    from mqtt.messages import (
         AlarmVisionMessage,
         HealthMetricsMessage,
         CommandMessage,
@@ -115,8 +115,7 @@ def test_publisher():
     print("📤 测试 MQTTPublisher")
     print("="*60)
     
-    from utils.mqtt_topics import TopicManager
-    from utils.mqtt_publisher import MQTTPublisher
+    from mqtt import TopicManager, MQTTPublisher
     
     # 创建模拟的 MQTT 客户端
     class MockMQTTClient:
@@ -175,9 +174,7 @@ def test_handlers():
     print("🎯 测试消息处理器")
     print("="*60)
     
-    from utils.mqtt_topics import TopicManager
-    from utils.mqtt_publisher import MQTTPublisher
-    from utils.mqtt_handlers import MQTTMessageDispatcher
+    from mqtt import TopicManager, MQTTPublisher, MQTTMessageDispatcher
     import multiprocessing as mp
     from utils.ipc import IPCHelper
     
@@ -232,9 +229,7 @@ def test_integration():
     print("🔗 集成测试")
     print("="*60)
     
-    from utils.mqtt_topics import TopicManager
-    from utils.mqtt_messages import AlarmVisionMessage
-    from utils.mqtt_publisher import MQTTPublisher
+    from mqtt import TopicManager, AlarmVisionMessage, MQTTPublisher
     
     # 模拟完整流程
     class MockClient:
