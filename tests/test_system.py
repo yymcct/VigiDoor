@@ -144,7 +144,7 @@ def test_process_modules():
         from modules.device_process import DeviceControllerProcess
         print("✅ DeviceControllerProcess 导入成功")
         
-        from modules.stream_process import StreamManagerProcess
+        from modules.stream import StreamManagerProcess
         print("✅ StreamManagerProcess 导入成功")
         
         from modules.audio_process import AudioProcessorProcess

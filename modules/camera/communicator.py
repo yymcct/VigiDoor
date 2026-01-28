@@ -72,6 +72,7 @@ class CameraCommunicator:
         
         if now - self.last_heartbeat >= self.heartbeat_interval:
             try:
+                # TODO 重构
                 self.ipc.send(
                     msg_type=MessageType.HEARTBEAT,
                     target=ProcessName.SUPERVISOR,

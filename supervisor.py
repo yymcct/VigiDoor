@@ -72,7 +72,7 @@ def run_mqtt_client(queue, shared_state, config):
 
 def run_stream_manager(queue, shared_state, config):
     """流媒体进程入口"""
-    from modules.stream_process import StreamManagerProcess
+    from modules.stream import StreamManagerProcess
     stream = StreamManagerProcess(queue, shared_state, config)
     stream.run()
 
