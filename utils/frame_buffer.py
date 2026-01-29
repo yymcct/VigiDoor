@@ -223,6 +223,7 @@ class SharedFrameBuffer:
         """清理共享内存（仅写入者调用）"""
         try:
             logger.info(f"🧹 清理共享内存: {self.name}")
+            self._release_views()
             self.shm.close()
             self.shm.unlink()
         except Exception as e:
@@ -231,10 +232,24 @@ class SharedFrameBuffer:
     def close(self):
         """关闭共享内存（读取者调用）"""
         try:
+            self._release_views()
             self.shm.close()
             logger.info(f"关闭共享内存: {self.name}")
         except Exception as e:
             logger.error(f"关闭共享内存失败: {e}")
+
+    def _release_views(self):
+        """释放对共享内存的所有视图引用，避免 BufferError"""
+        try:
+            if hasattr(self, 'buffers') and self.buffers is not None:
+                for i in range(len(self.buffers)):
+                    self.buffers[i] = None
+                self.buffers = None
+
+            if hasattr(self, 'header_bytes'):
+                self.header_bytes = None
+        except Exception as e:
+            logger.debug(f"释放共享内存视图失败: {e}")
     
     @staticmethod
     def _format_size(size_bytes):
@@ -249,6 +264,7 @@ class SharedFrameBuffer:
         """析构函数"""
         try:
             if hasattr(self, 'shm'):
+                self._release_views()
                 self.shm.close()
         except:
             pass

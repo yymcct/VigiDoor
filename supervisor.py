@@ -5,6 +5,7 @@ VigiDoor Supervisor - 智慧安防门主进程管理器
 """
 
 import multiprocessing as mp
+from multiprocessing import shared_memory
 import signal
 import time
 import threading
@@ -541,8 +542,13 @@ class ProcessSupervisor:
             shutdown_msg = ShutdownMessage(target=name, reason='supervisor_shutdown')
             self.message_bus.send(name, shutdown_msg)
         
-        # 等待子进程优雅退出
-        time.sleep(2)
+        # 等待子进程优雅退出（最多 5 秒）
+        graceful_deadline = time.time() + 5
+        while time.time() < graceful_deadline:
+            if not any(p.is_alive() for p in self.processes.values()):
+                break
+            for process in self.processes.values():
+                process.join(timeout=0.2)
         
         # 强制终止所有子进程
         for name, process in self.processes.items():
@@ -559,8 +565,27 @@ class ProcessSupervisor:
         # 关闭消息总线
         self.message_bus.close()
         logger.info("✅ 消息总线已关闭")
+
+        # 清理共享内存（防止资源泄漏警告）
+        self._cleanup_shared_memory()
         
         logger.info("✅ 所有进程已停止，Supervisor 退出")
+
+    def _cleanup_shared_memory(self):
+        """清理共享内存残留（仅在退出时调用）"""
+        shm_name = self.config.get('camera', {}).get('shared_memory_name')
+        if not shm_name:
+            return
+
+        try:
+            shm = shared_memory.SharedMemory(name=shm_name)
+            shm.close()
+            shm.unlink()
+            logger.info(f"🧹 已清理共享内存: {shm_name}")
+        except FileNotFoundError:
+            pass
+        except Exception as e:
+            logger.warning(f"清理共享内存失败: {e}")
     
 
 if __name__ == '__main__':
