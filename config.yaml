@@ -21,13 +21,7 @@ mqtt:
   # 注意：MQTT 话题现在由 utils/mqtt_topics.py 中的 TopicManager 统一管理
   # 旧的 topics 配置已废弃，无需手动配置话题模板
 
-# AI 检测配置
-ai_detector:
-  model_path: "./models/yolov8n.pt"  # YOLO 模型路径
-  confidence_threshold: 0.7  # 置信度阈值
-  target_classes: [0]  # 检测目标类别（0=人）
-  detect_interval: 8  # 检测间隔（每N帧检测一次）
-  
+
 # 摄像头配置（新增）
 camera:
   width: 1280
@@ -113,3 +107,86 @@ storage:
   cache_dir: "./data/cache"  # 临时缓存目录
   max_snapshot_age: 86400  # 快照保留时间（秒，1天）
   max_cache_size: 1073741824  # 最大缓存大小（字节，1GB）
+
+
+# AI检测器配置示例
+
+ai_detector:
+  # 基础配置
+  model_path: "models/yolov8n.pt"
+  confidence_threshold: 0.5
+  target_classes: [0]  # 0=person
+  detect_interval: 8  # 默认检测间隔（帧）
+  
+  # 跳帧策略（根据系统状态动态调整）
+  safe_interval: 8     # 安全状态：每8帧检测一次
+  alert_interval: 3    # 警戒状态：每3帧检测一次
+  alarm_interval: 1    # 报警状态：每帧都检测
+  
+  # 报警配置
+  alarm_cooldown: 5.0  # 报警冷却时间（秒）
+  
+  # Pipeline配置（串行检测链）
+  pipeline:
+    # 第1级：运动检测（早停关键）
+    - type: motion
+      enabled: true
+      config:
+        min_area: 500              # 最小运动区域面积（像素）
+        threshold: 25              # 二值化阈值
+        blur_size: 21              # 高斯模糊核大小
+        use_background_subtractor: true  # 使用MOG2背景减除
+    
+    # 第2级：YOLO目标检测
+    - type: yolo
+      enabled: true
+      config:
+        model_path: "models/yolov8n.pt"
+        confidence_threshold: 0.5
+        target_classes: [0]        # 0=person
+        input_size: 640
+    
+    # 第3级：区域入侵检测
+    - type: region
+      enabled: true
+      config:
+        overlap_threshold: 0.1     # 重叠阈值（10%）
+        regions:
+          # 矩形区域示例
+          - name: "门口警戒区"
+            type: rect
+            enabled: true
+            coords: [0.3, 0.4, 0.4, 0.5]  # [x, y, w, h] 归一化坐标
+          
+          # 多边形区域示例
+          - name: "楼梯区域"
+            type: polygon
+            enabled: false
+            coords:  # 多边形顶点 [[x1,y1], [x2,y2], ...]
+              - [0.2, 0.3]
+              - [0.5, 0.2]
+              - [0.7, 0.5]
+              - [0.4, 0.6]
+# 使用说明：
+# 
+# 1. 调整检测频率：
+#    - 提高性能：增大 detect_interval
+#    - 实时性优先：减小 detect_interval
+#
+# 2. 运动检测调优：
+#    - 减少误报：增大 min_area
+#    - 提高灵敏度：减小 min_area 和 threshold
+#
+# 3. YOLO检测调优：
+#    - 减少误报：提高 confidence_threshold
+#    - 增加召回率：降低 confidence_threshold
+#
+# 4. 区域检测：
+#    - 归一化坐标范围：[0.0, 1.0]
+#    - 原点在左上角
+#    - 矩形：[x, y, width, height]
+#    - 多边形：顺时针或逆时针定义顶点
+#
+# 5. Pipeline顺序说明：
+#    运动检测 → YOLO检测 → 区域检测
+#    前一级返回 should_continue=False 时，后续检测器不执行（早停）

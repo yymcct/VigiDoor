@@ -52,7 +52,7 @@ def process_wrapper(target_func: Callable, process_name: str, ipc_queue_or_clien
 
 def run_ai_detector(queue, shared_state, config):
     """AI 检测进程入口"""
-    from modules.detector_process import AIDetectorProcess
+    from modules.detector import AIDetectorProcess
     detector = AIDetectorProcess(queue, shared_state, config)
     detector.run()
 
@@ -190,12 +190,12 @@ class ProcessSupervisor:
                 critical=False,
                 startup_delay=delays['audio_processor']
             ),
-            # ProcessConfig(
-            #     name='ai_detector',
-            #     target=run_ai_detector,
-            #     critical=True,
-            #     startup_delay=delays['ai_detector']
-            # ),
+            ProcessConfig(
+                name='ai_detector',
+                target=run_ai_detector,
+                critical=True,
+                startup_delay=delays['ai_detector']
+            ),
             ProcessConfig(
                 name='stream_manager',
                 target=run_stream_manager,
