@@ -84,8 +84,8 @@ class CaptureManager:
                     timestamp=timestamp
                 )
                 
-                # 3. 通知其他进程
-                self.communicator.notify_frame_ready(frame_id, timestamp)
+                # 3. 通知其他进程（已优化：OSD渲染器直接轮询共享内存，无需事件通知）
+                # self.communicator.notify_frame_ready(frame_id, timestamp)
                 
                 # 4. 更新性能统计
                 self.monitor.on_frame_captured()

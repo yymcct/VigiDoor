@@ -217,3 +217,208 @@ class CompositeOSDElement(OSDElement):
         """移除元素"""
         if element in self.elements:
             self.elements.remove(element)
+
+
+class SkeletonElement(OSDElement):
+    """
+    人体骨架元素
+    绘制人体关键点和骨架连线（用于姿态估计）
+    """
+    
+    # COCO格式的骨架连接关系（17个关键点）
+    SKELETON_CONNECTIONS = [
+        (0, 1), (0, 2),      # 鼻子到眼睛
+        (1, 3), (2, 4),      # 眼睛到耳朵
+        (0, 5), (0, 6),      # 鼻子到肩膀
+        (5, 7), (7, 9),      # 左臂
+        (6, 8), (8, 10),     # 右臂
+        (5, 6),              # 肩膀连线
+        (5, 11), (6, 12),    # 肩膀到髋部
+        (11, 13), (13, 15),  # 左腿
+        (12, 14), (14, 16),  # 右腿
+        (11, 12)             # 髋部连线
+    ]
+    
+    def __init__(
+        self,
+        line_thickness: int = 2,
+        keypoint_radius: int = 3,
+        confidence_threshold: float = 0.5
+    ):
+        """
+        Args:
+            line_thickness: 骨架线条粗细
+            keypoint_radius: 关键点半径
+            confidence_threshold: 关键点置信度阈值
+        """
+        self.line_thickness = line_thickness
+        self.keypoint_radius = keypoint_radius
+        self.confidence_threshold = confidence_threshold
+        
+        # 彩虹色系（用于不同的骨架连接）
+        self.colors = [
+            (255, 0, 0), (255, 85, 0), (255, 170, 0), (255, 255, 0),
+            (170, 255, 0), (85, 255, 0), (0, 255, 0), (0, 255, 85),
+            (0, 255, 170), (0, 255, 255), (0, 170, 255), (0, 85, 255),
+            (0, 0, 255), (85, 0, 255), (170, 0, 255), (255, 0, 255),
+            (255, 0, 170)
+        ]
+    
+    def render(self, frame: np.ndarray, **kwargs) -> np.ndarray:
+        """渲染人体骨架"""
+        detections = kwargs.get('detections', [])
+        
+        height, width = frame.shape[:2]
+        
+        for det in detections:
+            keypoints = det.get('keypoints', [])
+            
+            if not keypoints:
+                continue
+            
+            # 转换关键点坐标（归一化 → 像素）
+            kpts_pixel = []
+            for kpt in keypoints:
+                if len(kpt) >= 3:  # [x, y, confidence]
+                    x, y, conf = kpt[0], kpt[1], kpt[2]
+                    
+                    # 过滤低置信度关键点
+                    if conf < self.confidence_threshold:
+                        kpts_pixel.append(None)
+                        continue
+                    
+                    px = int(x * width)
+                    py = int(y * height)
+                    kpts_pixel.append((px, py, conf))
+                else:
+                    kpts_pixel.append(None)
+            
+            # 绘制骨架连线
+            for i, (start_idx, end_idx) in enumerate(self.SKELETON_CONNECTIONS):
+                if start_idx >= len(kpts_pixel) or end_idx >= len(kpts_pixel):
+                    continue
+                
+                start_kpt = kpts_pixel[start_idx]
+                end_kpt = kpts_pixel[end_idx]
+                
+                if start_kpt is None or end_kpt is None:
+                    continue
+                
+                # 绘制连线
+                color = self.colors[i % len(self.colors)]
+                cv2.line(
+                    frame,
+                    (start_kpt[0], start_kpt[1]),
+                    (end_kpt[0], end_kpt[1]),
+                    color,
+                    self.line_thickness
+                )
+            
+            # 绘制关键点
+            for kpt in kpts_pixel:
+                if kpt is None:
+                    continue
+                
+                cv2.circle(
+                    frame,
+                    (kpt[0], kpt[1]),
+                    self.keypoint_radius,
+                    (0, 255, 0),  # 绿色关键点
+                    -1  # 填充
+                )
+        
+        return frame
+
+
+class FootTrafficElement(OSDElement):
+    """
+    客流统计元素
+    在画面上显示进出人数统计（后期功能）
+    """
+    
+    def __init__(
+        self,
+        position: tuple = None,  # None表示自动定位到右上角
+        font_scale: float = 1.0,
+        color: tuple = (255, 255, 255),
+        thickness: int = 2,
+        bg_color: tuple = (0, 0, 0),
+        bg_alpha: float = 0.6
+    ):
+        """
+        Args:
+            position: 显示位置 (x, y)，None表示自动定位
+            font_scale: 字体大小
+            color: 文字颜色 (R, G, B)
+            thickness: 线条粗细
+            bg_color: 背景颜色 (R, G, B)
+            bg_alpha: 背景透明度 (0-1)
+        """
+        self.position = position
+        self.font_scale = font_scale
+        self.color = color
+        self.thickness = thickness
+        self.bg_color = bg_color
+        self.bg_alpha = bg_alpha
+    
+    def render(self, frame: np.ndarray, **kwargs) -> np.ndarray:
+        """渲染客流统计信息"""
+        statistics = kwargs.get('statistics', {})
+        
+        # 获取统计数据
+        in_count = statistics.get('in_count', 0)
+        out_count = statistics.get('out_count', 0)
+        current_count = statistics.get('current_count', 0)
+        
+        # 如果没有数据，不渲染
+        if in_count == 0 and out_count == 0:
+            return frame
+        
+        # 构建显示文本
+        lines = [
+            f"IN:  {in_count}",
+            f"OUT: {out_count}",
+            f"NOW: {current_count}"
+        ]
+        
+        # 自动定位到右上角
+        if self.position is None:
+            height, width = frame.shape[:2]
+            x = width - 200
+            y = 40
+        else:
+            x, y = self.position
+        
+        # 计算文本区域大小
+        line_height = int(30 * self.font_scale)
+        max_width = 0
+        
+        for line in lines:
+            (w, h), _ = cv2.getTextSize(
+                line, cv2.FONT_HERSHEY_SIMPLEX,
+                self.font_scale, self.thickness
+            )
+            max_width = max(max_width, w)
+        
+        # 绘制半透明背景
+        overlay = frame.copy()
+        cv2.rectangle(
+            overlay,
+            (x - 10, y - 30),
+            (x + max_width + 10, y + len(lines) * line_height),
+            self.bg_color,
+            -1
+        )
+        cv2.addWeighted(overlay, self.bg_alpha, frame, 1 - self.bg_alpha, 0, frame)
+        
+        # 绘制文本
+        for i, line in enumerate(lines):
+            text_y = y + i * line_height
+            cv2.putText(
+                frame, line, (x, text_y),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                self.font_scale, self.color, self.thickness
+            )
+        
+        return frame
+

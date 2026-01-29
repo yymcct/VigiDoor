@@ -1,6 +1,5 @@
 """
 流媒体管理进程
-重构后的模块化实现
 """
 
 import time
@@ -13,6 +12,8 @@ from utils.frame_buffer import SharedFrameBuffer
 from .state import StateManager, StreamState
 from .frame_queue import FrameQueue
 from .osd import CompositeOSDElement, TimestampElement, DeviceInfoElement, DetectionBoxElement
+from .osd import SkeletonElement, FootTrafficElement
+from .osd import OSDDataStore, OSDMessageDispatcher
 from .osd.renderer import OSDRenderer
 from .encoder import FFmpegEncoder
 from .pipeline import StreamPipeline
@@ -70,18 +71,15 @@ class StreamManagerProcess:
         # 状态管理
         self.state_manager = StateManager()
         
+        # OSD 数据管理
+        self.data_store = OSDDataStore(ttl=5.0)
+        self.dispatcher = OSDMessageDispatcher(self.data_store)
+        
         # 组件（延迟初始化）
         self.frame_buffer = None
         self.osd_renderer = None
         self.encoder = None
         self.pipeline = None
-        
-        # 检测结果（用于 OSD）
-        self.latest_detections = []
-        self.detection_lock = threading.Lock()
-        
-        # 帧就绪事件
-        self.frame_ready_event = threading.Event()
         
         logger.info(f"流媒体管理进程初始化完成")
         logger.info(f"   设备 ID: {config['device']['id']}")
@@ -135,29 +133,12 @@ class StreamManagerProcess:
             self._stop_stream()
         
         elif msg_type == 'detection_result':
-            # 更新检测结果（用于 OSD）
-            self._update_detection_result(msg_data)
-        
-        elif msg_type == MessageType.FRAME_READY.value:
-            # 新帧就绪通知（触发 OSD 渲染）
-            self.frame_ready_event.set()
+            # 委托给 Dispatcher 处理
+            self.dispatcher.dispatch(msg_dict)
         
         elif msg_type == MessageType.SHUTDOWN.value:
             logger.info("收到关闭信号")
             self.running = False
-    
-    def _update_detection_result(self, data):
-        """更新检测结果（线程安全）"""
-        with self.detection_lock:
-            self.latest_detections = data.get('detections', [])
-            
-            # 更新 OSD 渲染参数
-            if self.osd_renderer:
-                global_state = self.state.get('global_state', 'safe')
-                self.osd_renderer.update_render_params(
-                    detections=self.latest_detections,
-                    state=global_state
-                )
     
     def _start_stream(self):
         """启动推流"""
@@ -255,7 +236,16 @@ class StreamManagerProcess:
                 device_id=self.config['device']['id'],
                 position=None  # 自动定位到左下角
             ),
-            DetectionBoxElement(box_thickness=2, text_font_scale=0.5)
+            DetectionBoxElement(box_thickness=2, text_font_scale=0.5),
+            SkeletonElement(
+                line_thickness=2,
+                keypoint_radius=3,
+                confidence_threshold=0.5
+            ),
+            FootTrafficElement(
+                position=None,  # 自动定位到右上角
+                font_scale=0.8
+            )
         ])
         
         # 2. 创建帧队列
@@ -266,7 +256,7 @@ class StreamManagerProcess:
             frame_buffer=self.frame_buffer,
             output_queue=encode_queue,
             osd_element=osd_elements,
-            frame_ready_event=self.frame_ready_event
+            data_store=self.data_store
         )
         logger.info("✅ OSD 渲染器初始化完成")
         

@@ -49,6 +49,7 @@ class StreamPipeline:
         self.encoded_frame_count = 0
         self.error_count = 0
     
+    # TODO 优化线程
     def start(self, state_getter) -> bool:
         """
         启动处理管道

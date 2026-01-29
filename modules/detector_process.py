@@ -9,6 +9,7 @@ import numpy as np
 from utils.logger import setup_logger
 from core.ipc import IPCClient, MessageType
 from core.ipc.registry import ProcessName
+from core.ipc.message import create_message
 from utils.frame_buffer import SharedFrameBuffer
 
 logger = setup_logger('ai_detector')
@@ -44,6 +45,7 @@ class AIDetectorProcess:
         # 检测统计
         self.last_frame_id = -1
         self.detection_count = 0
+        self.last_mock_publish_time = 0.0
         
         logger.info(f"AI 检测进程初始化完成（增强版）")
         logger.info(f"  置信度阈值: {self.confidence_threshold}")
@@ -66,6 +68,11 @@ class AIDetectorProcess:
             
             while self.running:
                 try:
+                    # 每 1 秒发送一次模拟人形框渲染数据
+                    if time.time() - self.last_mock_publish_time >= 1.0:
+                        self._publish_mock_detection()
+                        self.last_mock_publish_time = time.time()
+
                     # 读取最新帧
                     frame_data = self.frame_buffer.read_frame(copy=True)
                     
@@ -108,7 +115,7 @@ class AIDetectorProcess:
                     
                     # 检查关闭信号
                     msg = self.ipc.receive(timeout=0.001)
-                    if msg and msg.get('type') == 'shutdown':
+                    if msg and msg.msg_type == MessageType.SHUTDOWN:
                         logger.info("收到关闭信号")
                         break
                 
@@ -255,15 +262,60 @@ class AIDetectorProcess:
     
     def _publish_detection_result(self, frame_id, timestamp, detections):
         """发布检测结果（供OSD进程使用）"""
-        self.ipc.send_message({
-            'type': 'detection_result',
-            'to': 'stream_manager',  # 发送给流媒体进程用于OSD渲染
-            'data': {
+        msg = create_message(
+            msg_type='detection_result',
+            target=ProcessName.STREAM_MANAGER,
+            data={
                 'frame_id': frame_id,
                 'timestamp': timestamp,
                 'detections': detections
             }
-        })
+        )
+        self.ipc.send_message(msg)
+
+    def _publish_mock_detection(self):
+        """模拟发送人形框渲染数据（每秒一次）"""
+        # COCO格式17个关键点：[x, y, confidence]
+        # 0:鼻子, 1-2:眼睛, 3-4:耳朵, 5-6:肩膀, 7-8:肘部, 9-10:手腕, 11-12:髋部, 13-14:膝盖, 15-16:脚踝
+        keypoints = [
+            [0.50, 0.25, 0.95],  # 0: 鼻子
+            [0.48, 0.23, 0.92],  # 1: 左眼
+            [0.52, 0.23, 0.93],  # 2: 右眼
+            [0.46, 0.24, 0.88],  # 3: 左耳
+            [0.54, 0.24, 0.89],  # 4: 右耳
+            [0.45, 0.32, 0.96],  # 5: 左肩
+            [0.55, 0.32, 0.97],  # 6: 右肩
+            [0.43, 0.42, 0.91],  # 7: 左肘
+            [0.57, 0.42, 0.90],  # 8: 右肘
+            [0.42, 0.52, 0.85],  # 9: 左手腕
+            [0.58, 0.52, 0.86],  # 10: 右手腕
+            [0.46, 0.55, 0.94],  # 11: 左髋
+            [0.54, 0.55, 0.95],  # 12: 右髋
+            [0.46, 0.68, 0.92],  # 13: 左膝
+            [0.54, 0.68, 0.93],  # 14: 右膝
+            [0.46, 0.82, 0.88],  # 15: 左脚踝
+            [0.54, 0.82, 0.87],  # 16: 右脚踝
+        ]
+        
+        mock_detection = {
+            'class': 0,
+            'class_name': 'person',
+            'confidence': 0.90,
+            'bbox': [0.40, 0.20, 0.20, 0.65],  # [x, y, w, h] 归一化
+            'keypoints': keypoints  # 添加骨架关键点数据
+        }
+
+        msg = create_message(
+            msg_type='detection_result',
+            target=ProcessName.STREAM_MANAGER,
+            data={
+                'frame_id': -1,
+                'timestamp': time.time(),
+                'detections': [mock_detection]
+            }
+        )
+        self.ipc.send_message(msg)
+        logger.warning(f"已发送模拟人形框和骨架渲染数据（17个关键点）")
     
     def _is_anomaly(self, detections):
         """判断是否为异常事件"""

@@ -11,6 +11,7 @@ from utils.logger import setup_logger
 from utils.frame_buffer import SharedFrameBuffer
 
 from .elements import OSDElement
+from .data_store import OSDDataStore
 from ..frame_queue import FrameQueue
 from ..state import StreamState
 
@@ -32,7 +33,7 @@ class OSDRenderer:
         frame_buffer: SharedFrameBuffer,
         output_queue: FrameQueue,
         osd_element: OSDElement,
-        frame_ready_event: threading.Event
+        data_store: OSDDataStore
     ):
         """
         初始化 OSD 渲染器
@@ -41,19 +42,15 @@ class OSDRenderer:
             frame_buffer: 共享内存帧缓冲（输入）
             output_queue: 输出帧队列
             osd_element: OSD 渲染元素
-            frame_ready_event: 新帧就绪事件
+            data_store: OSD数据仓库（提供渲染数据）
         """
         self.frame_buffer = frame_buffer
         self.output_queue = output_queue
         self.osd_element = osd_element
-        self.frame_ready_event = frame_ready_event
+        self.data_store = data_store
         
         self.running = False
         self.thread = None
-        
-        # 渲染参数（由外部更新）
-        self.render_params = {}
-        self.params_lock = threading.Lock()
     
     def start(self, state_getter) -> bool:
         """
@@ -90,9 +87,6 @@ class OSDRenderer:
         logger.info("正在停止 OSD 渲染线程...")
         self.running = False
         
-        # 触发事件让线程快速退出
-        self.frame_ready_event.set()
-        
         if self.thread:
             self.thread.join(timeout=5)
             if self.thread.is_alive():
@@ -100,21 +94,12 @@ class OSDRenderer:
         
         logger.info("✅ OSD 渲染线程已停止")
     
-    def update_render_params(self, **params):
-        """
-        更新渲染参数（线程安全）
-        
-        Args:
-            **params: 渲染参数（如 detections, state 等）
-        """
-        with self.params_lock:
-            self.render_params.update(params)
-    
     def _render_loop(self):
-        """OSD 渲染主循环（事件驱动）"""
-        logger.info("🎨 OSD 渲染循环启动（事件驱动模式）")
+        """主渲染循环（轮询模式）"""
+        logger.info("🎨 OSD 渲染循环启动（轮询模式）")
         
         last_frame_id = -1
+        check_interval = 0.033  # ~30fps的轮询间隔
         
         try:
             while self.running:
@@ -123,21 +108,17 @@ class OSDRenderer:
                     time.sleep(0.1)
                     continue
                 
-                # 等待新帧就绪通知（事件驱动）
-                if not self.frame_ready_event.wait(timeout=1.0):
-                    continue
-                
-                self.frame_ready_event.clear()
-                
-                # 读取原始帧
+                # 直接读取共享内存（轮询）
                 frame_data = self.frame_buffer.read_frame(copy=True)
                 if frame_data is None:
+                    time.sleep(check_interval)
                     continue
                 
                 frame, frame_id, timestamp = frame_data
                 
-                # 避免重复处理
+                # 新帧检测（避免重复处理）
                 if frame_id <= last_frame_id:
+                    time.sleep(check_interval)
                     continue
                 
                 last_frame_id = frame_id
@@ -145,13 +126,12 @@ class OSDRenderer:
                 # 复制帧（避免修改原始数据）
                 frame_osd = frame.copy()
                 
+                # 从 DataStore 获取渲染数据（自动过滤过期数据）
+                render_data = self.data_store.get_render_data()
+                render_data['timestamp'] = timestamp
+                
                 # 应用 OSD 渲染
-                with self.params_lock:
-                    render_params = self.render_params.copy()
-                
-                render_params['timestamp'] = timestamp
-                
-                frame_osd = self.osd_element.render(frame_osd, **render_params)
+                frame_osd = self.osd_element.render(frame_osd, **render_data)
                 
                 # 输出到队列
                 self.output_queue.put((frame_osd, frame_id, timestamp))
