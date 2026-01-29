@@ -32,7 +32,7 @@ ai_detector:
 camera:
   width: 1280
   height: 720
-  target_fps: 25  # 目标帧率
+  target_fps: 15  # 目标帧率
   format: "RGB888"  # 像素格式
   shared_memory_name: "vigidoor_frames"  # 共享内存名称
 
