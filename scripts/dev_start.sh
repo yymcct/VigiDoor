@@ -7,9 +7,9 @@ PROJECT_DIR="/home/yymcct/ws/VigiDoor"
 cd "$PROJECT_DIR"
 
 # 激活虚拟环境（如果存在）
-if [ -d "venv" ]; then
+if [ -d ".venv" ]; then
     echo "激活虚拟环境..."
-    source venv/bin/activate
+    source .venv/bin/activate
 fi
 
 # 直接运行 supervisor
