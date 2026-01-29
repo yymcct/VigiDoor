@@ -77,4 +77,25 @@ python3 supervisor.py
 └──────────────┴──────────────┴──────────────┴──────────────┴────────┘
 ```
 
+## 部署记录
+
+```
+公网IP 125.46.78.210
+
+ssh root@192.168.1.119
+6KSLD26guuWSPBAU
+
+/opt
+
+
+docker-compose up -d
+
+docker tag docker.m.daocloud.io/zlmediakit/zlmediakit:master zlmediakit/zlmediakit:master
+
+https://192.168.1.119:8443/webrtc/?app=live&stream=697882367f2e6c302f4e7aac_RPI_001_0_0_2026012710&type=play&secret=OAY8ZYKLzSuwPK9pfHmLSAHngcsw3VGK
+
+https://125.46.78.210:8443/webrtc/?app=live&stream=697882367f2e6c302f4e7aac_RPI_001_0_0_2026012710&type=play&secret=OAY8ZYKLzSuwPK9pfHmLSAHngcsw3VGK
+
+
+```
 

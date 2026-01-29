@@ -6,6 +6,7 @@
 import time
 import threading
 from core.ipc import IPCClient, MessageType
+from core.ipc.registry import ProcessName
 from utils.logger import setup_logger
 from utils.frame_buffer import SharedFrameBuffer
 
@@ -15,6 +16,8 @@ from .osd import CompositeOSDElement, TimestampElement, DeviceInfoElement, Detec
 from .osd.renderer import OSDRenderer
 from .encoder import FFmpegEncoder
 from .pipeline import StreamPipeline
+
+from core.ipc.message import CommandMessage as IPCCommandMessage, MessageType
 
 logger = setup_logger('stream_manager')
 
@@ -83,6 +86,8 @@ class StreamManagerProcess:
         logger.info(f"流媒体管理进程初始化完成")
         logger.info(f"   设备 ID: {config['device']['id']}")
         logger.info(f"   推流地址: {self.stream_url}")
+        
+        
     
     def run(self):
         """主循环"""
@@ -90,6 +95,13 @@ class StreamManagerProcess:
         
         last_heartbeat = time.time()
         
+        #TODO 测试代码，启动时自动开始推流，需要重构掉
+        stream_msg = IPCCommandMessage(
+            cmd_type=MessageType.CMD_START_STREAM,
+            target=ProcessName.STREAM_MANAGER,
+            cmd_data={}
+        )
+        self.ipc.send_message(stream_msg)
         try:
             while self.running:
                 # 处理消息
