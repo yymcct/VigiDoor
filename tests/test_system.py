@@ -8,7 +8,8 @@ import sys
 import os
 
 # 添加项目路径
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, project_root)
 
 def test_imports():
     """测试模块导入"""
@@ -141,7 +142,7 @@ def test_process_modules():
         from modules.mqtt_process import MQTTClientProcess
         print("✅ MQTTClientProcess 导入成功")
         
-        from modules.device_process import DeviceControllerProcess
+        from modules.device import DeviceControllerProcess
         print("✅ DeviceControllerProcess 导入成功")
         
         from modules.stream import StreamManagerProcess

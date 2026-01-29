@@ -79,7 +79,7 @@ def run_stream_manager(queue, shared_state, config):
 
 def run_device_controller(queue, shared_state, config):
     """硬件控制进程入口"""
-    from modules.device_process import DeviceControllerProcess
+    from modules.device import DeviceControllerProcess
     device = DeviceControllerProcess(queue, shared_state, config)
     device.run()
 

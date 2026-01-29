@@ -1,0 +1,237 @@
+"""
+WS2812B LED 灯带设备实现
+"""
+
+import time
+from typing import Tuple, Optional, Dict, Any
+from ..base import OutputDevice
+from ...effects.base import EffectBase
+from utils.logger import setup_logger
+
+logger = setup_logger('led_strip')
+
+
+class LEDStripDevice(OutputDevice):
+    """
+    WS2812B LED 灯带设备
+    
+    支持硬件模式和模拟模式
+    """
+    
+    def __init__(self, pin: int, count: int, brightness: int = 255, simulate: bool = False):
+        """
+        初始化 LED 灯带
+        
+        Args:
+            pin: GPIO 引脚号
+            count: LED 数量
+            brightness: 亮度 (0-255)
+            simulate: 是否使用模拟模式
+        """
+        super().__init__(
+            device_id=f"led_strip_{pin}",
+            device_type="led_strip",
+            name=f"WS2812B LED Strip (GPIO{pin})"
+        )
+        
+        self.pin = pin
+        self.count = count
+        self.brightness = brightness
+        self.simulate = simulate
+        
+        self._strip = None
+        self._current_effect: Optional[EffectBase] = None
+        self._current_color = (0, 0, 0)
+        self._sim_state = None  # 模拟模式状态
+    
+    def initialize(self) -> bool:
+        """
+        初始化 LED 灯带
+        
+        Returns:
+            是否初始化成功
+        """
+        try:
+            if self.simulate:
+                # 模拟模式
+                logger.info(f"✅ LED 灯带初始化成功（模拟模式）")
+                logger.info(f"  引脚: GPIO {self.pin}")
+                logger.info(f"  数量: {self.count}")
+                self._sim_state = 'off'
+                self._initialized = True
+                return True
+            
+            # 尝试初始化真实硬件
+            try:
+                from rpi_ws281x import PixelStrip
+                
+                self._strip = PixelStrip(
+                    num=self.count,
+                    pin=self.pin,
+                    brightness=self.brightness
+                )
+                self._strip.begin()
+                
+                logger.info("✅ LED 灯带初始化成功")
+                logger.info(f"  引脚: GPIO {self.pin}")
+                logger.info(f"  数量: {self.count}")
+                logger.info(f"  亮度: {self.brightness}")
+                
+                self._initialized = True
+                return True
+                
+            except ImportError:
+                logger.warning("rpi_ws281x 库未安装，切换到模拟模式")
+                self.simulate = True
+                self._sim_state = 'off'
+                self._initialized = True
+                return True
+                
+        except Exception as e:
+            logger.error(f"LED 灯带初始化失败: {e}")
+            self._initialized = False
+            return False
+    
+    def cleanup(self):
+        """清理资源，关闭所有 LED"""
+        try:
+            if self._current_effect:
+                self._current_effect.stop()
+            
+            # 关闭所有 LED
+            self.write((0, 0, 0))
+            
+            if self._strip:
+                # 真实硬件清理
+                pass
+            
+            logger.info("LED 灯带已关闭")
+            
+        except Exception as e:
+            logger.error(f"LED 灯带清理失败: {e}")
+    
+    def write(self, data: Tuple[int, int, int]) -> bool:
+        """
+        设置纯色
+        
+        Args:
+            data: RGB 颜色值 (0-255, 0-255, 0-255)
+            
+        Returns:
+            是否设置成功
+        """
+        if not self._initialized:
+            return False
+        
+        try:
+            self._current_color = data
+            
+            # 停止当前效果
+            if self._current_effect and self._current_effect.is_running():
+                self._current_effect.stop()
+                self._current_effect = None
+            
+            if self.simulate:
+                # 模拟模式
+                logger.info(f"  [模拟] 设置颜色: RGB{data}")
+                return True
+            
+            # 真实硬件
+            if self._strip:
+                from rpi_ws281x import Color
+                r, g, b = data
+                for i in range(self._strip.numPixels()):
+                    self._strip.setPixelColor(i, Color(r, g, b))
+                self._strip.show()
+                return True
+            
+            return False
+            
+        except Exception as e:
+            logger.error(f"设置 LED 颜色失败: {e}")
+            return False
+    
+    def update(self):
+        """
+        更新效果动画（需要在主循环中定期调用）
+        
+        如果有活跃的效果，更新并应用到硬件
+        """
+        if not self._initialized or not self._current_effect:
+            return
+        
+        try:
+            if self._current_effect.is_running():
+                # 获取效果当前帧的颜色
+                color = self._current_effect.update()
+                if color:
+                    self._apply_color(color)
+            
+        except Exception as e:
+            logger.error(f"更新 LED 效果失败: {e}")
+    
+    def set_effect(self, effect: EffectBase):
+        """
+        设置动画效果
+        
+        Args:
+            effect: 效果对象
+        """
+        # 停止当前效果
+        if self._current_effect and self._current_effect.is_running():
+            self._current_effect.stop()
+        
+        # 启动新效果
+        self._current_effect = effect
+        self._current_effect.start()
+    
+    def stop_effect(self):
+        """停止当前效果"""
+        if self._current_effect:
+            self._current_effect.stop()
+            self._current_effect = None
+    
+    def _apply_color(self, color: Tuple[int, int, int]):
+        """
+        内部方法：直接应用颜色到硬件（不影响效果状态）
+        
+        Args:
+            color: RGB 颜色值
+        """
+        if self.simulate:
+            # 模拟模式：根据颜色判断状态
+            if color == (0, 0, 0):
+                if self._sim_state != 'off':
+                    logger.debug("  [模拟] 灯灭")
+                    self._sim_state = 'off'
+            else:
+                if self._sim_state != color:
+                    logger.debug(f"  [模拟] 灯亮: RGB{color}")
+                    self._sim_state = color
+            return
+        
+        # 真实硬件
+        if self._strip:
+            from rpi_ws281x import Color
+            r, g, b = color
+            for i in range(self._strip.numPixels()):
+                self._strip.setPixelColor(i, Color(r, g, b))
+            self._strip.show()
+    
+    def get_info(self) -> Dict[str, Any]:
+        """
+        获取设备信息
+        
+        Returns:
+            设备信息字典
+        """
+        info = super().get_info()
+        info.update({
+            'pin': self.pin,
+            'count': self.count,
+            'brightness': self.brightness,
+            'simulate': self.simulate,
+            'current_color': self._current_color,
+            'current_effect': self._current_effect.name if self._current_effect else None
+        })
+        return info

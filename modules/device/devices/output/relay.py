@@ -1,0 +1,217 @@
+"""
+继电器输出设备实现
+用于控制高电压/大电流设备
+"""
+
+import time
+from typing import Dict, Any
+from ..base import OutputDevice
+from utils.logger import setup_logger
+
+logger = setup_logger('relay')
+
+
+class RelayDevice(OutputDevice):
+    """
+    继电器设备
+    
+    用于控制：
+    - 电灯
+    - 电机
+    - 电磁锁
+    - 其他高电压设备
+    """
+    
+    def __init__(self, pin: int, normally_open: bool = True, 
+                 name: str = None, simulate: bool = False):
+        """
+        初始化继电器
+        
+        Args:
+            pin: GPIO 引脚号
+            normally_open: 是否为常开型（True=常开NO，False=常闭NC）
+            name: 继电器控制的设备名称
+            simulate: 是否使用模拟模式
+        """
+        device_name = name or f"Relay (GPIO{pin})"
+        super().__init__(
+            device_id=f"relay_{pin}",
+            device_type="relay",
+            name=device_name
+        )
+        
+        self.pin = pin
+        self.normally_open = normally_open
+        self.simulate = simulate
+        
+        self._gpio = None
+        self._is_on = False
+    
+    def initialize(self) -> bool:
+        """
+        初始化继电器
+        
+        Returns:
+            是否初始化成功
+        """
+        try:
+            if self.simulate:
+                # 模拟模式
+                logger.info(f"✅ 继电器初始化成功（模拟模式）")
+                logger.info(f"  引脚: GPIO {self.pin}")
+                logger.info(f"  类型: {'常开(NO)' if self.normally_open else '常闭(NC)'}")
+                logger.info(f"  控制: {self.name}")
+                self._initialized = True
+                return True
+            
+            # 尝试初始化真实硬件
+            try:
+                import RPi.GPIO as GPIO
+                
+                GPIO.setmode(GPIO.BCM)
+                GPIO.setup(self.pin, GPIO.OUT)
+                
+                # 初始状态：关闭
+                GPIO.output(self.pin, GPIO.LOW)
+                
+                self._gpio = GPIO
+                
+                logger.info("✅ 继电器初始化成功")
+                logger.info(f"  引脚: GPIO {self.pin}")
+                logger.info(f"  类型: {'常开(NO)' if self.normally_open else '常闭(NC)'}")
+                logger.info(f"  控制: {self.name}")
+                
+                self._initialized = True
+                return True
+                
+            except ImportError:
+                logger.warning("RPi.GPIO 库未安装，切换到模拟模式")
+                self.simulate = True
+                self._initialized = True
+                return True
+                
+        except Exception as e:
+            logger.error(f"继电器初始化失败: {e}")
+            self._initialized = False
+            return False
+    
+    def cleanup(self):
+        """清理资源"""
+        try:
+            # 关闭继电器
+            self.write(False)
+            
+            if self._gpio:
+                self._gpio.cleanup(self.pin)
+            
+            logger.info("继电器已清理")
+            
+        except Exception as e:
+            logger.error(f"继电器清理失败: {e}")
+    
+    def write(self, data: bool) -> bool:
+        """
+        控制继电器开关
+        
+        Args:
+            data: True=开启，False=关闭
+            
+        Returns:
+            是否设置成功
+        """
+        if not self._initialized:
+            return False
+        
+        try:
+            self._is_on = data
+            
+            if self.simulate:
+                # 模拟模式
+                logger.info(f"  [模拟] {self.name}: {'开启' if data else '关闭'}")
+                return True
+            
+            # 真实硬件
+            if self._gpio:
+                # 注意：继电器模块通常是低电平触发
+                # 如果是常开型，开启时输出 HIGH
+                if self.normally_open:
+                    self._gpio.output(self.pin, self._gpio.HIGH if data else self._gpio.LOW)
+                else:
+                    # 常闭型：逻辑相反
+                    self._gpio.output(self.pin, self._gpio.LOW if data else self._gpio.HIGH)
+                return True
+            
+            return False
+            
+        except Exception as e:
+            logger.error(f"控制继电器失败: {e}")
+            return False
+    
+    def turn_on(self) -> bool:
+        """
+        开启继电器
+        
+        Returns:
+            是否成功
+        """
+        return self.write(True)
+    
+    def turn_off(self) -> bool:
+        """
+        关闭继电器
+        
+        Returns:
+            是否成功
+        """
+        return self.write(False)
+    
+    def toggle(self) -> bool:
+        """
+        切换继电器状态
+        
+        Returns:
+            是否成功
+        """
+        return self.write(not self._is_on)
+    
+    def is_on(self) -> bool:
+        """
+        检查继电器是否开启
+        
+        Returns:
+            是否开启
+        """
+        return self._is_on
+    
+    def pulse(self, duration: float = 0.5):
+        """
+        脉冲控制（开启一段时间后自动关闭）
+        
+        Args:
+            duration: 持续时间（秒）
+        """
+        self.turn_on()
+        time.sleep(duration)
+        self.turn_off()
+    
+    def update(self):
+        """
+        更新状态（继电器不需要持续更新）
+        """
+        pass
+    
+    def get_info(self) -> Dict[str, Any]:
+        """
+        获取设备信息
+        
+        Returns:
+            设备信息字典
+        """
+        info = super().get_info()
+        info.update({
+            'pin': self.pin,
+            'normally_open': self.normally_open,
+            'simulate': self.simulate,
+            'is_on': self._is_on
+        })
+        return info
