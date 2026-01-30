@@ -53,7 +53,7 @@ audio:
 hardware:
   # WS2812B 灯带
   led_strip:
-    pin: 18  # GPIO 引脚
+    pin: 10  # GPIO 引脚
     count: 8  # LED 数量
     brightness: 128  # 亮度 (0-255)
     

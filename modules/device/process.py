@@ -71,6 +71,8 @@ class DeviceControllerProcess:
         
         # 设置初始模式
         self.mode_manager.set_mode(DeviceMode.SAFE)
+        # 确保初始模式效果被应用
+        self._apply_mode_effect(self.mode_manager.current_mode)
         
         last_heartbeat = time.time()
         
@@ -108,7 +110,7 @@ class DeviceControllerProcess:
                 pin=self.led_config['pin'],
                 count=self.led_config['count'],
                 brightness=self.led_config['brightness'],
-                simulate=True  # TODO: 从配置读取
+                simulate=False  # TODO: 从配置读取
             )
             
             # 注册设备
@@ -183,24 +185,26 @@ class DeviceControllerProcess:
             new_mode: 新模式
         """
         logger.info(f"💡 切换模式: {old_mode.value} -> {new_mode.value}")
-        
+        self._apply_mode_effect(new_mode)
+
+    def _apply_mode_effect(self, mode: DeviceMode):
+        """根据模式应用 LED 效果（启动时也可复用）"""
         if not self._led_strip:
             return
-        
-        # 根据模式设置 LED 效果
-        if new_mode == DeviceMode.SAFE:
+
+        if mode == DeviceMode.SAFE:
             # 绿色纯色
             color = tuple(self.colors['safe'])
             effect = SolidColorEffect(color)
             self._led_strip.set_effect(effect)
-            
-        elif new_mode == DeviceMode.ALERT:
+
+        elif mode == DeviceMode.ALERT:
             # 黄色纯色
             color = tuple(self.colors['alert'])
             effect = SolidColorEffect(color)
             self._led_strip.set_effect(effect)
-            
-        elif new_mode == DeviceMode.ALARM:
+
+        elif mode == DeviceMode.ALARM:
             # 红色闪烁
             color = tuple(self.colors['alarm'])
             effect = BlinkEffect(color, interval=0.5)

@@ -20,7 +20,8 @@ numpy>=1.24.0
 # scipy>=1.11.0  # 音频分析
 
 # LED 控制
-# rpi-ws281x>=5.0.0  # WS2812B 灯带控制，需要在树莓派上安装
+adafruit-circuitpython-neopixel
+adafruit-circuitpython-neopixel-spi
 
 # 工具库
 python-dateutil>=2.8.2

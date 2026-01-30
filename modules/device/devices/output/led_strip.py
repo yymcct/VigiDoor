@@ -40,6 +40,7 @@ class LEDStripDevice(OutputDevice):
         self.simulate = simulate
         
         self._strip = None
+        self._pixels = None
         self._current_effect: Optional[EffectBase] = None
         self._current_color = (0, 0, 0)
         self._sim_state = None  # 模拟模式状态
@@ -61,31 +62,47 @@ class LEDStripDevice(OutputDevice):
                 self._initialized = True
                 return True
             
-            # 尝试初始化真实硬件
+            # 尝试初始化真实硬件（SPI 驱动）
             try:
-                from rpi_ws281x import PixelStrip
-                
-                self._strip = PixelStrip(
-                    num=self.count,
-                    pin=self.pin,
-                    brightness=self.brightness
+                import board
+                import neopixel_spi as neopixel
+
+                # neopixel_spi 亮度范围为 0.0-1.0
+                brightness = self.brightness
+                if isinstance(brightness, int) or isinstance(brightness, float):
+                    brightness = float(brightness)
+                if brightness > 1.0:
+                    brightness = max(0.0, min(brightness / 255.0, 1.0))
+                else:
+                    brightness = max(0.0, min(brightness, 1.0))
+
+                spi = board.SPI()
+                self._pixels = neopixel.NeoPixel_SPI(
+                    spi,
+                    self.count,
+                    brightness=brightness,
+                    pixel_order=neopixel.GRB,
+                    auto_write=False,
                 )
-                self._strip.begin()
                 
                 logger.info("✅ LED 灯带初始化成功")
                 logger.info(f"  引脚: GPIO {self.pin}")
                 logger.info(f"  数量: {self.count}")
-                logger.info(f"  亮度: {self.brightness}")
+                logger.info(f"  亮度: {brightness}")
                 
                 self._initialized = True
                 return True
                 
             except ImportError:
-                logger.warning("rpi_ws281x 库未安装，切换到模拟模式")
+                logger.warning("neopixel_spi/board 库未安装，切换到模拟模式")
                 self.simulate = True
                 self._sim_state = 'off'
                 self._initialized = True
                 return True
+            except Exception as e:
+                logger.error(f"LED 灯带硬件初始化失败: {e}")
+                self._initialized = False
+                return False
                 
         except Exception as e:
             logger.error(f"LED 灯带初始化失败: {e}")
@@ -101,9 +118,9 @@ class LEDStripDevice(OutputDevice):
             # 关闭所有 LED
             self.write((0, 0, 0))
             
-            if self._strip:
-                # 真实硬件清理
-                pass
+            if self._pixels:
+                self._pixels.fill((0, 0, 0))
+                self._pixels.show()
             
             logger.info("LED 灯带已关闭")
             
@@ -121,6 +138,7 @@ class LEDStripDevice(OutputDevice):
             是否设置成功
         """
         if not self._initialized:
+            logger.warning("LED 灯带未初始化，忽略写入")
             return False
         
         try:
@@ -137,14 +155,12 @@ class LEDStripDevice(OutputDevice):
                 return True
             
             # 真实硬件
-            if self._strip:
-                from rpi_ws281x import Color
-                r, g, b = data
-                for i in range(self._strip.numPixels()):
-                    self._strip.setPixelColor(i, Color(r, g, b))
-                self._strip.show()
+            if self._pixels:
+                self._pixels.fill(data)
+                self._pixels.show()
                 return True
             
+            logger.warning("硬件像素对象未就绪，写入失败")
             return False
             
         except Exception as e:
@@ -164,7 +180,7 @@ class LEDStripDevice(OutputDevice):
             if self._current_effect.is_running():
                 # 获取效果当前帧的颜色
                 color = self._current_effect.update()
-                if color:
+                if color is not None:
                     self._apply_color(color)
             
         except Exception as e:
@@ -211,12 +227,11 @@ class LEDStripDevice(OutputDevice):
             return
         
         # 真实硬件
-        if self._strip:
-            from rpi_ws281x import Color
-            r, g, b = color
-            for i in range(self._strip.numPixels()):
-                self._strip.setPixelColor(i, Color(r, g, b))
-            self._strip.show()
+        if self._pixels:
+            self._pixels.fill(color)
+            self._pixels.show()
+        else:
+            logger.warning("硬件像素对象未就绪，无法应用颜色")
     
     def get_info(self) -> Dict[str, Any]:
         """
