@@ -381,10 +381,8 @@ class ProcessSupervisor:
         msg_type = msg.msg_type
         if msg_type in (MessageType.HEARTBEAT, 'heartbeat'):
             self._handle_heartbeat(msg)
-        elif msg_type in (MessageType.ANOMALY_DETECTED, 'anomaly_detected'):
-            self._handle_anomaly_detected(msg)
-        elif msg_type in (MessageType.AUDIO_ANOMALY, 'audio_anomaly'):
-            self._handle_audio_anomaly(msg)
+        elif msg_type in (MessageType.ALARM_INTRUSION,):
+            self._handle_alarm_intrusion(msg)
         elif msg_type in (MessageType.MQTT_COMMAND, 'mqtt_command'):
             self._handle_mqtt_command(msg)
         else:
@@ -397,7 +395,7 @@ class ProcessSupervisor:
             self.shared_state['last_heartbeat'][process_name] = time.time()
             logger.debug(f"收到 {process_name} 心跳")
     
-    def _handle_anomaly_detected(self, msg: IPCMessage) -> None:
+    def _handle_alarm_intrusion(self, msg: IPCMessage) -> None:
         """处理 AI 检测到的异常"""
         data = msg.data or {}
         logger.warning(f"🚨 检测到异常: {data}")
@@ -418,19 +416,6 @@ class ProcessSupervisor:
         )
         self.message_bus.send(ProcessName.DEVICE_CONTROLLER, light_msg)
     
-    def _handle_audio_anomaly(self, msg: IPCMessage) -> None:
-        """处理音频异常"""
-        data = msg.data or {}
-        logger.warning("🔊 检测到异常声音")
-        
-        self._set_global_state('alert')
-        
-        light_msg = CommandMessage(
-            cmd_type=MessageType.CMD_SET_LIGHT,
-            target=ProcessName.DEVICE_CONTROLLER,
-            cmd_data={'mode': 'alert'}
-        )
-        self.message_bus.send(ProcessName.DEVICE_CONTROLLER, light_msg)
     
     def _handle_mqtt_command(self, msg: IPCMessage) -> None:
         """处理平台下发的指令"""

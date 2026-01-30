@@ -10,38 +10,21 @@ from .base import MQTTMessageBase
 
 
 @dataclass
-class AlarmVisionMessage(MQTTMessageBase):
+class AlarmIntrusionMessage(MQTTMessageBase):
     """AI 视觉告警消息"""
     data: Dict[str, Any] = field(default_factory=dict)
     
     def __post_init__(self):
         super().__post_init__()
-        # 确保必填字段存在
+        
         defaults = {
-            "alarm_type": "person_detected",
+            "alarm_type": "alarm_intrusion",  # person_detected/intrusion/detection
+            "source": "camera_1",  # 设备或摄像头ID
             "confidence": 0.0,
-            "object_count": 0,
+            "intrusion_count": 0,  # 入侵目标数量
             "severity": "medium",  # low/medium/high/critical
-            "bounding_boxes": [],
-            "snapshot_url": None
-        }
-        self.data = {**defaults, **self.data}
-
-
-@dataclass
-class AlarmAudioMessage(MQTTMessageBase):
-    """音频异常告警消息"""
-    data: Dict[str, Any] = field(default_factory=dict)
-    
-    def __post_init__(self):
-        super().__post_init__()
-        defaults = {
-            "alarm_type": "abnormal_sound",
-            "anomaly_score": 0.0,
-            "sound_category": None,
-            "duration": 0.0,
-            "audio_clip_url": None,
-            "severity": "medium"
+            "snapshot_urls": [],  # 快照图片URL列表
+            "video_urls": [],  # 视频回放URL列表
         }
         self.data = {**defaults, **self.data}
 

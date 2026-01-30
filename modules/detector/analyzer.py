@@ -5,6 +5,7 @@
 
 import time
 from typing import Dict, Any, List
+from urllib.parse import urlparse
 from utils.logger import setup_logger
 
 logger = setup_logger('result_analyzer')
@@ -26,11 +27,15 @@ class ResultAnalyzer:
         Args:
             config: 检测器配置
         """
+        # 兼容传入 ai_detector 子配置或全量配置
         self.config = config
+        self.ai_config = config.get('ai_detector', config)
+        self.stream_config = config.get('stream', {})
+        self.device_config = config.get('device', {})
         
         # 配置参数
-        self.alarm_cooldown = config.get('alarm_cooldown', 5.0)  # 报警冷却时间（秒）
-        self.min_confidence = config.get('confidence_threshold', 0.5)
+        self.alarm_cooldown = self.ai_config.get('alarm_cooldown', 5.0)  # 报警冷却时间（秒）
+        self.min_confidence = self.ai_config.get('confidence_threshold', 0.5)
         
         # 状态
         self.last_alarm_time = 0
@@ -133,10 +138,10 @@ class ResultAnalyzer:
     
     def _generate_alarm_data(self, detections: List[Dict[str, Any]], metadata: Dict[str, Any]) -> Dict[str, Any]:
         """
-        生成报警数据
+        生成报警数据（符合 AlarmVisionMessage 格式）
         
         Returns:
-            dict: 报警数据
+            dict: 报警数据，格式与 AlarmVisionMessage.data 一致
         """
         # 找到置信度最高的检测
         max_confidence_detection = max(detections, key=lambda d: d.get('confidence', 0))
@@ -144,24 +149,48 @@ class ResultAnalyzer:
         # 获取入侵目标
         intrusion_detections = [d for d in detections if d.get('is_intrusion', False)]
         
+        # 确定告警类型和严重程度
+        if intrusion_detections:
+            severity = 'high'  # 入侵事件为高级别
+        else:
+            severity = 'medium'
+        
+        # 生成快照路径
+        timestamp = metadata.get('timestamp', time.time())
+        snapshot_path = f"data/snapshots/alarm_{int(timestamp)}.jpg"
+        
+        # 构建符合 AlarmVisionMessage 格式的报警数据
         alarm_data = {
-            'event_type': 'intrusion' if intrusion_detections else 'detection',
+            'alarm_type': "alarm_intrusion",
+            "source": "camera_1",
             'confidence': max_confidence_detection.get('confidence', 0),
-            'timestamp': metadata.get('timestamp', time.time()),
-            'frame_id': metadata.get('frame_id', -1),
-            'detections': detections,
-            'detection_count': len(detections),
             'intrusion_count': len(intrusion_detections),
-            'snapshot_path': f"data/snapshots/alarm_{int(metadata.get('timestamp', time.time()))}.jpg",
-            'alarm_id': self.alarm_count + 1
+            "severity": severity, 
+            'snapshot_urls': [snapshot_path],  # 快照URL列表（本地路径，后续可转换为URL）
+            'video_urls': self._build_video_urls(metadata),  # 视频URL列表
+            'timestamp': timestamp  # 保留时间戳用于IPC消息
         }
         
-        # 添加区域信息
-        if intrusion_detections:
-            regions = list(set(d.get('intrusion_region', 'unknown') for d in intrusion_detections))
-            alarm_data['intrusion_regions'] = regions
-        
         return alarm_data
+
+    #TODO 优化视频URL构建逻辑
+    def _build_video_urls(self, metadata: Dict[str, Any]) -> List[str]:
+        """根据 zlm_server 和 device_id 构建 WebRTC 回放URL"""
+        zlm_server = metadata.get('zlm_server') or self.stream_config.get('zlm_server')
+        device_id = metadata.get('device_id') or self.device_config.get('id')
+
+        if not zlm_server or not device_id:
+            return []
+
+        parsed = urlparse(zlm_server)
+        host = parsed.hostname
+        app = parsed.path.lstrip('/') or 'live'
+
+        if not host:
+            return []
+
+        url = f"https://{host}:8443/webrtc/?app={app}&stream={device_id}"
+        return [url]
     
     def reset_cooldown(self):
         """重置冷却时间（立即允许报警）"""

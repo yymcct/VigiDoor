@@ -21,11 +21,9 @@ class MessageType(str, Enum):
     PROCESS_STOPPED = "process_stopped"
     
     # ========== 告警消息 ==========
-    ALARM_VISION = "alarm_vision"           # 视觉告警（检测到异常）
-    ALARM_AUDIO = "alarm_audio"             # 音频告警（异常声音）
+    ALARM_INTRUSION = "alarm_intrusion"           # 视觉告警（检测到异常）
     ALARM_SYSTEM = "alarm_system"           # 系统告警（严重错误）
-    ANOMALY_DETECTED = "anomaly_detected"   # 兼容旧代码
-    AUDIO_ANOMALY = "audio_anomaly"         # 兼容旧代码
+
     
     # ========== 帧数据消息 ==========
     FRAME_READY = "frame_ready"             # 新帧就绪通知

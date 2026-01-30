@@ -40,7 +40,7 @@ class AIDetectorProcess:
         # 初始化各模块
         self.frame_reader = FrameReader(config['camera'])
         self.strategy = DetectionStrategy(config['ai_detector'], shared_state)
-        self.analyzer = ResultAnalyzer(config['ai_detector'])
+        self.analyzer = ResultAnalyzer(config)
         self.pipeline = None  # 稍后初始化
         
         # 统计
@@ -200,13 +200,18 @@ class AIDetectorProcess:
     def _report_alarm(self, alarm_data: dict):
         """上报异常事件"""
         logger.warning(
-            f"🚨 报警！类型: {alarm_data['event_type']}, "
-            f"目标数: {alarm_data['detection_count']}, "
+            f"🚨 报警！类型: {alarm_data['alarm_type']}, "
+            f"目标数: {alarm_data['intrusion_count']}, "
             f"置信度: {alarm_data['confidence']:.2f}"
         )
         
         # 发送报警消息
-        self.ipc.send_alarm(alarm_data)
+        msg = create_message(
+            msg_type=MessageType.ALARM_INTRUSION,
+            target=ProcessName.SUPERVISOR,
+            data=alarm_data
+        )
+        self.ipc.send_message(msg)
     
     def _print_stats(self):
         """打印统计信息"""

@@ -162,11 +162,6 @@ class IPCClient:
         msg = HeartbeatMessage(uptime=uptime, state=state)
         return self.send_message(msg)
     
-    def send_alarm(self, alarm_type: MessageType, alarm_data: dict) -> bool:
-        """发送告警"""
-        msg = AlarmMessage(alarm_type=alarm_type, alarm_data=alarm_data)
-        return self.send_message(msg)
-    
     def send_command(self, cmd_type: MessageType, target: str, cmd_data: dict = None) -> bool:
         """发送命令"""
         msg = CommandMessage(cmd_type=cmd_type, target=target, cmd_data=cmd_data)
