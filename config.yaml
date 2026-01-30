@@ -163,7 +163,7 @@ ai_detector:
           - name: "门口警戒区"
             type: rect
             enabled: true
-            coords: [0.3, 0.4, 0.4, 0.5]  # [x, y, w, h] 归一化坐标
+            coords: [0.2, 0.7, 0.6, 0.25]  # [x, y, w, h] 归一化坐标
           
           # 多边形区域示例
           - name: "楼梯区域"

@@ -6,12 +6,48 @@ OSD 渲染元素模块
 from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import List, Dict, Any
+from pathlib import Path
 import numpy as np
 import cv2
 from PIL import Image, ImageDraw, ImageFont
 from utils.logger import setup_logger
 
 logger = setup_logger('osd_elements')
+
+_FONT_CACHE: Dict[int, ImageFont.FreeTypeFont] = {}
+_FONT_WARNING_EMITTED = False
+
+# 项目内字体（你稍后可替换文件名）
+_DEFAULT_FONT_FILENAME = 'wqy-microhei.ttc'
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+_PROJECT_FONT_PATH = _PROJECT_ROOT / 'fonts' / _DEFAULT_FONT_FILENAME
+
+
+def _load_font(font_size: int) -> ImageFont.FreeTypeFont:
+    """优先加载项目 ./fonts 下的字体，失败则回退系统字体。"""
+    global _FONT_WARNING_EMITTED
+
+    if font_size in _FONT_CACHE:
+        return _FONT_CACHE[font_size]
+
+    font = None
+
+    # 1) 项目内字体优先
+    if _PROJECT_FONT_PATH.exists():
+        try:
+            font = ImageFont.truetype(str(_PROJECT_FONT_PATH), font_size)
+        except (OSError, IOError):
+            font = None
+
+    # 2) 默认字体
+    if font is None:
+        font = ImageFont.load_default()
+        if not _FONT_WARNING_EMITTED:
+            logger.warning("⚠️ 未找到中文字体，使用默认字体")
+            _FONT_WARNING_EMITTED = True
+
+    _FONT_CACHE[font_size] = font
+    return font
 
 
 def put_chinese_text(
@@ -38,30 +74,9 @@ def put_chinese_text(
     img_pil = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
     draw = ImageDraw.Draw(img_pil)
     
-    # 尝试使用系统字体
+    # 加载字体（优先项目 ./fonts 下的字体）
     try:
-        # Linux 常见中文字体路径
-        font_paths = [
-            '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',  # 文泉驿微米黑
-            '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',    # 文泉驿正黑
-            '/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf',  # Droid
-            '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',  # Noto Sans
-            '/System/Library/Fonts/PingFang.ttc',  # macOS
-            'C:\\Windows\\Fonts\\msyh.ttc',  # Windows 微软雅黑
-        ]
-        
-        font = None
-        for font_path in font_paths:
-            try:
-                font = ImageFont.truetype(font_path, font_size)
-                break
-            except (OSError, IOError):
-                continue
-        
-        if font is None:
-            # 使用默认字体
-            font = ImageFont.load_default()
-            logger.warning("⚠️ 未找到中文字体，使用默认字体")
+        font = _load_font(font_size)
     except Exception as e:
         logger.warning(f"⚠️ 加载字体失败: {e}，使用默认字体")
         font = ImageFont.load_default()
@@ -541,10 +556,10 @@ class RegionOverlayElement(OSDElement):
                 )
                 
                 # 绘制标签（支持中文）
-                label_y = max(y1 - 10, 15)
+                label_y = max(y1 - 20, 15)
                 overlay = put_chinese_text(
                     overlay, region_name, (x1, label_y),
-                    font_size=int(font_scale * 20),  # 转换为像素大小
+                    font_size=int(font_scale * 30),  # 转换为像素大小
                     color=(color[2], color[1], color[0])  # BGR -> RGB
                 )
             
