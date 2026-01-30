@@ -114,18 +114,6 @@ osd:
   timestamp_enabled: true          # 是否显示时间戳
   device_info_enabled: true        # 是否显示设备信息
   detection_box_enabled: true      # 是否显示检测框
-  
-  # 区域叠加配置
-  region_overlay_enabled: true     # 是否显示检测区域框 和AI检测的区域保持一致
-  region_overlay_color: [255, 255, 0]  # 区域框颜色（BGR格式：黄色）
-  region_overlay_thickness: 2      # 区域框线条粗细
-  region_overlay_alpha: 0.3        # 区域框透明度（0-1）
-  region_label_font_scale: 0.5     # 区域标签字体大小
-  
-  # 检测框样式
-  box_thickness: 2                 # 检测框线条粗细
-  text_font_scale: 0.5             # 标签字体大小
-  text_thickness: 2                # 标签线条粗细
 
 
 # AI检测器配置示例

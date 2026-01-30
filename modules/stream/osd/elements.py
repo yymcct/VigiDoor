@@ -404,20 +404,38 @@ class RegionOverlayElement(OSDElement):
     def __init__(self):
         """
         不需要传递参数，直接从 ConfigManager 读取配置
+        从 ai_detector.pipeline 中获取 type=region 的检测器配置
         """
-        self.osd_config = None
         self.regions = []
+        self.region_config = None
         
         try:
             from utils.config import ConfigManager
             config = ConfigManager.get_instance()
             
-            self.osd_config = config.osd
-            self.regions = (
-                config.detector.region_detector.regions 
-                if config.detector.region_detector 
-                else []
-            )
+            # 使用 get_raw() 方法获取原始 pipeline 配置
+            pipeline = config.get_raw('ai_detector.pipeline')
+            
+            if pipeline and isinstance(pipeline, list):
+                logger.info(f"🔍 找到 {len(pipeline)} 个 pipeline 阶段")
+                
+                # 从 pipeline 中查找 type=region 的检测器
+                for detector in pipeline:
+                    detector_type = detector.get('type')
+                    detector_enabled = detector.get('enabled', False)
+                    logger.info(f"  - 检测器类型: {detector_type}, 启用: {detector_enabled}")
+                    
+                    if detector_type == 'region' and detector_enabled:
+                        self.region_config = detector.get('config', {})
+                        self.regions = self.region_config.get('regions', [])
+                        logger.info(f"✅ 成功从 ai_detector.pipeline 加载 {len(self.regions)} 个区域")
+                        break
+            else:
+                logger.warning(f"⚠️ pipeline 配置为空或格式错误: {type(pipeline)}")
+            
+            if not self.regions:
+                logger.warning("⚠️ 未找到启用的区域检测器配置")
+                
         except RuntimeError as e:
             # ConfigManager未初始化，使用空配置
             import warnings
@@ -429,27 +447,29 @@ class RegionOverlayElement(OSDElement):
     
     def render(self, frame: np.ndarray, **kwargs) -> np.ndarray:
         """渲染区域框"""
-        # 检查是否启用
-        if not self.osd_config or not self.osd_config.region_overlay_enabled:
-            return frame
-        
         if not self.regions:
             return frame
         
         height, width = frame.shape[:2]
         overlay = frame.copy()
         
+        # 使用固定样式（原来从 osd_config 读取）
+        color = (255, 255, 0)  # 黄色 (BGR)
+        thickness = 2
+        font_scale = 0.5
+        alpha = 0.3
+        
         for region in self.regions:
-            if not region.enabled:
+            if not region.get('enabled', True):
                 continue
             
-            color = self.osd_config.region_overlay_color
-            thickness = self.osd_config.region_overlay_thickness
-            font_scale = self.osd_config.region_label_font_scale
+            region_type = region.get('type')
+            region_name = region.get('name', 'Unknown')
+            region_coords = region.get('coords', [])
             
-            if region.type == 'rect':
+            if region_type == 'rect' and len(region_coords) == 4:
                 # 绘制矩形
-                x, y, w, h = region.coords
+                x, y, w, h = region_coords
                 x1, y1 = int(x * width), int(y * height)
                 x2, y2 = int((x + w) * width), int((y + h) * height)
                 
@@ -460,37 +480,34 @@ class RegionOverlayElement(OSDElement):
                 
                 # 绘制标签
                 cv2.putText(
-                    overlay, region.name, (x1, max(y1 - 10, 15)),
+                    overlay, region_name, (x1, max(y1 - 10, 15)),
                     cv2.FONT_HERSHEY_SIMPLEX, font_scale,
                     color, 2
                 )
             
-            elif region.type == 'polygon':
+            elif region_type == 'polygon' and len(region_coords) >= 3:
                 # 绘制多边形
-                if len(region.coords) >= 3:  # 至少需要3个点
-                    points = np.array([
-                        [int(p[0] * width), int(p[1] * height)]
-                        for p in region.coords
-                    ], dtype=np.int32)
-                    
-                    cv2.polylines(
-                        overlay, [points], True,
-                        color, thickness
-                    )
-                    
-                    # 绘制标签在第一个点附近
-                    if len(region.coords) > 0:
-                        p0 = region.coords[0]
-                        label_x = int(p0[0] * width)
-                        label_y = int(p0[1] * height)
-                        cv2.putText(
-                            overlay, region.name, (label_x, max(label_y - 10, 15)),
-                            cv2.FONT_HERSHEY_SIMPLEX, font_scale,
-                            color, 2
-                        )
+                points = np.array([
+                    [int(p[0] * width), int(p[1] * height)]
+                    for p in region_coords
+                ], dtype=np.int32)
+                
+                cv2.polylines(
+                    overlay, [points], True,
+                    color, thickness
+                )
+                
+                # 绘制标签在第一个点附近
+                p0 = region_coords[0]
+                label_x = int(p0[0] * width)
+                label_y = int(p0[1] * height)
+                cv2.putText(
+                    overlay, region_name, (label_x, max(label_y - 10, 15)),
+                    cv2.FONT_HERSHEY_SIMPLEX, font_scale,
+                    color, 2
+                )
         
         # 半透明叠加
-        alpha = self.osd_config.region_overlay_alpha
         cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0, frame)
         
         return frame
