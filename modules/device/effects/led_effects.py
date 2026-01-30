@@ -36,37 +36,53 @@ class SolidColorEffect(EffectBase):
 
 
 class BlinkEffect(EffectBase):
-    """闪烁效果"""
+    """红蓝黄暴闪效果"""
     
-    def __init__(self, color: Tuple[int, int, int], interval: float = 0.5):
+    def __init__(
+        self,
+        interval: float = 0.1,
+        colors: Optional[Tuple[Tuple[int, int, int], ...]] = None,
+        include_off: bool = True,
+    ):
         """
         Args:
-            color: RGB 颜色值
-            interval: 闪烁间隔（秒）
+            interval: 每一步切换间隔（秒）
+            colors: 颜色序列，默认红/蓝/黄
+            include_off: 是否在颜色之间插入熄灭帧以形成暴闪
         """
         super().__init__("Blink")
-        self.color = color
         self.interval = interval
+        self.colors = colors or ((255, 0, 0), (0, 0, 255), (255, 255, 0))
+        self.include_off = include_off
         self._last_toggle = 0
-        self._is_on = False
+        self._index = 0
+        self._sequence: Tuple[Tuple[int, int, int], ...] = ()
     
     def start(self):
         """启动效果"""
         self._is_running = True
         self._last_toggle = time.time()
-        self._is_on = True
+        if self.include_off:
+            sequence = []
+            for color in self.colors:
+                sequence.append(color)
+                sequence.append((0, 0, 0))
+            self._sequence = tuple(sequence)
+        else:
+            self._sequence = self.colors
+        self._index = 0
     
     def update(self):
-        """更新闪烁状态"""
+        """更新暴闪状态"""
         if not self._is_running:
             return None
         
         current_time = time.time()
         if current_time - self._last_toggle >= self.interval:
-            self._is_on = not self._is_on
+            self._index = (self._index + 1) % len(self._sequence)
             self._last_toggle = current_time
         
-        return self.color if self._is_on else (0, 0, 0)
+        return self._sequence[self._index]
     
     def stop(self):
         """停止效果"""

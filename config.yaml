@@ -54,7 +54,7 @@ hardware:
   # WS2812B 灯带
   led_strip:
     pin: 10  # GPIO 引脚
-    count: 8  # LED 数量
+    count: 9  # LED 数量
     brightness: 128  # 亮度 (0-255)
     
     # 状态颜色

@@ -74,9 +74,10 @@ class Picamera2Driver(CameraDriverBase):
         """释放资源"""
         if self.camera:
             try:
+                # 仅停止采集，避免显式 close 导致 __del__ 再次 close 报错
+                # Picamera2.__del__ 会在对象销毁时自动 close
                 self.camera.stop()
-                self.camera.close()
-                logger.info("Picamera2 资源已释放")
+                logger.info("Picamera2 采集已停止")
             except Exception as e:
                 logger.error(f"释放 Picamera2 资源失败: {e}")
             finally:

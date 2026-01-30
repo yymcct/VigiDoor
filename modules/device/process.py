@@ -205,9 +205,8 @@ class DeviceControllerProcess:
             self._led_strip.set_effect(effect)
 
         elif mode == DeviceMode.ALARM:
-            # 红色闪烁
-            color = tuple(self.colors['alarm'])
-            effect = BlinkEffect(color, interval=0.5)
+            # 红蓝黄暴闪
+            effect = BlinkEffect(interval=0.1)
             self._led_strip.set_effect(effect)
     
     def _cleanup(self):
