@@ -10,7 +10,6 @@ from .devices.base import DeviceBase, InputDevice, OutputDevice
 from .devices.input.button import ButtonDevice
 from .devices.input.pir_sensor import PIRSensor
 from .devices.output.led_strip import LEDStripDevice
-from .devices.output.buzzer import BuzzerDevice
 from .devices.output.relay import RelayDevice
 
 __all__ = [
@@ -26,6 +25,5 @@ __all__ = [
     'PIRSensor',
     # 输出设备
     'LEDStripDevice',
-    'BuzzerDevice',
     'RelayDevice'
 ]

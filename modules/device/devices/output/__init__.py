@@ -3,7 +3,6 @@
 """
 
 from .led_strip import LEDStripDevice
-from .buzzer import BuzzerDevice
 from .relay import RelayDevice
 
 # 预留其他输出设备：
@@ -14,6 +13,5 @@ from .relay import RelayDevice
 
 __all__ = [
     'LEDStripDevice',
-    'BuzzerDevice',
     'RelayDevice'
 ]
