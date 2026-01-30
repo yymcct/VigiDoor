@@ -21,8 +21,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from utils.logger import setup_logger
 
 from core.ipc import MessageBus
-from core.ipc.message import MessageType, IPCMessage, ShutdownMessage, CommandMessage
+from core.ipc.message import MessageType, IPCMessage, ShutdownMessage
 from core.ipc.registry import ProcessName
+from modules.supervisor.handlers import SupervisorHandlerContext
+from modules.supervisor.message_router import MessageRouter
 
 logger = setup_logger('supervisor')
 
@@ -157,6 +159,13 @@ class ProcessSupervisor:
             'last_heartbeat': {},
             'start_time': time.time(),  # 添加启动时间，用于计算 uptime
         })
+
+        self.message_handler_ctx = SupervisorHandlerContext(
+            message_bus=self.message_bus,
+            shared_state=self.shared_state,
+            logger=logger
+        )
+        self.message_router = MessageRouter(self.message_handler_ctx)
         
         # 控制标志
         self.running = True
@@ -378,77 +387,7 @@ class ProcessSupervisor:
     
     def _handle_message(self, msg: IPCMessage) -> None:
         """根据消息类型处理业务逻辑"""
-        msg_type = msg.msg_type
-        if msg_type in (MessageType.HEARTBEAT, 'heartbeat'):
-            self._handle_heartbeat(msg)
-        elif msg_type in (MessageType.ALARM_INTRUSION,):
-            self._handle_alarm_intrusion(msg)
-        elif msg_type in (MessageType.MQTT_COMMAND, 'mqtt_command'):
-            self._handle_mqtt_command(msg)
-        else:
-            logger.debug(f"未处理的消息类型: {msg_type}")
-    
-    def _handle_heartbeat(self, msg: IPCMessage) -> None:
-        """处理心跳消息"""
-        process_name = msg.sender
-        if process_name:
-            self.shared_state['last_heartbeat'][process_name] = time.time()
-            logger.debug(f"收到 {process_name} 心跳")
-    
-    def _handle_alarm_intrusion(self, msg: IPCMessage) -> None:
-        """处理 AI 检测到的异常"""
-        data = msg.data or {}
-        logger.warning(f"🚨 检测到异常: {data}")
-        
-        self._set_global_state('alarm')
-        
-        alarm_msg = CommandMessage(
-            cmd_type=MessageType.REPORT_ALARM,
-            target=ProcessName.MQTT_CLIENT,
-            cmd_data=data
-        )
-        self.message_bus.send(ProcessName.MQTT_CLIENT, alarm_msg)
-        
-        light_msg = CommandMessage(
-            cmd_type=MessageType.CMD_SET_LIGHT,
-            target=ProcessName.DEVICE_CONTROLLER,
-            cmd_data={'mode': 'alarm'}
-        )
-        self.message_bus.send(ProcessName.DEVICE_CONTROLLER, light_msg)
-    
-    
-    def _handle_mqtt_command(self, msg: IPCMessage) -> None:
-        """处理平台下发的指令"""
-        data = msg.data or {}
-        action = data.get('action')
-        logger.info(f"📥 收到平台指令: {action}")
-        
-        handler_map = {
-            'remote_speak': self._handle_remote_speak,
-        }
-        
-        handler = handler_map.get(action)
-        if handler:
-            handler(msg)
-        else:
-            logger.warning(f"未知的平台指令: {action}")
-    
-    def _handle_remote_speak(self, msg: IPCMessage) -> None:
-        """处理远程喊话指令"""
-        data = msg.data or {}
-        audio_msg = CommandMessage(
-            cmd_type=MessageType.CMD_PLAY_AUDIO,
-            target=ProcessName.AUDIO_PROCESSOR,
-            cmd_data=data
-        )
-        self.message_bus.send(ProcessName.AUDIO_PROCESSOR, audio_msg)
-    
-    def _set_global_state(self, state: str) -> None:
-        """设置全局状态"""
-        old_state = self.shared_state['global_state']
-        if old_state != state:
-            self.shared_state['global_state'] = state
-            logger.info(f"🔄 全局状态切换: {old_state} → {state}")
+        self.message_router.dispatch(msg)
     
     def _health_reporter(self):
         """健康状态上报线程"""
