@@ -60,7 +60,7 @@ class MQTTPublisher:
         发布消息（统一入口）
         
         Args:
-            topic_template: 话题模板（如 TopicManager.ALARM_VISION）
+            topic_template: 话题模板（如 TopicManager.ALARM_INTRUSION
             message: 消息对象
             qos: QoS 级别（可选，默认根据话题自动判断）
             retain: 是否保留消息（可选，默认根据话题自动判断）
@@ -70,11 +70,11 @@ class MQTTPublisher:
         
         Examples:
             >>> publisher = MQTTPublisher(client, topic_manager)
-            >>> msg = AlarmVisionMessage(
+            >>> msg = AlarmIntrusionMessage(
             ...     device_id="RPI_001",
             ...     data={"alarm_type": "person_detected", "confidence": 0.95}
             ... )
-            >>> publisher.publish(TopicManager.ALARM_VISION, msg)
+            >>> publisher.publish(TopicManager.ALARM_INTRUSION, msg)
             True
         """
         # 构建话题
@@ -249,26 +249,17 @@ class MQTTPublisher:
         )
         return self.publish(TopicManager.LIFECYCLE_HEARTBEAT, msg)
     
-    def publish_alarm_vision(self, alarm_data: dict) -> bool:
-        """发布 AI 视觉告警"""
-        from mqtt.messages import AlarmVisionMessage
-        
-        msg = AlarmVisionMessage(
+    def publish_alarm_intrusion(self, alarm_data: dict) -> bool:
+        """发布入侵告警（统一告警类型）"""
+        from mqtt.messages.alarm import AlarmIntrusionMessage
+
+        msg = AlarmIntrusionMessage(
             device_id=self.tm.device_id,
             data=alarm_data
         )
-        return self.publish(TopicManager.ALARM_VISION, msg)
-    
-    def publish_alarm_audio(self, alarm_data: dict) -> bool:
-        """发布音频异常告警"""
-        from mqtt.messages import AlarmAudioMessage
-        
-        msg = AlarmAudioMessage(
-            device_id=self.tm.device_id,
-            data=alarm_data
-        )
-        return self.publish(TopicManager.ALARM_AUDIO, msg)
-    
+        return self.publish(TopicManager.ALARM_INTRUSION, msg)
+
+
     def publish_alarm_system(self, alarm_data: dict) -> bool:
         """发布系统级严重告警（强制 QoS=2）"""
         from mqtt.messages import AlarmSystemMessage

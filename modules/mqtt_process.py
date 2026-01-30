@@ -244,16 +244,9 @@ class MQTTClientProcess:
         msg_type = msg.get('type')
         data = msg.get('data', {})
         
-        if msg_type == 'report_alarm':
-            # 判断告警类型并上报
-            alarm_type = data.get('alarm_type', '')
-            if 'audio' in alarm_type or 'sound' in alarm_type:
-                self.publisher.publish_alarm_audio(data)
-            elif 'vision' in alarm_type or 'person' in alarm_type or 'object' in alarm_type:
-                self.publisher.publish_alarm_vision(data)
-            else:
-                # 默认作为视觉告警
-                self.publisher.publish_alarm_vision(data)
+        if msg_type == MessageType.ALARM_INTRUSION.value:
+            # 统一告警类型：alarm_intrusion
+            self.publisher.publish_alarm_intrusion(data)
             logger.info("📤 告警已上报")
             
         elif msg_type == 'report_health':

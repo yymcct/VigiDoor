@@ -26,8 +26,7 @@ class TopicManager:
     LIFECYCLE_HEARTBEAT = "{ns}/up/{device_id}/lifecycle/heartbeat"
     
     # 2.2 告警事件上报
-    ALARM_VISION = "{ns}/up/{device_id}/alarm/vision"
-    ALARM_AUDIO = "{ns}/up/{device_id}/alarm/audio"
+    ALARM_INTRUSION = "{ns}/up/{device_id}/alarm/intrusion"
     ALARM_SYSTEM = "{ns}/up/{device_id}/alarm/system"
     
     # 2.3 系统健康状态上报

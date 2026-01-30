@@ -3,10 +3,10 @@ MQTT 消息模块
 使用 dataclass 定义标准化的消息结构，支持自动序列化和验证
 
 使用方式：
-    from mqtt.messages import AlarmVisionMessage, MessageFactory
+    from mqtt.messages import AlarmIntrusionMessage, MessageFactory
     
     # 创建消息
-    msg = AlarmVisionMessage(
+    msg = AlarmIntrusionMessage(
         device_id="RPI_001",
         data={"alarm_type": "person_detected", "confidence": 0.95}
     )
@@ -27,8 +27,7 @@ from .lifecycle import (
 
 # 导出告警消息
 from .alarm import (
-    AlarmVisionMessage,
-    AlarmAudioMessage,
+    AlarmIntrusionMessage,            
     AlarmSystemMessage
 )
 
@@ -68,8 +67,7 @@ __all__ = [
     'LifecycleHeartbeatMessage',
     
     # 告警消息
-    'AlarmVisionMessage',
-    'AlarmAudioMessage',
+    'AlarmIntrusionMessage',
     'AlarmSystemMessage',
     
     # 健康状态消息

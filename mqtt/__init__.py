@@ -37,8 +37,7 @@ from .messages import (
     LifecycleOfflineMessage,
     LifecycleHeartbeatMessage,
     # 告警消息
-    AlarmVisionMessage,
-    AlarmAudioMessage,
+    AlarmIntrusionMessage,
     AlarmSystemMessage,
     # 健康状态消息
     HealthMetricsMessage,
@@ -68,8 +67,7 @@ __all__ = [
     'LifecycleHeartbeatMessage',
     
     # 告警消息
-    'AlarmVisionMessage',
-    'AlarmAudioMessage',
+    'AlarmIntrusionMessage',
     'AlarmSystemMessage',
     
     # 健康状态消息

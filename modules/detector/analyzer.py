@@ -138,10 +138,10 @@ class ResultAnalyzer:
     
     def _generate_alarm_data(self, detections: List[Dict[str, Any]], metadata: Dict[str, Any]) -> Dict[str, Any]:
         """
-        生成报警数据（符合 AlarmVisionMessage 格式）
+        生成报警数据
         
         Returns:
-            dict: 报警数据，格式与 AlarmVisionMessage.data 一致
+            dict: 报警数据
         """
         # 找到置信度最高的检测
         max_confidence_detection = max(detections, key=lambda d: d.get('confidence', 0))
@@ -159,7 +159,6 @@ class ResultAnalyzer:
         timestamp = metadata.get('timestamp', time.time())
         snapshot_path = f"data/snapshots/alarm_{int(timestamp)}.jpg"
         
-        # 构建符合 AlarmVisionMessage 格式的报警数据
         alarm_data = {
             'alarm_type': "alarm_intrusion",
             "source": "camera_1",

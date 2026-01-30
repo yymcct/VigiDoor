@@ -13,8 +13,7 @@ from .lifecycle import (
     LifecycleHeartbeatMessage
 )
 from .alarm import (
-    AlarmVisionMessage,
-    AlarmAudioMessage,
+    AlarmIntrusionMessage,
     AlarmSystemMessage
 )
 from .health import (
@@ -43,8 +42,7 @@ class MessageFactory:
         'lifecycle/heartbeat': LifecycleHeartbeatMessage,
         
         # 告警
-        'alarm/vision': AlarmVisionMessage,
-        'alarm/audio': AlarmAudioMessage,
+        'alarm/intrusion': AlarmIntrusionMessage,
         'alarm/system': AlarmSystemMessage,
         
         # 健康
@@ -81,11 +79,11 @@ class MessageFactory:
         
         Examples:
             >>> msg = MessageFactory.create_from_topic(
-            ...     "vigidoor/up/RPI_001/alarm/vision",
+            ...     "vigidoor/up/RPI_001/alarm/intrusion",
             ...     "RPI_001",
             ...     {"alarm_type": "person_detected", "confidence": 0.95}
             ... )
-            >>> isinstance(msg, AlarmVisionMessage)
+            >>> isinstance(msg, AlarmIntrusionMessage)
             True
         """
         # 查找匹配的消息类型

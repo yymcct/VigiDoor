@@ -2,7 +2,7 @@
 
 from typing import Any, Dict
 
-from core.ipc.message import MessageType, IPCMessage, CommandMessage
+from core.ipc.message import MessageType, IPCMessage, CommandMessage, create_message
 from core.ipc.registry import ProcessName
 from .context import SupervisorHandlerContext
 
@@ -14,12 +14,13 @@ def handle_alarm_intrusion(ctx: SupervisorHandlerContext, msg: IPCMessage) -> No
 
     _set_global_state(ctx, 'alarm')
 
-    alarm_msg = CommandMessage(
-        cmd_type=MessageType.REPORT_ALARM,
+    alarm_msg = create_message(
+        msg_type=MessageType.ALARM_INTRUSION,
         target=ProcessName.MQTT_CLIENT,
-        cmd_data=data
+        data=data
     )
     ctx.message_bus.send(ProcessName.MQTT_CLIENT, alarm_msg)
+
 
     light_msg = CommandMessage(
         cmd_type=MessageType.CMD_SET_LIGHT,
