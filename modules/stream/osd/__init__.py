@@ -8,6 +8,7 @@ from .elements import (
     DeviceInfoElement,
     DetectionBoxElement,
     SkeletonElement,
+    RegionOverlayElement,
     FootTrafficElement,
     CompositeOSDElement
 )
@@ -21,6 +22,7 @@ __all__ = [
     'DeviceInfoElement',
     'DetectionBoxElement',
     'SkeletonElement',
+    'RegionOverlayElement',
     'FootTrafficElement',
     'CompositeOSDElement',
     'OSDRenderer',

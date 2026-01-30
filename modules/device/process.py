@@ -63,8 +63,7 @@ class DeviceControllerProcess:
     
     def run(self):
         """主循环"""
-        logger.info("💡 设备控制进程启动")
-        
+        logger.info("💡 设备控制进程启动")        
         # 初始化设备
         if not self._init_devices():
             logger.error("设备初始化失败")

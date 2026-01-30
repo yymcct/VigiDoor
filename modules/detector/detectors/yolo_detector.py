@@ -113,7 +113,7 @@ class YOLODetector(BaseDetector):
                         })
             
             if detections:
-                logger.debug(f"✅ YOLO检测到 {len(detections)} 个目标")
+                logger.info(f"✅ YOLO检测到 {len(detections)} 个目标")
                 return DetectionResult(
                     should_continue=True,  # 检测到目标，继续区域判断
                     detections=detections,
@@ -121,7 +121,7 @@ class YOLODetector(BaseDetector):
                 )
             else:
                 # 未检测到目标，早停
-                logger.debug("YOLO未检测到目标，跳过后续检测")
+                logger.info("YOLO未检测到目标，跳过后续检测")
                 return DetectionResult(
                     should_continue=False,
                     detections=[],

@@ -8,6 +8,9 @@ from datetime import datetime
 from typing import List, Dict, Any
 import numpy as np
 import cv2
+from utils.logger import setup_logger
+
+logger = setup_logger('osd_elements')
 
 
 class OSDElement(ABC):
@@ -196,12 +199,74 @@ class CompositeOSDElement(OSDElement):
     可以包含多个子元素，按顺序渲染
     """
     
-    def __init__(self, elements: List[OSDElement]):
+    def __init__(self, elements: List[OSDElement] = None):
         """
+        支持两种初始化方式：
+        1. 传入自定义元素列表
+        2. 不传参数，自动从 ConfigManager 获取配置并创建默认元素
+        
         Args:
-            elements: OSD 元素列表
+            elements: OSD 元素列表（可选）
+                     如果不提供，则自动从 ConfigManager 创建默认元素组合
         """
-        self.elements = elements
+        if elements is not None:
+            # 使用自定义元素
+            self.elements = elements
+        else:
+            # 从 ConfigManager 自动创建默认元素
+            self.elements = self._create_default_elements()
+    
+    def _create_default_elements(self) -> List[OSDElement]:
+        """
+        从 ConfigManager 获取配置并创建默认 OSD 元素组合
+        
+        Returns:
+            List[OSDElement]: OSD 元素列表
+        """
+        try:
+            from utils.config import ConfigManager
+            config = ConfigManager.get_instance()
+            device_id = config.device.id
+            logger.info(f"✅ 成功从 ConfigManager 获取设备 ID: {device_id}")
+        except RuntimeError as e:
+            # ConfigManager 未初始化
+            logger.warning(f"⚠️ ConfigManager 未初始化: {e}")
+            device_id = 'Unknown'
+        except AttributeError as e:
+            # 配置不存在
+            logger.warning(f"⚠️ 配置属性不存在: {e}")
+            device_id = 'Unknown'
+        except Exception as e:
+            # 其他异常
+            logger.error(f"❌ 获取设备 ID 失败: {e}", exc_info=True)
+            device_id = 'Unknown'
+        
+        logger.info(f"📝 创建 OSD 元素，使用设备 ID: {device_id}")
+        
+        return [
+            TimestampElement(
+                position=(20, 40),
+                font_scale=0.8
+            ),
+            DeviceInfoElement(
+                device_id=device_id,
+                position=None  # 自动定位到左下角
+            ),
+            DetectionBoxElement(
+                box_thickness=2,
+                text_font_scale=0.5
+            ),
+            RegionOverlayElement(),
+            SkeletonElement(
+                line_thickness=2,
+                keypoint_radius=3,
+                confidence_threshold=0.5
+            ),
+            FootTrafficElement(
+                position=None,  # 自动定位到右上角
+                font_scale=0.8
+            )
+        ]
     
     def render(self, frame: np.ndarray, **kwargs) -> np.ndarray:
         """依次渲染所有子元素"""
@@ -326,6 +391,107 @@ class SkeletonElement(OSDElement):
                     (0, 255, 0),  # 绿色关键点
                     -1  # 填充
                 )
+        
+        return frame
+
+
+class RegionOverlayElement(OSDElement):
+    """
+    区域叠加元素
+    在画面上绘制检测区域框（从配置文件读取）
+    """
+    
+    def __init__(self):
+        """
+        不需要传递参数，直接从 ConfigManager 读取配置
+        """
+        self.osd_config = None
+        self.regions = []
+        
+        try:
+            from utils.config import ConfigManager
+            config = ConfigManager.get_instance()
+            
+            self.osd_config = config.osd
+            self.regions = (
+                config.detector.region_detector.regions 
+                if config.detector.region_detector 
+                else []
+            )
+        except RuntimeError as e:
+            # ConfigManager未初始化，使用空配置
+            import warnings
+            warnings.warn(f"⚠️ ConfigManager 未初始化: {e}", RuntimeWarning)
+        except Exception as e:
+            # 其他错误
+            import warnings
+            warnings.warn(f"⚠️ 加载配置失败: {e}", RuntimeWarning)
+    
+    def render(self, frame: np.ndarray, **kwargs) -> np.ndarray:
+        """渲染区域框"""
+        # 检查是否启用
+        if not self.osd_config or not self.osd_config.region_overlay_enabled:
+            return frame
+        
+        if not self.regions:
+            return frame
+        
+        height, width = frame.shape[:2]
+        overlay = frame.copy()
+        
+        for region in self.regions:
+            if not region.enabled:
+                continue
+            
+            color = self.osd_config.region_overlay_color
+            thickness = self.osd_config.region_overlay_thickness
+            font_scale = self.osd_config.region_label_font_scale
+            
+            if region.type == 'rect':
+                # 绘制矩形
+                x, y, w, h = region.coords
+                x1, y1 = int(x * width), int(y * height)
+                x2, y2 = int((x + w) * width), int((y + h) * height)
+                
+                cv2.rectangle(
+                    overlay, (x1, y1), (x2, y2),
+                    color, thickness
+                )
+                
+                # 绘制标签
+                cv2.putText(
+                    overlay, region.name, (x1, max(y1 - 10, 15)),
+                    cv2.FONT_HERSHEY_SIMPLEX, font_scale,
+                    color, 2
+                )
+            
+            elif region.type == 'polygon':
+                # 绘制多边形
+                if len(region.coords) >= 3:  # 至少需要3个点
+                    points = np.array([
+                        [int(p[0] * width), int(p[1] * height)]
+                        for p in region.coords
+                    ], dtype=np.int32)
+                    
+                    cv2.polylines(
+                        overlay, [points], True,
+                        color, thickness
+                    )
+                    
+                    # 绘制标签在第一个点附近
+                    if len(region.coords) > 0:
+                        p0 = region.coords[0]
+                        label_x = int(p0[0] * width)
+                        label_y = int(p0[1] * height)
+                        cv2.putText(
+                            overlay, region.name, (label_x, max(label_y - 10, 15)),
+                            cv2.FONT_HERSHEY_SIMPLEX, font_scale,
+                            color, 2
+                        )
+        
+        # 半透明叠加
+        alpha = self.osd_config.region_overlay_alpha
+        cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0, frame)
         
         return frame
 

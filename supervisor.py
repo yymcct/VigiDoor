@@ -40,6 +40,16 @@ def process_wrapper(target_func: Callable, process_name: str, ipc_queue_or_clien
         logger = setup_logger(process_name)
         logger.info(f"🔧 {process_name} 进程启动")
         
+        # 初始化 ConfigManager（子进程需要独立初始化）
+        try:
+            from utils.config import ConfigManager
+            ConfigManager.reset()  # 重置单例状态
+            config_path = config.get('_config_path', 'config.yaml')
+            ConfigManager.initialize(config_path)
+            logger.info("✓ ConfigManager 已初始化")
+        except Exception as e:
+            logger.warning(f"ConfigManager 初始化失败: {e}")
+        
         target_func(ipc_queue_or_client, shared_state, config)
         
     except KeyboardInterrupt:
@@ -122,7 +132,16 @@ class ProcessSupervisor:
     STATE_ALARM = "alarm"    # 报警状态（红灯闪烁）
     
     def __init__(self, config_path: str = "./config.yaml"):
-        self.config = self._load_config(config_path)
+        # 初始化 ConfigManager（新的配置管理系统）
+        from utils.config import ConfigManager
+        ConfigManager.initialize(config_path)
+        config_manager = ConfigManager.get_instance()
+        
+        # 向后兼容：保留原始配置字典
+        self.config = config_manager.get_raw_dict()
+        
+        # 保存配置文件路径，以便子进程使用
+        self.config['_config_path'] = config_path
         
         # 进程管理
         self.processes: Dict[str, mp.Process] = {}
@@ -150,6 +169,7 @@ class ProcessSupervisor:
         logger.info("📡 VigiDoor Supervisor 初始化完成")
         logger.info(f"   设备 ID: {self.config['device']['id']}")
         logger.info(f"   设备名称: {self.config['device']['name']}")
+        logger.info(f"   配置管理: ConfigManager (类型安全)")
         logger.info("=" * 60)
     
     def _load_config(self, config_path: str) -> dict:

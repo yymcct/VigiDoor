@@ -6,6 +6,7 @@ import time
 import threading
 from core.ipc import IPCClient, MessageType
 from core.ipc.registry import ProcessName
+from modules.stream.osd.elements import RegionOverlayElement
 from utils.logger import setup_logger
 from utils.frame_buffer import SharedFrameBuffer
 
@@ -230,23 +231,7 @@ class StreamManagerProcess:
     def _init_components(self):
         """初始化所有组件"""
         # 1. 创建 OSD 元素
-        osd_elements = CompositeOSDElement([
-            TimestampElement(position=(20, 40), font_scale=0.8),
-            DeviceInfoElement(
-                device_id=self.config['device']['id'],
-                position=None  # 自动定位到左下角
-            ),
-            DetectionBoxElement(box_thickness=2, text_font_scale=0.5),
-            SkeletonElement(
-                line_thickness=2,
-                keypoint_radius=3,
-                confidence_threshold=0.5
-            ),
-            FootTrafficElement(
-                position=None,  # 自动定位到右上角
-                font_scale=0.8
-            )
-        ])
+        osd_elements = CompositeOSDElement()
         
         # 2. 创建帧队列
         encode_queue = FrameQueue(maxsize=5, name="EncodeQueue")
