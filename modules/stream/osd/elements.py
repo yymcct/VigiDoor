@@ -8,9 +8,71 @@ from datetime import datetime
 from typing import List, Dict, Any
 import numpy as np
 import cv2
+from PIL import Image, ImageDraw, ImageFont
 from utils.logger import setup_logger
 
 logger = setup_logger('osd_elements')
+
+
+def put_chinese_text(
+    img: np.ndarray,
+    text: str,
+    position: tuple,
+    font_size: int = 20,
+    color: tuple = (255, 255, 255)
+) -> np.ndarray:
+    """
+    在图像上绘制中文文本（使用 PIL）
+    
+    Args:
+        img: OpenCV 图像（BGR格式）
+        text: 要绘制的文本
+        position: 文本位置 (x, y)
+        font_size: 字体大小
+        color: 文字颜色 (R, G, B) 注意：传入RGB格式
+        
+    Returns:
+        np.ndarray: 绘制后的图像
+    """
+    # 转换为 PIL Image（RGB格式）
+    img_pil = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+    draw = ImageDraw.Draw(img_pil)
+    
+    # 尝试使用系统字体
+    try:
+        # Linux 常见中文字体路径
+        font_paths = [
+            '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',  # 文泉驿微米黑
+            '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',    # 文泉驿正黑
+            '/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf',  # Droid
+            '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',  # Noto Sans
+            '/System/Library/Fonts/PingFang.ttc',  # macOS
+            'C:\\Windows\\Fonts\\msyh.ttc',  # Windows 微软雅黑
+        ]
+        
+        font = None
+        for font_path in font_paths:
+            try:
+                font = ImageFont.truetype(font_path, font_size)
+                break
+            except (OSError, IOError):
+                continue
+        
+        if font is None:
+            # 使用默认字体
+            font = ImageFont.load_default()
+            logger.warning("⚠️ 未找到中文字体，使用默认字体")
+    except Exception as e:
+        logger.warning(f"⚠️ 加载字体失败: {e}，使用默认字体")
+        font = ImageFont.load_default()
+    
+    # 绘制文本（PIL使用RGB颜色）
+    draw.text(position, text, font=font, fill=color)
+    
+    # 转换回 OpenCV 格式（BGR）
+    img_cv = cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
+    
+    return img_cv
 
 
 class OSDElement(ABC):
@@ -478,11 +540,12 @@ class RegionOverlayElement(OSDElement):
                     color, thickness
                 )
                 
-                # 绘制标签
-                cv2.putText(
-                    overlay, region_name, (x1, max(y1 - 10, 15)),
-                    cv2.FONT_HERSHEY_SIMPLEX, font_scale,
-                    color, 2
+                # 绘制标签（支持中文）
+                label_y = max(y1 - 10, 15)
+                overlay = put_chinese_text(
+                    overlay, region_name, (x1, label_y),
+                    font_size=int(font_scale * 20),  # 转换为像素大小
+                    color=(color[2], color[1], color[0])  # BGR -> RGB
                 )
             
             elif region_type == 'polygon' and len(region_coords) >= 3:
@@ -497,14 +560,15 @@ class RegionOverlayElement(OSDElement):
                     color, thickness
                 )
                 
-                # 绘制标签在第一个点附近
+                # 绘制标签在第一个点附近（支持中文）
                 p0 = region_coords[0]
                 label_x = int(p0[0] * width)
                 label_y = int(p0[1] * height)
-                cv2.putText(
-                    overlay, region_name, (label_x, max(label_y - 10, 15)),
-                    cv2.FONT_HERSHEY_SIMPLEX, font_scale,
-                    color, 2
+                label_y = max(label_y - 10, 15)
+                overlay = put_chinese_text(
+                    overlay, region_name, (label_x, label_y),
+                    font_size=int(font_scale * 20),  # 转换为像素大小
+                    color=(color[2], color[1], color[0])  # BGR -> RGB
                 )
         
         # 半透明叠加
