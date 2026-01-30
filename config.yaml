@@ -2,7 +2,7 @@
 
 # 设备信息
 device:
-  id: "697882367"  # 设备唯一标识
+  id: "697882367f2e6c302f4e7aac_RPI_001_0_0_2026012710"  # 设备唯一标识
   name: "智慧门_001"
   location: "示例门店"
 
@@ -113,7 +113,7 @@ storage:
 
 ai_detector:
   # 基础配置
-  model_path: "models/yolov8n.pt"
+  model_path: "models/yolo11n-pose.pt"
   confidence_threshold: 0.5
   target_classes: [0]  # 0=person
   detect_interval: 8  # 默认检测间隔（帧）
@@ -141,7 +141,7 @@ ai_detector:
     - type: yolo
       enabled: true
       config:
-        model_path: "models/yolov8n.pt"
+        model_path: "models/yolo11n-pose.pt"
         confidence_threshold: 0.5
         target_classes: [0]        # 0=person
         input_size: 640

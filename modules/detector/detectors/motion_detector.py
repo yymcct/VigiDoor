@@ -75,7 +75,7 @@ class MotionDetector(BaseDetector):
                 motion_detected, motion_area = self._detect_with_frame_difference(gray)
             
             if motion_detected:
-                logger.debug(f"✅ 检测到运动（面积: {motion_area} px²）")
+                logger.info(f"✅ 检测到运动（面积: {motion_area} px²）")
                 return DetectionResult(
                     should_continue=True,
                     detections=[],  # 运动检测器不输出具体目标

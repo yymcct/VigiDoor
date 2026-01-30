@@ -187,7 +187,7 @@ class MQTTClientProcess:
             logger.error(f"处理 MQTT 消息失败: {e}", exc_info=True)
     
     def _publish_online_status(self):
-        """发布上线消息（重构，使用 publish_lifecycle_online 方法）"""
+        """发布上线消息"""
         try:
             device_name = self.config['device']['name']
             location = self.config['device'].get('location', '')

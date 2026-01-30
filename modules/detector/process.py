@@ -1,11 +1,6 @@
 """
-AI 检测进程（重构版）
+AI 检测进程
 负责视频分析和异常检测
-
-重构亮点：
-- 使用串行Pipeline架构（运动检测→YOLO→区域判断）
-- 支持早停机制（节省资源）
-- 模块化设计，便于扩展
 """
 
 import time
@@ -25,7 +20,7 @@ logger = setup_logger('ai_detector')
 
 class AIDetectorProcess:
     """
-    AI 检测进程（重构版）
+    AI 检测进程
     
     架构：
         帧读取器 → 检测策略 → Pipeline → 结果分析器 → IPC通信

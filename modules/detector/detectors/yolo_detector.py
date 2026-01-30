@@ -43,8 +43,8 @@ class YOLODetector(BaseDetector):
         try:
             # 检查模型文件
             if not os.path.exists(self.model_path):
-                logger.warning(f"模型文件不存在: {self.model_path}，将使用模拟模式")
-                return True  # 允许模拟模式
+                logger.error(f"模型文件不存在: {self.model_path}")
+                return False
             
             # 尝试加载ultralytics
             try:
@@ -60,8 +60,8 @@ class YOLODetector(BaseDetector):
                 return True
                 
             except ImportError:
-                logger.warning("ultralytics未安装，使用模拟模式")
-                return True
+                logger.error("ultralytics未安装，无法使用YOLO检测器")
+                return False
                 
         except Exception as e:
             logger.error(f"YOLO模型加载失败: {e}")
@@ -77,8 +77,12 @@ class YOLODetector(BaseDetector):
         """
         try:
             if self.model is None:
-                # 模拟检测（测试用）
-                return self._simulate_detection(frame, metadata)
+                logger.error("YOLO模型未加载，跳过检测")
+                return DetectionResult(
+                    should_continue=False,
+                    detections=[],
+                    metadata={'yolo_error': 'model_not_loaded'}
+                )
             
             # 降采样到YOLO输入尺寸
             frame_resized = cv2.resize(frame, (self.input_size, self.input_size))
@@ -128,34 +132,6 @@ class YOLODetector(BaseDetector):
             logger.error(f"YOLO检测失败: {e}")
             # 出错时继续检测（保守策略）
             return DetectionResult(should_continue=True)
-    
-    def _simulate_detection(self, frame, metadata: Dict[str, Any]) -> DetectionResult:
-        """模拟检测（测试用）"""
-        # 10% 概率模拟检测到目标
-        if np.random.rand() < 0.1:
-            detections = [{
-                'class': 0,
-                'class_name': 'person',
-                'confidence': 0.85 + np.random.rand() * 0.15,
-                'bbox': [
-                    0.3 + np.random.rand() * 0.2,  # x
-                    0.3 + np.random.rand() * 0.2,  # y
-                    0.2 + np.random.rand() * 0.1,  # w
-                    0.3 + np.random.rand() * 0.2   # h
-                ],
-                'detector': 'yolo_simulator'
-            }]
-            return DetectionResult(
-                should_continue=True,
-                detections=detections,
-                metadata={'yolo_count': 1}
-            )
-        else:
-            return DetectionResult(
-                should_continue=False,
-                detections=[],
-                metadata={'yolo_count': 0}
-            )
     
     def cleanup(self):
         """清理资源"""
