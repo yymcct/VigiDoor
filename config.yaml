@@ -76,6 +76,9 @@ supervisor:
   restart_limit: 5  # 时间窗口内最大重启次数
   restart_window: 300  # 时间窗口（秒）
   
+  # 报警自动恢复（秒，0 表示不自动恢复）
+  alarm_auto_reset_seconds: 15
+  
   # 心跳配置
   heartbeat_interval: 5  # 心跳检查间隔（秒）
   heartbeat_timeout: 30  # 心跳超时（秒）

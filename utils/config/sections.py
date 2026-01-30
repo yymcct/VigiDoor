@@ -139,6 +139,7 @@ class SupervisorConfig:
     """进程管理配置"""
     restart_limit: int
     restart_window: int
+    alarm_auto_reset_seconds: float
     heartbeat_interval: int
     heartbeat_timeout: int
     startup_delays: Dict[str, float] = field(default_factory=dict)

@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from utils.logger import setup_logger
 
 from core.ipc import MessageBus
-from core.ipc.message import MessageType, IPCMessage, ShutdownMessage
+from core.ipc.message import MessageType, IPCMessage, ShutdownMessage, CommandMessage
 from core.ipc.registry import ProcessName
 from modules.supervisor.handlers import SupervisorHandlerContext
 from modules.supervisor.message_router import MessageRouter
@@ -152,12 +152,17 @@ class ProcessSupervisor:
         self.message_bus = MessageBus(max_queue_size=1000)
         
         # 共享状态
+        alarm_auto_reset_seconds = float(
+            self.config.get('supervisor', {}).get('alarm_auto_reset_seconds', 0) or 0
+        )
         self.shared_state = mp.Manager().dict({
             'global_state': self.STATE_SAFE,
             'device_id': self.config['device']['id'],
             'is_streaming': False,
             'last_heartbeat': {},
             'start_time': time.time(),  # 添加启动时间，用于计算 uptime
+            'alarm_until': 0.0,
+            'alarm_auto_reset_seconds': alarm_auto_reset_seconds,
         })
 
         self.message_handler_ctx = SupervisorHandlerContext(
@@ -465,11 +470,36 @@ class ProcessSupervisor:
         
         try:
             while self.running:
+                self._check_alarm_auto_reset()
                 time.sleep(1)
         except KeyboardInterrupt:
             logger.info("⚠️ 收到中断信号")
         finally:
             self._graceful_shutdown()
+
+    def _check_alarm_auto_reset(self):
+        """报警状态自动恢复"""
+        try:
+            if self.shared_state.get('global_state') != self.STATE_ALARM:
+                return
+
+            alarm_until = float(self.shared_state.get('alarm_until', 0) or 0)
+            if alarm_until <= 0:
+                return
+
+            if time.time() >= alarm_until:
+                self.shared_state['global_state'] = self.STATE_SAFE
+                self.shared_state['alarm_until'] = 0
+                logger.info("✅ 报警自动恢复：状态切换为 safe")
+
+                light_msg = CommandMessage(
+                    cmd_type=MessageType.CMD_SET_LIGHT,
+                    target=ProcessName.DEVICE_CONTROLLER,
+                    cmd_data={'mode': 'safe'}
+                )
+                self.message_bus.send(ProcessName.DEVICE_CONTROLLER, light_msg)
+        except Exception as e:
+            logger.error(f"报警自动恢复异常: {e}")
     
     def _signal_handler(self, signum, frame):
         """信号处理器"""

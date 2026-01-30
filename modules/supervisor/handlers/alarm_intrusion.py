@@ -1,5 +1,6 @@
 """Alarm intrusion message handler."""
 
+import time
 from typing import Any, Dict
 
 from core.ipc.message import MessageType, IPCMessage, CommandMessage, create_message
@@ -13,6 +14,7 @@ def handle_alarm_intrusion(ctx: SupervisorHandlerContext, msg: IPCMessage) -> No
     ctx.logger.warning(f"🚨 检测到异常: {data}")
 
     _set_global_state(ctx, 'alarm')
+    _set_alarm_auto_reset(ctx)
 
     alarm_msg = create_message(
         msg_type=MessageType.ALARM_INTRUSION,
@@ -36,3 +38,13 @@ def _set_global_state(ctx: SupervisorHandlerContext, state: str) -> None:
     if old_state != state:
         ctx.shared_state['global_state'] = state
         ctx.logger.info(f"🔄 全局状态切换: {old_state} → {state}")
+
+
+def _set_alarm_auto_reset(ctx: SupervisorHandlerContext) -> None:
+    """设置报警自动恢复时间"""
+    reset_seconds = float(ctx.shared_state.get('alarm_auto_reset_seconds', 0) or 0)
+    if reset_seconds > 0:
+        ctx.shared_state['alarm_until'] = time.time() + reset_seconds
+        ctx.logger.info(f"⏱️ 报警自动恢复计时启动: {reset_seconds:.0f}s")
+    else:
+        ctx.shared_state['alarm_until'] = 0
