@@ -20,7 +20,7 @@ _FONT_WARNING_EMITTED = False
 # 项目内字体（你稍后可替换文件名）
 _DEFAULT_FONT_FILENAME = 'wqy-microhei.ttc'
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
-_PROJECT_FONT_PATH = _PROJECT_ROOT / 'fonts' / _DEFAULT_FONT_FILENAME
+_PROJECT_FONT_PATH = _PROJECT_ROOT / 'assets/fonts' / _DEFAULT_FONT_FILENAME
 
 
 def _load_font(font_size: int) -> ImageFont.FreeTypeFont:

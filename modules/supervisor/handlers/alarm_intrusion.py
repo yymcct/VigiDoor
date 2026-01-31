@@ -31,6 +31,15 @@ def handle_alarm_intrusion(ctx: SupervisorHandlerContext, msg: IPCMessage) -> No
     )
     ctx.message_bus.send(ProcessName.DEVICE_CONTROLLER, light_msg)
 
+    audio_msg = CommandMessage(
+        cmd_type=MessageType.CMD_PLAY_AUDIO,
+        target=ProcessName.AUDIO_PROCESSOR,
+        cmd_data={
+            'path': 'assets/audio/qinglikai.mp3'
+        }
+    )
+    ctx.message_bus.send(ProcessName.AUDIO_PROCESSOR, audio_msg)
+
 
 def _set_global_state(ctx: SupervisorHandlerContext, state: str) -> None:
     """设置全局状态"""

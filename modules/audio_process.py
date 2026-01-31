@@ -3,7 +3,11 @@
 负责音频采集、异常检测和远程喊话
 """
 
+import shutil
+import subprocess
 import time
+from pathlib import Path
+
 from utils.logger import setup_logger
 from core.ipc import IPCClient, MessageType
 from core.ipc.registry import ProcessName
@@ -137,19 +141,54 @@ class AudioProcessorProcess:
         """播放音频（远程喊话）"""
         try:
             logger.info("🔊 播放远程喊话音频")
-            
-            # 真实实现：
-            # 1. 从 audio_data 解析音频 URL 或 base64
-            # 2. 下载音频文件
-            # 3. 使用 PyAudio 或 aplay 播放
-            
-            # 初版模拟
-            logger.info("  [模拟] 播放音频中...")
-            time.sleep(2)
-            logger.info("  [模拟] 播放完成")
+
+            audio_path = self._resolve_audio_path(audio_data)
+            if not audio_path:
+                return
+
+            player = self._find_player()
+            if not player:
+                logger.error("未找到可用播放器，请安装 ffmpeg(ffplay)/mpg123/vlc/sox")
+                return
+
+            cmd = player + [str(audio_path)]
+            logger.info(f"播放音频文件: {audio_path}")
+            subprocess.call(cmd)
             
         except Exception as e:
             logger.error(f"播放音频失败: {e}")
+
+    def _resolve_audio_path(self, audio_data):
+        """解析音频路径"""
+        data = audio_data or {}
+        path_value = data.get('path') or data.get('file') or data.get('audio_path')
+        if not path_value:
+            logger.error("音频路径为空")
+            return None
+
+        project_root = Path(__file__).resolve().parents[1]
+        audio_path = Path(path_value)
+        if not audio_path.is_absolute():
+            audio_path = project_root / audio_path
+
+        if audio_path.exists():
+            return audio_path
+
+        logger.error(f"音频文件不存在: {audio_path}")
+        return None
+
+    def _find_player(self):
+        """查找系统播放器"""
+        candidates = [
+            ["ffplay", "-nodisp", "-autoexit", "-loglevel", "error"],
+            ["mpg123", "-q"],
+            ["cvlc", "--play-and-exit"],
+            ["play", "-q"],
+        ]
+        for cmd in candidates:
+            if shutil.which(cmd[0]):
+                return cmd
+        return None
     
     def _run_simulation_mode(self):
         """模拟模式运行"""
