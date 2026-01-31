@@ -32,7 +32,7 @@ camera:
 
 # 流媒体配置
 stream:
-  zlm_server: "rtsp://192.168.1.119:8554/live"  # ZLMediaKit 服务器地址
+  zlm_server: "rtsp://192.168.2.139:554/live" #"rtsp://192.168.1.119:8554/live"  # ZLMediaKit 服务器地址
   stream_key: "{device_id}"  # 推流密钥
   video_codec: "h264"
   audio_codec: "aac"
