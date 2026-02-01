@@ -16,7 +16,7 @@ from .osd import CompositeOSDElement, TimestampElement, DeviceInfoElement, Detec
 from .osd import SkeletonElement, FootTrafficElement
 from .osd import OSDDataStore, OSDMessageDispatcher
 from .osd.renderer import OSDRenderer
-from .encoder import FFmpegEncoder
+from .encoder import FFmpegEncoder, AVMuxer
 from .pipeline import StreamPipeline
 
 from core.ipc.message import CommandMessage as IPCCommandMessage, MessageType
@@ -245,13 +245,17 @@ class StreamManagerProcess:
         )
         logger.info("✅ OSD 渲染器初始化完成")
         
-        # 4. 创建编码器
-        self.encoder = FFmpegEncoder(
+        # 4. 创建音视频混流器（AVMuxer，音频默认启用）
+        self.encoder = AVMuxer(
             width=self.config['camera']['width'],
             height=self.config['camera']['height'],
             fps=self.config['stream']['fps'],
-            bitrate=self.config['stream']['bitrate']
+            video_bitrate=self.config['stream']['bitrate'],
+            audio_device=self.config['stream'].get('audio_device', 'plughw:1,0'),
+            audio_bitrate=self.config['stream'].get('audio_bitrate', '128k'),
+            audio_sample_rate=self.config['audio'].get('sample_rate', 16000)
         )
+        logger.info("使用音视频混流器（AVMuxer）")
         
         if not self.encoder.initialize(self.stream_url):
             raise RuntimeError("编码器初始化失败")

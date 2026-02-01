@@ -39,6 +39,8 @@ stream:
   bitrate: "1000k"
   fps: 25
   resolution: "1280x720"
+  audio_device: "plughw:1,0" # ALSA 音频设备（plughw 支持多路访问，默认启用音频推流）
+  audio_bitrate: "128k"      # 音频码率
 
 # 音频配置
 audio:

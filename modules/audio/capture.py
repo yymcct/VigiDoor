@@ -122,14 +122,25 @@ class AudioCaptureManager:
             return False
     
     def _find_usb_audio_device(self) -> int:
-        """查找 WM8960 USB 音频设备"""
+        """查找 WM8960 音频设备（优先使用 plughw 支持多路访问）"""
         try:
             import pyaudio
+            
+            # 优先查找 plughw 设备（支持软件混音，允许多路并发访问）
+            for i in range(self.audio.get_device_count()):
+                info = self.audio.get_device_info_by_index(i)
+                name = info['name'].lower()
+                if 'plughw' in name and ('wm8960' in name or '1,0' in name):
+                    logger.info(f"找到 WM8960 plughw 设备 [{i}]: {info['name']} (支持多路访问)")
+                    return i
+            
+            # 其次查找 WM8960 设备
             for i in range(self.audio.get_device_count()):
                 info = self.audio.get_device_info_by_index(i)
                 name = info['name'].lower()
                 if 'wm8960' in name or 'usb audio' in name:
                     logger.info(f"找到 USB 音频设备 [{i}]: {info['name']}")
+                    logger.warning("⚠️ 建议配置 ALSA 使用 plughw 以避免与 Stream 进程冲突")
                     return i
             
             # 未找到特定设备，使用默认输入设备

@@ -10,10 +10,12 @@ from typing import Optional
 import numpy as np
 from utils.logger import setup_logger
 
+from .base import EncoderBase
+
 logger = setup_logger('av_muxer')
 
 
-class AVMuxer:
+class AVMuxer(EncoderBase):
     """
     音视频混流器（RTSP）
     
@@ -37,7 +39,7 @@ class AVMuxer:
         height: int,
         fps: int,
         video_bitrate: str,
-        audio_device: str = "hw:1,0",
+        audio_device: str = "plughw:1,0",
         audio_bitrate: str = "128k",
         audio_sample_rate: int = 16000
     ):
@@ -49,13 +51,11 @@ class AVMuxer:
             height: 视频高度
             fps: 帧率
             video_bitrate: 视频码率（例如："2000k"）
-            audio_device: ALSA 音频设备（例如："hw:1,0"）
+            audio_device: ALSA 音频设备（例如："plughw:1,0"，使用 plughw 支持多路访问）
             audio_bitrate: 音频码率（例如："128k"）
             audio_sample_rate: 音频采样率（Hz）
         """
-        self.width = width
-        self.height = height
-        self.fps = fps
+        super().__init__(width, height, fps, video_bitrate)
         self.video_bitrate = video_bitrate
         self.audio_device = audio_device
         self.audio_bitrate = audio_bitrate
@@ -73,13 +73,12 @@ class AVMuxer:
         logger.info(f"  视频: {width}x{height} @ {fps}fps, {video_bitrate}")
         logger.info(f"  音频: {audio_device}, {audio_sample_rate}Hz, {audio_bitrate}")
     
-    def initialize(self, stream_url: str, enable_audio: bool = True) -> bool:
+    def initialize(self, stream_url: str) -> bool:
         """
-        初始化混流器并启动 FFmpeg
+        初始化混流器并启动 FFmpeg（音频默认启用）
         
         Args:
             stream_url: RTSP 推流地址
-            enable_audio: 是否启用音频（False 则仅推视频）
             
         Returns:
             是否初始化成功
@@ -91,12 +90,11 @@ class AVMuxer:
         self.stream_url = stream_url
         
         try:
-            # 构建 FFmpeg 命令
-            cmd = self._build_ffmpeg_command(enable_audio)
+            # 构建 FFmpeg 命令（音频始终启用）
+            cmd = self._build_ffmpeg_command()
             
-            logger.info(f"启动 FFmpeg 混流器")
+            logger.info(f"启动 FFmpeg 混流器（音视频混流）")
             logger.info(f"  推流地址: {stream_url}")
-            logger.info(f"  启用音频: {enable_audio}")
             logger.debug(f"  FFmpeg 命令: {' '.join(cmd)}")
             
             # 启动 FFmpeg 子进程
@@ -127,11 +125,12 @@ class AVMuxer:
             logger.error(f"混流器初始化失败: {e}", exc_info=True)
             return False
     
-    def _build_ffmpeg_command(self, enable_audio: bool) -> list:
-        """构建 FFmpeg 命令"""
+    def _build_ffmpeg_command(self) -> list:
+        """构建 FFmpeg 命令（音频始终启用）"""
         cmd = [
             'ffmpeg',
             '-y',  # 覆盖输出
+            '-loglevel', 'warning',  # 减少日志输出
         ]
         
         # === 视频输入配置 ===
@@ -143,13 +142,12 @@ class AVMuxer:
             '-i', 'pipe:0',  # 从 stdin 读取视频
         ])
         
-        # === 音频输入配置 ===
-        if enable_audio:
-            cmd.extend([
-                '-f', 'alsa',
-                '-i', self.audio_device,  # ALSA 设备
-                '-ac', '1',  # 单声道
-            ])
+        # === 音频输入配置（始终启用）===
+        cmd.extend([
+            '-f', 'alsa',
+            '-i', self.audio_device,  # ALSA 设备
+            '-ac', '1',  # 单声道
+        ])
         
         # === 视频编码配置 ===
         cmd.extend([
@@ -165,15 +163,12 @@ class AVMuxer:
             '-profile:v', 'baseline',    # H.264 Baseline
         ])
         
-        # === 音频编码配置 ===
-        if enable_audio:
-            cmd.extend([
-                '-c:a', 'aac',
-                '-b:a', self.audio_bitrate,
-                '-ar', str(self.audio_sample_rate),  # 采样率
-            ])
-        else:
-            cmd.extend(['-an'])  # 无音频
+        # === 音频编码配置（AAC）===
+        cmd.extend([
+            '-c:a', 'aac',
+            '-b:a', self.audio_bitrate,
+            '-ar', str(self.audio_sample_rate),  # 采样率
+        ])
         
         # === RTSP 输出配置 ===
         cmd.extend([
@@ -208,7 +203,7 @@ class AVMuxer:
         self.stderr_thread = threading.Thread(target=read_stderr, daemon=True, name="FFmpeg-stderr")
         self.stderr_thread.start()
     
-    def encode_frame(self, frame: np.ndarray) -> bool:
+    def encode(self, frame: np.ndarray) -> bool:
         """
         编码并发送一帧（仅视频，音频由 FFmpeg 自己采集）
         

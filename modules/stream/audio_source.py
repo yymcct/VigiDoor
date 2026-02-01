@@ -26,12 +26,12 @@ class AudioSourceManager:
     - 本类主要用于预留接口和监控
     """
     
-    def __init__(self, device: str = "hw:1,0", sample_rate: int = 16000, channels: int = 1):
+    def __init__(self, device: str = "plughw:1,0", sample_rate: int = 16000, channels: int = 1):
         """
         初始化音频源管理器
         
         Args:
-            device: ALSA 设备名称（例如：hw:1,0 为 WM8960）
+            device: ALSA 设备名称（例如：plughw:1,0 为 WM8960，使用 plughw 支持多路访问）
             sample_rate: 采样率（Hz）
             channels: 声道数
         """
