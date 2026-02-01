@@ -115,11 +115,11 @@ class AudioCaptureManager:
             return True
             
         except ImportError:
-            logger.error("PyAudio 未安装，进入模拟模式")
-            return self._start_simulation_mode()
+            logger.error("PyAudio 未安装，无法启动音频采集")
+            return False
         except Exception as e:
             logger.error(f"启动音频采集失败: {e}", exc_info=True)
-            return self._start_simulation_mode()
+            return False
     
     def _find_usb_audio_device(self) -> int:
         """查找 WM8960 USB 音频设备"""
@@ -148,6 +148,8 @@ class AudioCaptureManager:
             logger.warning(f"音频流状态: {status}")
         
         # 转换为 NumPy 数组
+        # audio_chunk: 1D NumPy array, dtype=float32, 长度为 chunk_size
+        # 数值范围约为 [-1.0, 1.0]，每个元素为单声道采样点（float32 PCM）
         audio_chunk = np.frombuffer(in_data, dtype=np.float32)
         
         # 保存到环形缓冲区
@@ -169,35 +171,7 @@ class AudioCaptureManager:
         while self.running:
             time.sleep(0.5)
     
-    def _start_simulation_mode(self) -> bool:
-        """模拟模式：生成模拟音频数据"""
-        logger.info("进入音频采集模拟模式")
-        
-        self.running = True
-        self.thread = threading.Thread(target=self._run_simulation, daemon=True, name="AudioCaptureSimulation")
-        self.thread.start()
-        
-        return True
-    
-    def _run_simulation(self):
-        """模拟模式运行"""
-        logger.info("模拟音频采集运行中...")
-        while self.running:
-            # 生成模拟音频（低音量白噪声）
-            audio_chunk = np.random.randn(self.chunk_size).astype(np.float32) * 0.01
-            
-            # 保存到缓冲区
-            with self.buffer_lock:
-                self.buffer.append((time.time(), audio_chunk))
-            
-            # 触发回调
-            for callback in self.callbacks:
-                try:
-                    callback(audio_chunk)
-                except Exception as e:
-                    logger.error(f"回调函数异常: {e}")
-            
-            time.sleep(self.chunk_duration)
+    # ...已移除模拟音频生成相关方法...
     
     def get_latest_chunk(self) -> Optional[np.ndarray]:
         """获取最新的音频块"""
