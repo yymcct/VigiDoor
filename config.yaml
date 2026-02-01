@@ -42,12 +42,18 @@ stream:
 
 # 音频配置
 audio:
-  sample_rate: 16000
-  channels: 1
-  chunk_size: 1024
+  sample_rate: 16000         # 采样率 (Hz)，YamNet 要求 16kHz
+  channels: 2                # 双声道
+  chunk_size: 1024           # 音频块大小 (samples)
+  device_index: null         # 音频设备索引（null 表示自动检测 WM8960）
   
-  # 异常检测阈值
-  anomaly_threshold: 0.8
+  # 音频异常检测配置
+  detector:
+    model_path: "models/yamnet.tflite"        # YamNet 模型文件路径
+    volume_threshold_db: 55.0                 # 音量触发阈值 (分贝)
+    debounce_seconds: 2.0                     # 防抖时长 (秒)
+    confidence_threshold: 0.4                 # 置信度阈值（0-1）
+    enable_dog_bark: false                    # 是否检测狗叫声
 
 # 硬件控制配置
 hardware:

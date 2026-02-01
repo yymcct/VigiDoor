@@ -23,7 +23,12 @@ class MessageType(str, Enum):
     # ========== 告警消息 ==========
     ALARM_INTRUSION = "alarm_intrusion"           # 视觉告警（检测到异常）
     ALARM_SYSTEM = "alarm_system"           # 系统告警（严重错误）
-
+    
+    # ========== 音频相关消息 ==========
+    AUDIO_ANOMALY = "audio_anomaly"               # 音频异常事件（玻璃破碎、呼救等）
+    AUDIO_VOLUME_HIGH = "audio_volume_high"       # 音量过高
+    CMD_START_AUDIO = "cmd_start_audio"           # 开始音频采集
+    CMD_STOP_AUDIO = "cmd_stop_audio"             # 停止音频采集
     
     # ========== 帧数据消息 ==========
     FRAME_READY = "frame_ready"             # 新帧就绪通知
