@@ -28,7 +28,7 @@ class AudioProcessorProcess:
         # 创建新的 AudioProcess 实例
         self.audio_process = AudioProcess(ipc_client, shared_state, config)
         
-        logger.info("音频处理进程入口初始化完成（使用新架构）")
+        logger.info("音频处理进程入口初始化完成")
     
     def run(self):
         """启动音频处理进程"""

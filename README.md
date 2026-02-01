@@ -1,6 +1,18 @@
 # VigiDoor
 边缘计算AI检测，安防盒子
 
+```
+source ~/.bashrc
+
+source .venv/bin/activate
+
+python -m venv --system-site-packages .venv
+
+sudo apt-get install libasound-dev portaudio19-dev libportaudio2 libportaudiocpp0
+
+pip install -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com
+```
+
 ## 🚀 快速开始
 
 ```bash

@@ -18,7 +18,7 @@ numpy>=1.24.0
 # 音频处理
 pyaudio>=0.2.13  # 麦克风/喇叭
 
-tflite-runtime==2.14.0 # YamNet 音频异常检测
+#tflite-runtime==2.14.0 # YamNet 音频异常检测
 # scipy>=1.11.0  # 音频分析
 
 # LED 控制
