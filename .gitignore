@@ -53,8 +53,8 @@ coverage.xml
 logs/*.log
 data/snapshots/*
 data/cache/*
-models/*.pt
-models/*.tflite
+# models/*.pt
+# models/*.tflite
 venv/
 .vscode/
 *.swp
