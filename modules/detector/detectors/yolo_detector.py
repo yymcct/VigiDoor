@@ -94,8 +94,20 @@ class YOLODetector(BaseDetector):
             detections = []
             for result in results:
                 boxes = result.boxes
+                keypoints = getattr(result, 'keypoints', None)
+
+                # 预取关键点（若存在）
+                kpts_xyn = None
+                kpts_conf = None
+                if keypoints is not None:
+                    try:
+                        kpts_xyn = keypoints.xyn
+                        kpts_conf = keypoints.conf
+                    except Exception:
+                        kpts_xyn = None
+                        kpts_conf = None
                 
-                for box in boxes:
+                for idx, box in enumerate(boxes):
                     cls = int(box.cls[0])
                     conf = float(box.conf[0])
                     
@@ -103,14 +115,33 @@ class YOLODetector(BaseDetector):
                     if cls in self.target_classes and conf >= self.confidence_threshold:
                         # 获取归一化坐标（相对于输入尺寸）
                         x1, y1, x2, y2 = box.xyxyn[0].tolist()
-                        
-                        detections.append({
+
+                        det = {
                             'class': cls,
                             'class_name': self.model.names[cls],
                             'confidence': conf,
                             'bbox': [x1, y1, x2 - x1, y2 - y1],  # [x, y, w, h] 归一化
                             'detector': 'yolo'
-                        })
+                        }
+
+                        # 追加骨架关键点（若模型支持）
+                        if kpts_xyn is not None and idx < len(kpts_xyn):
+                            try:
+                                kpts = kpts_xyn[idx].tolist()
+                                if kpts_conf is not None and idx < len(kpts_conf):
+                                    confs = kpts_conf[idx].tolist()
+                                    for i, c in enumerate(confs):
+                                        if i < len(kpts):
+                                            if len(kpts[i]) >= 2:
+                                                if len(kpts[i]) == 2:
+                                                    kpts[i].append(float(c))
+                                                else:
+                                                    kpts[i][2] = float(c)
+                                det['keypoints'] = kpts
+                            except Exception:
+                                pass
+                        
+                        detections.append(det)
             
             if detections:
                 logger.info(f"✅ YOLO检测到 {len(detections)} 个目标")
