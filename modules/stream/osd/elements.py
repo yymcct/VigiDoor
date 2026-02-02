@@ -531,8 +531,8 @@ class RegionOverlayElement(OSDElement):
         overlay = frame.copy()
         
         # 使用固定样式（原来从 osd_config 读取）
-        color = (255, 255, 0)  # 黄色 (BGR)
-        thickness = 2
+        color = (0, 255, 255)  # 亮黄色 (BGR)
+        thickness = 3
         font_scale = 0.5
         alpha = 0.3
         

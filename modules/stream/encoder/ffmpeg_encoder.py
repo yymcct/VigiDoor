@@ -46,7 +46,7 @@ class FFmpegEncoder(EncoderBase):
                 '-y',  # 覆盖输出
                 # 输入配置
                 '-f', 'rawvideo',
-                '-pixel_format', 'rgb24',
+                '-pixel_format', 'bgr24',
                 '-video_size', f'{self.width}x{self.height}',
                 '-framerate', str(self.fps),
                 '-i', 'pipe:0',  # 从 stdin 读取
@@ -79,7 +79,7 @@ class FFmpegEncoder(EncoderBase):
                 ])
             
             logger.info(f"启动 FFmpeg 编码器")
-            logger.info(f"  输入: {self.width}x{self.height} @ {self.fps}fps RGB24")
+            logger.info(f"  输入: {self.width}x{self.height} @ {self.fps}fps BGR24")
             logger.info(f"  输出: H.264 @ {self.bitrate}")
             logger.info(f"  推流: {stream_url}")
             
