@@ -73,7 +73,7 @@ hardware:
 
 # 日志配置
 logging:
-  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  level: "DEBUG"  # DEBUG, INFO, WARNING, ERROR
   max_file_size: 10485760  # 10MB
   backup_count: 5
   format: "%(asctime)s [%(levelname)s] [%(processName)s] %(message)s"
@@ -171,20 +171,20 @@ ai_detector:
         overlap_threshold: 0.1     # 重叠阈值（10%）
         regions:
           # 矩形区域示例
-          - name: "门口警戒区"
-            type: rect
-            enabled: true
-            coords: [0.2, 0.7, 0.6, 0.25]  # [x, y, w, h] 归一化坐标
-          
-          # 多边形区域示例
+          # - name: "门口警戒区"
+          #   type: rect
+          #   enabled: true
+          #   coords: [0.2, 0.7, 0.6, 0.25]  # [x, y, w, h] 归一化坐标
+                    # 多边形区域示例
           - name: "楼梯区域"
             type: polygon
-            enabled: false
+            enabled: true
             coords:  # 多边形顶点 [[x1,y1], [x2,y2], ...]
-              - [0.2, 0.3]
-              - [0.5, 0.2]
-              - [0.7, 0.5]
-              - [0.4, 0.6]
+              - [0.2, 0.85]
+              - [0.9, 0.9]
+              - [0.8, 0.98]
+              - [0.1, 0.98]
+          
 # 使用说明：
 # 
 # 1. 调整检测频率：

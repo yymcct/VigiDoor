@@ -180,6 +180,12 @@ class RegionDetector(BaseDetector):
                     )
                     return True, region['name']
 
+                if self._bbox_intersects_polygon(bbox, region['coords']):
+                    logger.debug(
+                        f"RegionDetector: bbox intersect polygon region={region['name']}"
+                    )
+                    return True, region['name']
+
         return False, None
     
     def _calculate_rect_overlap(self, bbox1: List[float], bbox2: List[float]) -> float:
@@ -227,3 +233,86 @@ class RegionDetector(BaseDetector):
             p1x, p1y = p2x, p2y
         
         return inside
+
+    def _bbox_intersects_polygon(self, bbox: List[float], polygon: List[List[float]]) -> bool:
+        """
+        判断 bbox 是否与多边形相交/重叠
+        规则：
+        1) bbox 任一角点在多边形内
+        2) 多边形任一顶点在 bbox 内
+        3) bbox 任一边与多边形边相交
+        """
+        x, y, w, h = bbox
+        if w <= 0 or h <= 0:
+            return False
+
+        # 1) bbox corners in polygon
+        corners = [
+            (x, y),
+            (x + w, y),
+            (x + w, y + h),
+            (x, y + h),
+        ]
+        for cx, cy in corners:
+            if self._point_in_polygon(cx, cy, polygon):
+                return True
+
+        # 2) polygon vertices in bbox
+        for px, py in polygon:
+            if x <= px <= x + w and y <= py <= y + h:
+                return True
+
+        # 3) edge intersection
+        bbox_edges = [
+            ((x, y), (x + w, y)),
+            ((x + w, y), (x + w, y + h)),
+            ((x + w, y + h), (x, y + h)),
+            ((x, y + h), (x, y)),
+        ]
+        poly_edges = []
+        n = len(polygon)
+        for i in range(n):
+            p1 = polygon[i]
+            p2 = polygon[(i + 1) % n]
+            poly_edges.append((tuple(p1), tuple(p2)))
+
+        for e1 in bbox_edges:
+            for e2 in poly_edges:
+                if self._segments_intersect(e1[0], e1[1], e2[0], e2[1]):
+                    return True
+
+        return False
+
+    def _segments_intersect(
+        self,
+        p1: tuple,
+        p2: tuple,
+        q1: tuple,
+        q2: tuple,
+    ) -> bool:
+        """判断线段是否相交（含端点）"""
+
+        def _orient(a, b, c):
+            return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+
+        def _on_segment(a, b, c):
+            return (
+                min(a[0], b[0]) <= c[0] <= max(a[0], b[0])
+                and min(a[1], b[1]) <= c[1] <= max(a[1], b[1])
+            )
+
+        o1 = _orient(p1, p2, q1)
+        o2 = _orient(p1, p2, q2)
+        o3 = _orient(q1, q2, p1)
+        o4 = _orient(q1, q2, p2)
+
+        if o1 == 0 and _on_segment(p1, p2, q1):
+            return True
+        if o2 == 0 and _on_segment(p1, p2, q2):
+            return True
+        if o3 == 0 and _on_segment(q1, q2, p1):
+            return True
+        if o4 == 0 and _on_segment(q1, q2, p2):
+            return True
+
+        return (o1 > 0) != (o2 > 0) and (o3 > 0) != (o4 > 0)
