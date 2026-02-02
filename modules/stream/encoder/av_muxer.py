@@ -41,7 +41,8 @@ class AVMuxer(EncoderBase):
         video_bitrate: str,
         audio_device: str = "plughw:1,0",
         audio_bitrate: str = "128k",
-        audio_sample_rate: int = 16000
+        audio_sample_rate: int = 16000,
+        audio_channels: int = 1
     ):
         """
         初始化音视频混流器
@@ -54,12 +55,14 @@ class AVMuxer(EncoderBase):
             audio_device: ALSA 音频设备（例如："plughw:1,0"，使用 plughw 支持多路访问）
             audio_bitrate: 音频码率（例如："128k"）
             audio_sample_rate: 音频采样率（Hz）
+            audio_channels: 音频通道数
         """
         super().__init__(width, height, fps, video_bitrate)
         self.video_bitrate = video_bitrate
         self.audio_device = audio_device
         self.audio_bitrate = audio_bitrate
         self.audio_sample_rate = audio_sample_rate
+        self.audio_channels = audio_channels
         
         # FFmpeg 进程
         self.process = None
@@ -145,8 +148,9 @@ class AVMuxer(EncoderBase):
         # === 音频输入配置（始终启用）===
         cmd.extend([
             '-f', 'alsa',
+            '-ac', str(self.audio_channels),  # 通道数
+            '-ar', str(self.audio_sample_rate),  # 采样率
             '-i', self.audio_device,  # ALSA 设备
-            '-ac', '1',  # 单声道
         ])
         
         # === 视频编码配置 ===
