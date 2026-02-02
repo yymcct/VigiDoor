@@ -122,26 +122,44 @@ class AudioCaptureManager:
             return False
     
     def _find_usb_audio_device(self) -> int:
-        """查找 WM8960 音频设备（优先使用 plughw 支持多路访问）"""
+        """查找 WM8960/seeed-2mic 音频设备（优先使用 plughw 支持多路访问）"""
         try:
             import pyaudio
             
+            def _matches_target_device(name: str, index: int) -> bool:
+                # 目标特征：wm8960 / seeed-2mic / seeed2micvoicec / i2s-wm8960
+                target_keywords = (
+                    'wm8960',
+                    'seeed-2mic',
+                    'seeed2micvoicec',
+                    'i2s-wm8960',
+                )
+                if any(k in name for k in target_keywords):
+                    return True
+
+                # 兼容 arecord 输出：card 2, device 0 -> hw:2,0
+                device_index_token = f"hw:{index},0"
+                if device_index_token in name:
+                    return True
+
+                return False
+
             # 优先查找 plughw 设备（支持软件混音，允许多路并发访问）
-            for i in range(self.audio.get_device_count()):
-                info = self.audio.get_device_info_by_index(i)
-                name = info['name'].lower()
-                if 'plughw' in name and ('wm8960' in name or '1,0' in name):
-                    logger.info(f"找到 WM8960 plughw 设备 [{i}]: {info['name']} (支持多路访问)")
-                    return i
+            # for i in range(self.audio.get_device_count()):
+            #     info = self.audio.get_device_info_by_index(i)
+            #     name = info['name'].lower()
+            #     if 'plughw' in name and _matches_target_device(name, i):
+            #         logger.info(f"找到 WM8960/seeed plughw 设备 [{i}]: {info['name']} (支持多路访问)")
+            #         return i
             
             # 其次查找 WM8960 设备
-            for i in range(self.audio.get_device_count()):
-                info = self.audio.get_device_info_by_index(i)
-                name = info['name'].lower()
-                if 'wm8960' in name or 'usb audio' in name:
-                    logger.info(f"找到 USB 音频设备 [{i}]: {info['name']}")
-                    logger.warning("⚠️ 建议配置 ALSA 使用 plughw 以避免与 Stream 进程冲突")
-                    return i
+            # for i in range(self.audio.get_device_count()):
+            #     info = self.audio.get_device_info_by_index(i)
+            #     name = info['name'].lower()
+            #     if _matches_target_device(name, i) or 'usb audio' in name:
+            #         logger.info(f"找到 USB/WM8960/seeed 音频设备 [{i}]: {info['name']}")
+            #         logger.warning("⚠️ 建议配置 ALSA 使用 plughw 以避免与 Stream 进程冲突")
+            #         return i
             
             # 未找到特定设备，使用默认输入设备
             default_device = self.audio.get_default_input_device_info()

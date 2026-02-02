@@ -42,6 +42,13 @@ def process_wrapper(target_func: Callable, process_name: str, ipc_queue_or_clien
         logger = setup_logger(process_name)
         logger.info(f"🔧 {process_name} 进程启动")
         
+        # 初始化 ALSA 配置（减少默认设备探测噪声）
+        try:
+            from utils.alsa import setup_alsa_defaults
+            setup_alsa_defaults(logger=logger)
+        except Exception as e:
+            logger.warning(f"ALSA 配置初始化失败: {e}")
+
         # 初始化 ConfigManager（子进程需要独立初始化）
         try:
             from utils.config import ConfigManager
