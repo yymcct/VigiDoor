@@ -27,6 +27,7 @@ class RegionDetector(BaseDetector):
         # 配置参数
         self.regions = config.get('regions', [])  # 警戒区域列表
         self.overlap_threshold = config.get('overlap_threshold', 0.1)  # 重叠阈值
+        self.keypoint_conf_threshold = config.get('keypoint_conf_threshold', 0.2)  # 关键点置信度阈值
         
         # 解析警戒区域
         self.parsed_regions = self._parse_regions(self.regions)
@@ -34,6 +35,7 @@ class RegionDetector(BaseDetector):
         logger.info(f"区域检测器初始化: {len(self.parsed_regions)} 个警戒区域")
         for i, region in enumerate(self.parsed_regions):
             logger.info(f"  区域 {i+1}: {region['name']} (类型: {region['type']})")
+        logger.debug(f"关键点置信度阈值: {self.keypoint_conf_threshold}")
     
     def _parse_regions(self, regions: List[Dict]) -> List[Dict]:
         """解析警戒区域配置"""
@@ -71,7 +73,7 @@ class RegionDetector(BaseDetector):
         try:
             # 从metadata中获取前置检测器的结果
             detections = metadata.get('detections', [])
-            
+            logger.debug(f"RegionDetector: received {len(detections)} detections to check")
             if not detections:
                 return DetectionResult(
                     should_continue=True,
@@ -83,10 +85,13 @@ class RegionDetector(BaseDetector):
             intrusion_detections = []
             
             for detection in detections:
-                bbox = detection['bbox']  # [x, y, w, h] 归一化
-                
-                # 检查是否进入任何警戒区域
-                is_intrusion, region_name = self._check_intrusion(bbox)
+                # 仅通过 bbox 与警戒区域判断入侵
+                logger.debug(
+                    f"RegionDetector: target={detection.get('class_name', 'unknown')}, "
+                    f"conf={detection.get('confidence', 0):.2f}, "
+                    f"has_bbox={bool(detection.get('bbox'))}"
+                )
+                is_intrusion, region_name = self._check_intrusion(detection)
                 
                 if is_intrusion:
                     # 标记为入侵目标
@@ -98,6 +103,11 @@ class RegionDetector(BaseDetector):
                     logger.warning(
                         f"🚨 检测到入侵！目标类型: {detection.get('class_name', 'unknown')}, "
                         f"区域: {region_name}, 置信度: {detection.get('confidence', 0):.2f}"
+                    )
+                else:
+                    logger.debug(
+                        f"RegionDetector: no intrusion for target={detection.get('class_name', 'unknown')}, "
+                        f"conf={detection.get('confidence', 0):.2f}"
                     )
             
             if intrusion_detections:
@@ -118,44 +128,58 @@ class RegionDetector(BaseDetector):
             logger.error(f"区域检测失败: {e}")
             return DetectionResult(should_continue=True)
     
-    def _check_intrusion(self, bbox: List[float]) -> tuple:
+    def _check_intrusion(self, detection: Dict[str, Any]) -> tuple:
         """
-        检查边界框是否入侵警戒区域
+        检查检测目标是否入侵警戒区域（基于骨架关键点）
         
         Args:
-            bbox: [x, y, w, h] 归一化坐标
+            detection: 检测目标字典（应包含 keypoints）
         
         Returns:
             (is_intrusion, region_name)
         """
+        # 仅基于 bbox 与警戒区域判断
+        bbox = detection.get('bbox')
+        if not bbox:
+            logger.debug("RegionDetector: no bbox; skip")
+            return False, None
+
         x, y, w, h = bbox
-        
-        # 计算边界框中心点
         center_x = x + w / 2
         center_y = y + h / 2
-        
+        logger.debug(
+            f"RegionDetector: fallback bbox=({x:.3f},{y:.3f},{w:.3f},{h:.3f}), "
+            f"center=({center_x:.3f},{center_y:.3f})"
+        )
+
         for region in self.parsed_regions:
             if not region['enabled']:
                 continue
-            
+
             if region['type'] == 'rect':
-                # 矩形区域判断
                 rx, ry, rw, rh = region['coords']
-                
-                # 方法1：中心点在区域内
+
                 if rx <= center_x <= rx + rw and ry <= center_y <= ry + rh:
+                    logger.debug(
+                        f"RegionDetector: bbox center hit rect region={region['name']}"
+                    )
                     return True, region['name']
-                
-                # 方法2：检查重叠面积
+
                 overlap = self._calculate_rect_overlap(bbox, region['coords'])
                 if overlap > self.overlap_threshold:
+                    logger.debug(
+                        f"RegionDetector: bbox overlap hit rect region={region['name']}, "
+                        f"overlap={overlap:.3f}"
+                    )
                     return True, region['name']
-            
+
             elif region['type'] == 'polygon':
-                # 多边形区域判断（点在多边形内）
                 if self._point_in_polygon(center_x, center_y, region['coords']):
+                    logger.debug(
+                        f"RegionDetector: bbox center hit polygon region={region['name']}"
+                    )
                     return True, region['name']
-        
+
         return False, None
     
     def _calculate_rect_overlap(self, bbox1: List[float], bbox2: List[float]) -> float:

@@ -27,6 +27,9 @@ class DetectionPipeline:
             detectors: 检测器列表（按执行顺序）
         """
         self.detectors = detectors
+        self.has_region_detector = any(
+            detector.name == "RegionDetector" and detector.enabled for detector in detectors
+        )
         self.stats = {
             'total_frames': 0,
             'early_stop_count': 0,
@@ -73,6 +76,8 @@ class DetectionPipeline:
         # 初始化元数据
         if metadata is None:
             metadata = {}
+        # 标记是否包含区域检测器（供结果分析器使用）
+        metadata['has_region_detector'] = self.has_region_detector
         
         # 累积所有检测结果
         all_detections = []
@@ -95,6 +100,8 @@ class DetectionPipeline:
                 # 累积检测结果
                 all_detections.extend(result.detections)
                 final_metadata.update(result.metadata)
+                # 将当前累计结果放入metadata，供后续检测器使用
+                final_metadata['detections'] = all_detections
                 
                 # 检查是否早停
                 if not result.should_continue:
@@ -107,7 +114,7 @@ class DetectionPipeline:
                 logger.error(f"检测器执行异常: {detector.name}, {e}", exc_info=True)
                 # 继续执行下一个检测器
         
-        # 将累积的检测结果放入metadata（供后续检测器使用）
+        # 将累积的检测结果放入metadata（供外部使用）
         final_metadata['detections'] = all_detections
         
         return DetectionResult(
