@@ -27,9 +27,10 @@ class MotionDetector(BaseDetector):
         super().__init__(config, name="MotionDetector")
         
         # 配置参数
-        self.min_area = config.get('min_area', 500)  # 最小运动区域面积
-        self.blur_size = config.get('blur_size', 21)  # 高斯模糊核大小
-        self.threshold = config.get('threshold', 25)  # 二值化阈值
+        # 提高阈值/面积可降低灵敏度
+        self.min_area = config.get('min_area', 1200)  # 最小运动区域面积
+        self.blur_size = config.get('blur_size', 25)  # 高斯模糊核大小
+        self.threshold = config.get('threshold', 35)  # 二值化阈值
         self.use_background_subtractor = config.get('use_background_subtractor', True)
         
         # 背景模型
@@ -45,7 +46,7 @@ class MotionDetector(BaseDetector):
                 # 使用MOG2背景减除算法（更鲁棒）
                 self.background_subtractor = cv2.createBackgroundSubtractorMOG2(
                     history=500,
-                    varThreshold=16,
+                    varThreshold=24,
                     detectShadows=False
                 )
             logger.info("✅ 运动检测器初始化成功")
