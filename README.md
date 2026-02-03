@@ -1,6 +1,21 @@
 # VigiDoor
 边缘计算AI检测，安防盒子
 
+## 安装
+
+```
+sudo apt install -y python3-dev ffmpeg
+sudo apt-get install libasound-dev portaudio19-dev libportaudio2 libportaudiocpp0
+sudo apt install -y python3-picamera2
+sudo apt install -y python3-libcamera  
+
+# 如果遇到numpy错误则执行下面语句
+
+pip install --upgrade --force-reinstall simplejpeg
+```
+
+
+
 ```
 source ~/.bashrc
 
