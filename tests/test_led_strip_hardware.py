@@ -4,7 +4,7 @@ import board
 import neopixel_spi as neopixel
 
 
-LED_COUNT = 30
+LED_COUNT = 291
 BRIGHTNESS = 0.2
 
 
