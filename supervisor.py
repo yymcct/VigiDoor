@@ -104,7 +104,6 @@ class ProcessSupervisor:
         logger.info("📡 VigiDoor Supervisor 初始化完成")
         logger.info(f"   设备 ID: {self.config_manager.device.id}")
         logger.info(f"   设备名称: {self.config_manager.device.name}")
-        logger.info(f"   架构: 模块化设计")
         logger.info("=" * 60)
     
     def start(self):

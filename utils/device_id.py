@@ -146,13 +146,11 @@ def generate_device_id() -> str:
     mac_address = get_mac_address()
     if mac_address:
         hardware_info.append(f"mac:{mac_address}")
-        logger.info(f"使用MAC地址生成设备ID")
     
     # 3. 获取Linux机器ID（备用）
     machine_id = get_machine_id()
     if machine_id:
         hardware_info.append(f"machine:{machine_id}")
-        logger.info(f"使用机器ID生成设备ID")
     
     # 4. 如果都获取失败，使用随机UUID（警告用户）
     if not hardware_info:

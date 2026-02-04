@@ -34,7 +34,7 @@ class MQTTClientProcess:
         # MQTT 配置
         self.broker_host = config['mqtt']['broker_host']
         self.broker_port = config['mqtt']['broker_port']
-        self.device_id = config['device']['id']
+        self.device_id = config['mqtt']['client_id']
         
         self.client = None
         self.is_connected = False
