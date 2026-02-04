@@ -179,6 +179,14 @@ class ProcessSupervisor:
         )
         self.message_router = MessageRouter(self.message_handler_ctx)
         
+        # 数据库写入队列 (新增)
+        import queue
+        self.db_write_queue = queue.Queue(maxsize=1000)
+        
+        # DBManager (新增 - 在独立线程中运行)
+        from supervisor.db_manager import DBManager
+        self.db_manager = DBManager(self.db_write_queue)
+        
         # 控制标志
         self.running = True
         self.shutdown_event = threading.Event()
@@ -253,6 +261,11 @@ class ProcessSupervisor:
         signal.signal(signal.SIGINT, self._signal_handler)
         
         self._create_directories()
+        
+        # 启动 DBManager 线程 (新增)
+        logger.info("📊 启动 DBManager...")
+        self.db_manager.start()
+        self.db_manager.schedule_cleanup()  # 启动定期清理任务
         
         self._start_all_processes()
         
@@ -399,6 +412,16 @@ class ProcessSupervisor:
     
     def _handle_message(self, msg: IPCMessage) -> None:
         """根据消息类型处理业务逻辑"""
+        # 特殊处理：DB_WRITE 消息直接转发到 db_write_queue (新增)
+        if msg.type == MessageType.DB_WRITE:
+            try:
+                self.db_write_queue.put_nowait(msg.data)
+                logger.debug(f"DB写入请求已转发: {msg.data.get('action')}")
+            except Exception as e:
+                logger.error(f"DB写入请求转发失败: {e}")
+            return
+        
+        # 其他消息按原有逻辑处理
         self.message_router.dispatch(msg)
     
     def _health_reporter(self):
@@ -546,6 +569,11 @@ class ProcessSupervisor:
         # 关闭消息总线
         self.message_bus.close()
         logger.info("✅ 消息总线已关闭")
+        
+        # 停止 DBManager (新增)
+        logger.info("📊 停止 DBManager...")
+        self.db_manager.stop()
+        logger.info("✅ DBManager 已停止")
 
         # 清理共享内存（防止资源泄漏警告）
         self._cleanup_shared_memory()

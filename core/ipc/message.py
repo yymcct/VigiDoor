@@ -48,6 +48,9 @@ class MessageType(str, Enum):
     
     # ========== MQTT相关 ==========
     MQTT_COMMAND = "mqtt_command"           # 来自平台的指令
+    
+    # ========== 数据库相关 (新增) ==========
+    DB_WRITE = "db_write"                   # 数据库写入请求（唯一入口）
     REPORT_ALARM = "report_alarm"           # 上报告警
     REPORT_HEALTH = "report_health"         # 上报健康状态
     
