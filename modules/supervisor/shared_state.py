@@ -6,7 +6,10 @@
 
 import multiprocessing as mp
 import time
-from typing import Dict, Optional
+from typing import Dict, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from utils.config import ConfigManager
 
 
 class SharedStateManager:
@@ -22,20 +25,18 @@ class SharedStateManager:
     STATE_ALERT = "alert"    # 警戒状态（黄灯）
     STATE_ALARM = "alarm"    # 报警状态（红灯闪烁）
     
-    def __init__(self, config: dict):
+    def __init__(self, config_manager: 'ConfigManager'):
         """
         初始化共享状态管理器
         
         Args:
-            config: 配置字典
+            config_manager: ConfigManager 实例
         """
-        alarm_auto_reset_seconds = float(
-            config.get('supervisor', {}).get('alarm_auto_reset_seconds', 0) or 0
-        )
+        alarm_auto_reset_seconds = config_manager.supervisor.alarm_auto_reset_seconds or 0
         
         self._state = mp.Manager().dict({
             'global_state': self.STATE_SAFE,
-            'device_id': config['device']['id'],
+            'device_id': config_manager.device.id,
             'is_streaming': False,
             'last_heartbeat': {},
             'start_time': time.time(),  # 启动时间，用于计算 uptime

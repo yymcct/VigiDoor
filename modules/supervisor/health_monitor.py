@@ -11,7 +11,7 @@
 import threading
 import time
 import logging
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from core.ipc import MessageBus
 from core.ipc.message import MessageType, StatusMessage, AlarmMessage, MessagePriority, CommandMessage
@@ -19,7 +19,9 @@ from core.ipc.registry import ProcessName
 from .process_manager import ProcessManager
 from .shared_state import SharedStateManager
 
-
+if TYPE_CHECKING:
+    from utils.config import ConfigManager
+    
 class HealthMonitor:
     """
     健康监控器
@@ -30,9 +32,9 @@ class HealthMonitor:
     def __init__(
         self,
         process_manager: ProcessManager,
-        message_bus: MessageBus,
+        message_bus: MessageBus,   
         state_manager: SharedStateManager,
-        config: dict,
+        config_manager: 'ConfigManager',
         logger: logging.Logger
     ):
         """
@@ -42,13 +44,13 @@ class HealthMonitor:
             process_manager: 进程管理器
             message_bus: 消息总线
             state_manager: 共享状态管理器
-            config: 全局配置字典
+            config_manager: ConfigManager 实例
             logger: 日志记录器
         """
         self.process_manager = process_manager
         self.message_bus = message_bus
         self.state_manager = state_manager
-        self.config = config
+        self.config_manager = config_manager
         self.logger = logger
         
         self.running = False
@@ -122,7 +124,7 @@ class HealthMonitor:
                                 self._send_critical_alarm(config.name)
                 
                 # 检查间隔
-                heartbeat_interval = self.config['supervisor']['heartbeat_interval']
+                heartbeat_interval = self.config_manager.supervisor.heartbeat_interval
                 time.sleep(heartbeat_interval)
                 
             except Exception as e:
@@ -172,7 +174,7 @@ class HealthMonitor:
                 self.message_bus.send(ProcessName.MQTT_CLIENT, msg)
                 
                 # 上报间隔
-                report_interval = self.config['monitoring']['health_report_interval']
+                report_interval = self.config_manager.monitoring.health_report_interval
                 time.sleep(report_interval)
                 
             except Exception as e:

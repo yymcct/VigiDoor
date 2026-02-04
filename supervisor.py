@@ -54,27 +54,24 @@ class ProcessSupervisor:
     def __init__(self, config_path: str = "./config.yaml"):
         from utils.config import ConfigManager
         ConfigManager.initialize(config_path)
-        config_manager = ConfigManager.get_instance()
-        
-        # 获取配置字典
-        self.config = config_manager.get_raw_dict()
-        self.config['_config_path'] = config_path
+        self.config_manager = ConfigManager.get_instance()
+        self.config_path = config_path
         
         # 创建消息总线
         self.message_bus = MessageBus(max_queue_size=1000)
         
         # 创建共享状态管理器
-        self.state_manager = SharedStateManager(self.config)
+        self.state_manager = SharedStateManager(self.config_manager)
         
         # 创建进程配置
-        process_configs = create_process_configs(self.config)
+        process_configs = create_process_configs(self.config_manager)
         
         # 创建进程管理器
         self.process_manager = ProcessManager(
             message_bus=self.message_bus,
             state_manager=self.state_manager,
             process_configs=process_configs,
-            config=self.config,
+            config_path=self.config_path,
             logger=logger
         )
         
@@ -83,7 +80,7 @@ class ProcessSupervisor:
             process_manager=self.process_manager,
             message_bus=self.message_bus,
             state_manager=self.state_manager,
-            config=self.config,
+            config_manager=self.config_manager,
             logger=logger
         )
         
@@ -105,8 +102,8 @@ class ProcessSupervisor:
         
         logger.info("=" * 60)
         logger.info("📡 VigiDoor Supervisor 初始化完成")
-        logger.info(f"   设备 ID: {self.config['device']['id']}")
-        logger.info(f"   设备名称: {self.config['device']['name']}")
+        logger.info(f"   设备 ID: {self.config_manager.device.id}")
+        logger.info(f"   设备名称: {self.config_manager.device.name}")
         logger.info(f"   架构: 模块化设计")
         logger.info("=" * 60)
     
@@ -245,7 +242,7 @@ class ProcessSupervisor:
 
     def _cleanup_shared_memory(self):
         """清理共享内存残留（仅在退出时调用）"""
-        shm_name = self.config.get('camera', {}).get('shared_memory_name')
+        shm_name = self.config_manager.camera.shared_memory_name
         if not shm_name:
             return
 

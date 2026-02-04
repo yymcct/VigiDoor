@@ -9,9 +9,12 @@
 """
 
 from dataclasses import dataclass, field
-from typing import Callable, List
+from typing import Callable, List, TYPE_CHECKING
 import os
 import sys
+
+if TYPE_CHECKING:
+    from utils.config import ConfigManager
 
 
 @dataclass
@@ -26,7 +29,7 @@ class ProcessConfig:
     restart_history: List[float] = field(default_factory=list)
 
 
-def process_wrapper(target_func: Callable, process_name: str, ipc_queue_or_client, shared_state, config: dict):
+def process_wrapper(target_func: Callable, process_name: str, ipc_queue_or_client, shared_state, config_path: str):
     """
     进程包装器 - 捕获所有异常并记录
     这是每个子进程的入口点（模块级别函数，避免 pickle 错误）
@@ -36,7 +39,7 @@ def process_wrapper(target_func: Callable, process_name: str, ipc_queue_or_clien
         process_name: 进程名称
         ipc_queue_or_client: IPCClient 实例
         shared_state: 共享状态字典
-        config: 配置字典
+        config_path: 配置文件路径
     """
     # 添加项目根目录到 Python 路径（子进程需要）
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -59,12 +62,16 @@ def process_wrapper(target_func: Callable, process_name: str, ipc_queue_or_clien
         try:
             from utils.config import ConfigManager
             ConfigManager.reset()  # 重置单例状态
-            config_path = config.get('_config_path', 'config.yaml')
             ConfigManager.initialize(config_path)
             logger.info("✓ ConfigManager 已初始化")
         except Exception as e:
             logger.warning(f"ConfigManager 初始化失败: {e}")
         
+        # 获取配置字典用于向后兼容（某些进程可能仍需要）
+        config_manager = ConfigManager.get_instance()
+        config = config_manager.get_raw_dict()
+        config['_config_path'] = config_path
+        # TODO 使用config_manager
         target_func(ipc_queue_or_client, shared_state, config)
         
     except KeyboardInterrupt:
@@ -121,17 +128,17 @@ def run_device_controller(queue, shared_state, config):
 
 # ==================== 进程配置生成 ====================
 
-def create_process_configs(config: dict) -> List[ProcessConfig]:
+def create_process_configs(config_manager: 'ConfigManager') -> List[ProcessConfig]:
     """
     根据配置文件创建进程配置列表
     
     Args:
-        config: 配置字典
+        config_manager: ConfigManager 实例
         
     Returns:
         进程配置列表
     """
-    delays = config['supervisor']['startup_delays']
+    delays = config_manager.supervisor.startup_delays
     
     return [
         ProcessConfig(

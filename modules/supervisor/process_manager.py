@@ -10,7 +10,7 @@
 
 import multiprocessing as mp
 import time
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, TYPE_CHECKING
 import logging
 
 from core.ipc import MessageBus
@@ -18,7 +18,10 @@ from core.ipc.message import ShutdownMessage
 from .process_registry import ProcessConfig, process_wrapper
 from .shared_state import SharedStateManager
 
-
+if TYPE_CHECKING:
+    from utils.config import ConfigManager
+    
+    
 class ProcessManager:
     """
     进程管理器
@@ -28,10 +31,10 @@ class ProcessManager:
     
     def __init__(
         self, 
-        message_bus: MessageBus,
+        message_bus: MessageBus,    
         state_manager: SharedStateManager,
         process_configs: List[ProcessConfig],
-        config: dict,
+        config_path: str,
         logger: logging.Logger
     ):
         """
@@ -41,13 +44,13 @@ class ProcessManager:
             message_bus: 消息总线
             state_manager: 共享状态管理器
             process_configs: 进程配置列表
-            config: 全局配置字典
+            config_path: 配置文件路径
             logger: 日志记录器
         """
         self.message_bus = message_bus
         self.state_manager = state_manager
         self.process_configs = process_configs
-        self.config = config
+        self.config_path = config_path
         self.logger = logger
         
         self.processes: Dict[str, mp.Process] = {}
@@ -85,7 +88,7 @@ class ProcessManager:
                     config.name, 
                     ipc_obj, 
                     self.state_manager.state,  # 传递底层字典
-                    self.config
+                    self.config_path  # 传递配置文件路径
                 ),
                 name=config.name,
                 daemon=False
