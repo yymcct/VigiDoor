@@ -5,6 +5,7 @@
 
 from typing import Optional, Dict, Any
 import yaml
+import json
 import threading
 from pathlib import Path
 
@@ -439,6 +440,9 @@ class ConfigManager:
                 typed_value = int(value)
             elif isinstance(original_value, float):
                 typed_value = float(value)
+            elif isinstance(original_value, (list, dict)):
+                # 列表和字典类型，需要 JSON 反序列化
+                typed_value = self._smart_convert(value)
             else:
                 typed_value = value
         else:
@@ -455,8 +459,15 @@ class ConfigManager:
             value: 字符串值
         
         Returns:
-            转换后的值（int/float/bool/str）
+            转换后的值（int/float/bool/str/list/dict）
         """
+        # 尝试 JSON 反序列化（处理列表、字典等复杂结构）
+        if isinstance(value, str) and value.strip() and value.strip()[0] in ('{', '['):
+            try:
+                return json.loads(value)
+            except (json.JSONDecodeError, ValueError):
+                pass
+        
         # 尝试转换为数字
         try:
             if '.' in value:
