@@ -184,7 +184,7 @@ class ProcessSupervisor:
         self.db_write_queue = queue.Queue(maxsize=1000)
         
         # DBManager (新增 - 在独立线程中运行)
-        from supervisor.db_manager import DBManager
+        from modules.supervisor import DBManager
         self.db_manager = DBManager(self.db_write_queue)
         
         # 控制标志
