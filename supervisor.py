@@ -52,6 +52,10 @@ class ProcessSupervisor:
     """
     
     def __init__(self, config_path: str = "./config.yaml"):
+        # 1. 先确保数据库已初始化
+        self._ensure_db_initialized()
+        
+        # 2. 初始化 ConfigManager（内部会从 DB 读取配置）
         from utils.config import ConfigManager
         ConfigManager.initialize(config_path)
         self.config_manager = ConfigManager.get_instance()
@@ -105,6 +109,21 @@ class ProcessSupervisor:
         logger.info(f"   设备 ID: {self.config_manager.device.id}")
         logger.info(f"   设备名称: {self.config_manager.device.name}")
         logger.info("=" * 60)
+    
+    def _ensure_db_initialized(self):
+        """确保数据库已初始化"""
+        from pathlib import Path
+        from db.init_db import init_databases
+        
+        db_dir = Path("./data")
+        config_db = db_dir / "config.db"
+        
+        if not config_db.exists():
+            logger.info("📊 配置数据库不存在，开始初始化...")
+            init_databases(db_dir)
+            logger.info("✅ 数据库初始化完成")
+        else:
+            logger.info("📊 配置数据库已存在，跳过初始化")
     
     def start(self):
         """启动所有服务"""

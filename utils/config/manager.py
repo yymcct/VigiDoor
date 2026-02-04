@@ -130,6 +130,9 @@ class ConfigManager:
         with open(config_file, 'r', encoding='utf-8') as f:
             self._raw_config = yaml.safe_load(f)
         
+        # 从数据库读取并覆盖配置（DB 优先级更高）
+        self._merge_db_configs()
+        
         self._config_path = config_path
         self._parse_config()
     
@@ -342,4 +345,129 @@ class ConfigManager:
             else:
                 return default
         
+        return value
+    
+    def _merge_db_configs(self):
+        """
+        从数据库读取并覆盖配置（DB 优先级更高）
+        
+        支持覆盖的配置项包括：
+        - ai_detector.confidence_threshold
+        - ai_detector.detect_interval
+        - ai_detector.safe_interval
+        - ai_detector.alert_interval
+        - ai_detector.alarm_interval
+        - ai_detector.alarm_cooldown
+        - audio.anomaly_threshold
+        - osd.timestamp_enabled
+        - osd.device_info_enabled
+        - osd.detection_box_enabled
+        - osd.region_overlay_enabled
+        - monitoring.thresholds.*
+        - supervisor.alarm_auto_reset_seconds
+        等
+        """
+        try:
+            import logging
+            logger = logging.getLogger(__name__)
+            
+            # 检查数据库是否存在
+            db_dir = Path(__file__).parent.parent.parent / "data"
+            config_db = db_dir / "config.db"
+            
+            if not config_db.exists():
+                logger.info("⚙️  配置数据库不存在，使用 YAML 默认配置")
+                return
+            
+            # 导入 DBReader
+            import sys
+            sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+            from db.reader import DBReader
+            
+            # 读取所有数据库配置
+            reader = DBReader()
+            db_configs = reader.get_all_configs()
+            reader.close()
+            
+            if not db_configs:
+                logger.info("⚙️  数据库中无动态配置，使用 YAML 默认配置")
+                return
+            
+            # 合并配置（DB 优先）
+            override_count = 0
+            for key, value in db_configs.items():
+                self._apply_db_config(key, value)
+                logger.info(f"✓ 配置覆盖: {key} = {value} (来自DB)")
+                override_count += 1
+            
+            logger.info(f"📦 从数据库覆盖了 {override_count} 项配置")
+            
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"⚠️  从数据库加载配置失败，使用 YAML 默认值: {e}")
+    
+    def _apply_db_config(self, key: str, value: str):
+        """
+        应用数据库配置到 _raw_config
+        
+        Args:
+            key: 点号分隔的配置键，如 "audio.anomaly_threshold"
+            value: 配置值（字符串）
+        """
+        keys = key.split(".")
+        current = self._raw_config
+        
+        # 导航到目标位置的父节点
+        for k in keys[:-1]:
+            if k not in current:
+                current[k] = {}
+            elif not isinstance(current[k], dict):
+                # 如果中间节点不是字典，创建新字典
+                current[k] = {}
+            current = current[k]
+        
+        # 类型转换并设置值
+        final_key = keys[-1]
+        original_value = current.get(final_key)
+        
+        if original_value is not None:
+            # 根据原始类型转换
+            if isinstance(original_value, bool):
+                typed_value = value.lower() in ('true', '1', 'yes', 'on')
+            elif isinstance(original_value, int):
+                typed_value = int(value)
+            elif isinstance(original_value, float):
+                typed_value = float(value)
+            else:
+                typed_value = value
+        else:
+            # 尝试智能转换
+            typed_value = self._smart_convert(value)
+        
+        current[final_key] = typed_value
+    
+    def _smart_convert(self, value: str) -> Any:
+        """
+        智能类型转换
+        
+        Args:
+            value: 字符串值
+        
+        Returns:
+            转换后的值（int/float/bool/str）
+        """
+        # 尝试转换为数字
+        try:
+            if '.' in value:
+                return float(value)
+            return int(value)
+        except ValueError:
+            pass
+        
+        # 布尔值
+        if value.lower() in ('true', 'false', 'yes', 'no', 'on', 'off'):
+            return value.lower() in ('true', 'yes', 'on')
+        
+        # 返回字符串
         return value

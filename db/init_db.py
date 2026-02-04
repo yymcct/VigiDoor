@@ -8,25 +8,80 @@
 """
 
 import sqlite3
+import json
+import yaml
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
 import logging
 
 logger = logging.getLogger(__name__)
 
-# TODO 检查没有db文件，直接新建db文件
 class DatabaseInitializer:
     """数据库初始化器"""
     
-    def __init__(self, db_dir: Path):
+    def __init__(self, db_dir: Path, config_path: Optional[Path] = None):
         """
         初始化数据库目录
         
         Args:
             db_dir: 数据库文件存放目录
+            config_path: config.yaml 配置文件路径，默认为项目根目录下的 config.yaml
         """
         self.db_dir = db_dir
         self.db_dir.mkdir(parents=True, exist_ok=True)
+        
+        # 确定 config.yaml 路径
+        if config_path is None:
+            # 默认路径：项目根目录 / config.yaml
+            config_path = Path(__file__).parent.parent / "config.yaml"
+        self.config_path = config_path
+    
+    def _flatten_dict(self, data: Dict[Any, Any], parent_key: str = '', sep: str = '.') -> Dict[str, str]:
+        """
+        将嵌套字典扁平化为点分隔的 key-value 格式
+        
+        Args:
+            data: 嵌套字典
+            parent_key: 父级键名
+            sep: 分隔符
+            
+        Returns:
+            扁平化的字典，所有值转为 JSON 字符串
+        """
+        items = []
+        for k, v in data.items():
+            new_key = f"{parent_key}{sep}{k}" if parent_key else k
+            
+            if isinstance(v, dict):
+                # 递归处理嵌套字典
+                items.extend(self._flatten_dict(v, new_key, sep=sep).items())
+            else:
+                # 将值转换为 JSON 字符串（保留类型信息）
+                items.append((new_key, json.dumps(v, ensure_ascii=False)))
+        
+        return dict(items)
+    
+    def _load_config(self) -> Dict[str, str]:
+        """
+        从 config.yaml 加载配置并扁平化
+        
+        Returns:
+            扁平化的配置字典
+        """
+        if not self.config_path.exists():
+            logger.warning(f"配置文件不存在: {self.config_path}")
+            return {}
+        
+        try:
+            with open(self.config_path, 'r', encoding='utf-8') as f:
+                config = yaml.safe_load(f)
+            
+            flattened = self._flatten_dict(config)
+            logger.info(f"成功加载配置文件，共 {len(flattened)} 个配置项")
+            return flattened
+        except Exception as e:
+            logger.error(f"加载配置文件失败: {e}")
+            return {}
     
     def init_config_db(self) -> None:
         """初始化配置数据库"""
@@ -57,6 +112,17 @@ class DatabaseInitializer:
                     registered   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
+            
+            # 从 config.yaml 加载初始配置
+            config_data = self._load_config()
+            if config_data:
+                # 批量插入配置（使用 INSERT OR REPLACE 避免重复）
+                cursor = conn.cursor()
+                cursor.executemany(
+                    "INSERT OR REPLACE INTO kv_config (key, value) VALUES (?, ?)",
+                    config_data.items()
+                )
+                logger.info(f"已写入 {len(config_data)} 个配置项到 kv_config 表")
             
             conn.commit()
             logger.info("配置数据库初始化完成")
