@@ -21,9 +21,6 @@ mqtt:
   qos: 1
   tls_ca: "./certs/root.pem"  # 华为云根证书路径（root.pem）
   tls_insecure: true  # 仅排查时可设为 true，跳过证书校验
-  
-  # 注意：MQTT 话题现在由 utils/mqtt_topics.py 中的 TopicManager 统一管理
-  # 旧的 topics 配置已废弃，无需手动配置话题模板
 
 
 # 摄像头配置（新增）
