@@ -2,12 +2,16 @@
 摄像头采集进程
 """
 
+import os
+import platform
+
 from core.ipc import IPCClient
 from modules.camera.base import CameraDriverBase
 from utils.logger import setup_logger
 from utils.frame_buffer import SharedFrameBuffer
+from utils.system import is_raspberry_pi
 
-from .drivers import Picamera2Driver, OpenCVDriver, SimulatorDriver
+from .drivers import Picamera2Driver, OpenCVDriver
 from .communicator import CameraCommunicator
 from .monitor import PerformanceMonitor
 from .capture import CaptureManager
@@ -104,35 +108,36 @@ class CameraProcess:
             logger.error(f"❌ 共享内存初始化失败: {e}")
             raise
     
-    def _init_driver(self)-> CameraDriverBase:
-        drivers = [
-            ('Picamera2', Picamera2Driver),
-            ('OpenCV', OpenCVDriver),
-            ('Simulator', SimulatorDriver)
-        ]
+    def _init_driver(self) -> CameraDriverBase:
+        """根据系统类型自动选择驱动"""
+        is_rpi = is_raspberry_pi()
         
-        for name, DriverClass in drivers:
-            try:
-                logger.info(f"尝试初始化 {name} 驱动...")
-                driver = DriverClass(
-                    width=self.width,
-                    height=self.height,
-                    target_fps=self.target_fps,
-                    format=self.format
-                )
+        if is_rpi:
+            name, DriverClass = 'Picamera2', Picamera2Driver
+            logger.info("检测到树莓派系统，使用 Picamera2 驱动")
+        else:
+            name, DriverClass = 'OpenCV', OpenCVDriver
+            logger.info("检测到 Ubuntu/通用系统，使用 OpenCV 驱动")
+        
+        try:
+            logger.info(f"初始化 {name} 驱动...")
+            driver = DriverClass(
+                width=self.width,
+                height=self.height,
+                target_fps=self.target_fps,
+                format=self.format
+            )
+            
+            if driver.initialize():
+                logger.info(f"✅ {name} 驱动初始化成功")
+                return driver
+            else:
+                logger.error(f"❌ {name} 驱动初始化失败")
+                return None
                 
-                if driver.initialize():
-                    logger.info(f"✅ {name} 驱动初始化成功")
-                    return driver
-                else:
-                    logger.warning(f"⚠️ {name} 驱动初始化失败")
-                    
-            except Exception as e:
-                logger.warning(f"⚠️ {name} 驱动初始化异常: {e}")
-                continue
-        
-        logger.error("❌ 所有驱动初始化均失败")
-        return None
+        except Exception as e:
+            logger.error(f"❌ {name} 驱动初始化异常: {e}")
+            return None
     
     def _init_components(self):
         """初始化各个功能组件"""
