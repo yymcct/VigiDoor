@@ -56,8 +56,11 @@ class DatabaseInitializer:
                 # 递归处理嵌套字典
                 items.extend(self._flatten_dict(v, new_key, sep=sep).items())
             else:
-                # 将值转换为 JSON 字符串（保留类型信息）
-                items.append((new_key, json.dumps(v, ensure_ascii=False)))
+                # 字符串直接存储，其他类型转为 JSON 字符串（保留类型信息）
+                if isinstance(v, str):
+                    items.append((new_key, v))
+                else:
+                    items.append((new_key, json.dumps(v, ensure_ascii=False)))
         
         return dict(items)
     
