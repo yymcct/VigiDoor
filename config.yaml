@@ -2,7 +2,11 @@
 
 # 设备信息
 device:
-  id: "697882367f2e6c302f4e7aac_RPI_001_0_0_2026012710"  # 设备唯一标识
+  # id 字段已移除，现在由系统根据硬件信息自动生成
+  # 生成规则：VIGIDOOR_<hardware_hash>_<system_type>
+  # - hardware_hash: 基于CPU序列号/MAC地址/机器ID的MD5哈希
+  # - system_type: RPI=树莓派, UBT=Ubuntu/其他Linux
+  # 示例：VIGIDOOR_abc123def4567890_RPI
   name: "智慧门_001"
   location: "示例门店"
 
@@ -12,7 +16,7 @@ mqtt:
   broker_port: 8883
   username: "697882367f2e6c302f4e7aac_RPI_001"  # 华为云设备接入用户名
   password: "243901f880ad7786739d057529c496b3c233f082466a13d8a8037fd43ca7bef4"  # 华为云设备接入密码
-  client_id: "697882367f2e6c302f4e7aac_RPI_001_0_0_2026012710"
+  client_id: "{device_id}"  # 自动使用系统生成的设备ID
   keepalive: 60
   qos: 1
   tls_ca: "./certs/root.pem"  # 华为云根证书路径（root.pem）

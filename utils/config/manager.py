@@ -24,6 +24,7 @@ from .sections import (
     MonitoringConfig,
     StorageConfig
 )
+from ..device_id import generate_device_id
 
 
 class ConfigManager:
@@ -143,20 +144,30 @@ class ConfigManager:
         
         # 解析设备配置
         device_raw = raw.get('device', {})
+        
+        # 自动生成设备ID（不再从配置文件读取）
+        auto_device_id = generate_device_id()
+        
         self.device = DeviceConfig(
-            id=device_raw.get('id', ''),
+            id=auto_device_id,  # 使用自动生成的设备ID
             name=device_raw.get('name', ''),
             location=device_raw.get('location', '')
         )
         
         # 解析MQTT配置
         mqtt_raw = raw.get('mqtt', {})
+        
+        # client_id 使用自动生成的设备ID（如果配置文件未指定）
+        client_id = mqtt_raw.get('client_id', '')
+        if not client_id or client_id == '{device_id}':
+            client_id = auto_device_id
+        
         self.mqtt = MQTTConfig(
             broker_host=mqtt_raw.get('broker_host', ''),
             broker_port=mqtt_raw.get('broker_port', 8883),
             username=mqtt_raw.get('username', ''),
             password=mqtt_raw.get('password', ''),
-            client_id=mqtt_raw.get('client_id', ''),
+            client_id=client_id,
             keepalive=mqtt_raw.get('keepalive', 60),
             qos=mqtt_raw.get('qos', 1),
             tls_ca=mqtt_raw.get('tls_ca', ''),
