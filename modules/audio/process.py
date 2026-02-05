@@ -61,7 +61,6 @@ class AudioProcess:
         audio_config = config.get('audio', {})
         self.sample_rate = audio_config.get('sample_rate', 16000)
         self.channels = audio_config.get('channels', 1)
-        self.device_index = audio_config.get('device_index', None)
         
         # 检测配置
         detector_config = audio_config.get('detector', {})
@@ -134,8 +133,7 @@ class AudioProcess:
             # 1. 初始化音频采集管理器
             self.capture_manager = AudioCaptureManager(
                 sample_rate=self.sample_rate,
-                channels=self.channels,
-                device_index=self.device_index
+                channels=self.channels
             )
             
             # 2. 初始化音量监控器

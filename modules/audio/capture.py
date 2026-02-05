@@ -34,15 +34,13 @@ class AudioCaptureManager:
         sample_rate: int = 16000,
         channels: int = 1,
         chunk_duration: float = 0.1,
-        buffer_duration: float = 10.0,
-        device_index: Optional[int] = None
+        buffer_duration: float = 10.0
     ):
         self.sample_rate = sample_rate
         self.channels = channels
         self.chunk_duration = chunk_duration
         self.chunk_size = int(sample_rate * chunk_duration)
         self.buffer_duration = buffer_duration
-        self.device_index = device_index
         
         # 环形缓冲区（保存最近10秒）
         max_chunks = int(buffer_duration / chunk_duration)
@@ -87,20 +85,15 @@ class AudioCaptureManager:
             import pyaudio
             self.audio = pyaudio.PyAudio()
             
-            # 获取设备信息
-            if self.device_index is None:
-                self.device_index = self._find_usb_audio_device()
-            
-            device_info = self.audio.get_device_info_by_index(self.device_index)
-            logger.info(f"使用音频设备: {device_info['name']}")
-            
-            # 打开音频流
+            # 选择设备并打开音频流
+            device_index = self._find_usb_audio_device()
+
             self.stream = self.audio.open(
                 format=pyaudio.paFloat32,
                 channels=self.channels,
                 rate=self.sample_rate,
                 input=True,
-                input_device_index=self.device_index,
+                input_device_index=device_index,
                 frames_per_buffer=self.chunk_size,
                 stream_callback=self._audio_callback
             )
@@ -122,50 +115,21 @@ class AudioCaptureManager:
             return False
     
     def _find_usb_audio_device(self) -> int:
-        """查找 WM8960/seeed-2mic 音频设备（优先使用 plughw 支持多路访问）"""
+        """查找固定声卡名 seeed2micvoicec 对应的设备索引"""
         try:
-            import pyaudio
-            
-            def _matches_target_device(name: str, index: int) -> bool:
-                # 目标特征：wm8960 / seeed-2mic / seeed2micvoicec / i2s-wm8960
-                target_keywords = (
-                    'wm8960',
-                    'seeed-2mic',
-                    'seeed2micvoicec',
-                    'i2s-wm8960',
-                )
-                if any(k in name for k in target_keywords):
-                    return True
+            target_name = "seeed2micvoicec"
+            for i in range(self.audio.get_device_count()):
+                info = self.audio.get_device_info_by_index(i)
+                name = info["name"].lower()
+                if target_name in name:
+                    logger.info(f"找到音频设备 [{i}]: {info['name']}")
+                    return i
 
-                # 兼容 arecord 输出：card 2, device 0 -> hw:2,0
-                device_index_token = f"hw:{index},0"
-                if device_index_token in name:
-                    return True
-
-                return False
-
-            # 优先查找 plughw 设备（支持软件混音，允许多路并发访问）
-            # for i in range(self.audio.get_device_count()):
-            #     info = self.audio.get_device_info_by_index(i)
-            #     name = info['name'].lower()
-            #     if 'plughw' in name and _matches_target_device(name, i):
-            #         logger.info(f"找到 WM8960/seeed plughw 设备 [{i}]: {info['name']} (支持多路访问)")
-            #         return i
-            
-            # 其次查找 WM8960 设备
-            # for i in range(self.audio.get_device_count()):
-            #     info = self.audio.get_device_info_by_index(i)
-            #     name = info['name'].lower()
-            #     if _matches_target_device(name, i) or 'usb audio' in name:
-            #         logger.info(f"找到 USB/WM8960/seeed 音频设备 [{i}]: {info['name']}")
-            #         logger.warning("⚠️ 建议配置 ALSA 使用 plughw 以避免与 Stream 进程冲突")
-            #         return i
-            
-            # 未找到特定设备，使用默认输入设备
             default_device = self.audio.get_default_input_device_info()
-            logger.warning(f"未找到 WM8960，使用默认设备: {default_device['name']}")
-            return default_device['index']
-            
+            logger.warning(
+                f"未找到 {target_name}，使用默认设备: {default_device['name']}"
+            )
+            return default_device["index"]
         except Exception as e:
             logger.warning(f"查找音频设备失败: {e}，使用设备索引 0")
             return 0

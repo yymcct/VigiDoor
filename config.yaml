@@ -48,7 +48,6 @@ audio:
   sample_rate: 16000         # 采样率 (Hz)，YamNet 要求 16kHz
   channels: 2                # 双声道
   chunk_size: 1024           # 音频块大小 (samples)
-  device_index: null         # 音频设备索引（null 表示自动检测 WM8960）
   
   # 音频异常检测配置
   detector:
