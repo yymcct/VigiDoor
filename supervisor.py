@@ -201,9 +201,9 @@ class ProcessSupervisor:
         
         Args:
             msg: IPC 消息
-        """
+        """        
         # 特殊处理：DB_WRITE 消息直接转发到 db_write_queue
-        if msg.type == MessageType.DB_WRITE:
+        if msg.msg_type == MessageType.DB_WRITE:
             try:
                 self.db_write_queue.put_nowait(msg.data)
                 logger.debug(f"DB写入请求已转发: {msg.data.get('action')}")
@@ -212,6 +212,7 @@ class ProcessSupervisor:
             return
         
         # 其他消息按原有逻辑处理
+        logger.info(f"📨 处理消息: {msg.msg_type}")
         self.message_router.dispatch(msg)
     
     def _main_loop(self):

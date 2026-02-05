@@ -230,7 +230,7 @@ class AudioProcess:
         msg_type = msg_dict.get('type')
         msg_data = msg_dict.get('data', {})
         
-        if msg_type == MessageType.CMD_PLAY_AUDIO.value or msg_type == 'play_audio':
+        if msg_type == MessageType.CMD_PLAY_AUDIO.value:
             logger.info("🔊 收到远程喊话指令")
             self._handle_play_audio(msg_data)
         
