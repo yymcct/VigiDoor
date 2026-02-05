@@ -224,11 +224,34 @@ class DatabaseInitializer:
     
     def init_all(self) -> None:
         """初始化所有数据库"""
+        # 按需创建缺失的数据库文件：仅为不存在的数据库执行初始化操作
+        config_db = self.db_dir / "config.db"
+        events_db = self.db_dir / "events.db"
+        metrics_db = self.db_dir / "metrics.db"
+
+        created = []
+        skipped = []
+
         try:
-            self.init_config_db()
-            self.init_events_db()
-            self.init_metrics_db()
-            logger.info("所有数据库初始化成功")
+            if not config_db.exists():
+                self.init_config_db()
+                created.append("config.db")
+            else:
+                skipped.append("config.db")
+
+            if not events_db.exists():
+                self.init_events_db()
+                created.append("events.db")
+            else:
+                skipped.append("events.db")
+
+            if not metrics_db.exists():
+                self.init_metrics_db()
+                created.append("metrics.db")
+            else:
+                skipped.append("metrics.db")
+
+            logger.info(f"数据库初始化完成；已创建: {created if created else '无'}；跳过: {skipped if skipped else '无'}")
         except Exception as e:
             logger.error(f"数据库初始化失败: {e}")
             raise

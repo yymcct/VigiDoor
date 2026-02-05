@@ -151,6 +151,9 @@ class ConfigManager:
         
         # 自动生成设备ID（不再从配置文件读取）
         auto_device_id = generate_device_id()
+        # 将自动生成的设备ID写回原始配置字典，便于其他代码通过
+        # config['device']['id'] 访问该值
+        raw.setdefault('device', {})['id'] = auto_device_id
         
         self.device = DeviceConfig(
             id=auto_device_id,  # 使用自动生成的设备ID

@@ -45,7 +45,7 @@ class MQTTClientProcess:
         
         logger.info(f"MQTT 通信进程初始化完成")
         logger.info(f"  Broker: {self.broker_host}:{self.broker_port}")
-        logger.info(f"  设备 ID: {self.device_id}")
+        logger.info(f"  device_id: {self.device_id}")
     
     def run(self):
         """主循环"""
