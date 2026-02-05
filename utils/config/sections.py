@@ -113,8 +113,6 @@ class DeviceConfig:
 @dataclass
 class AudioConfig:
     """音频配置"""
-    sample_rate: int
-    channels: int
     chunk_size: int
     anomaly_threshold: float
 

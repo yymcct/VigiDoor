@@ -59,9 +59,7 @@ class AudioProcess:
         
         # 音频配置
         audio_config = config.get('audio', {})
-        self.sample_rate = audio_config.get('sample_rate', 16000)
-        self.channels = audio_config.get('channels', 1)
-        
+
         # 检测配置
         detector_config = audio_config.get('detector', {})
         self.volume_threshold_db = detector_config.get('volume_threshold_db', 55.0)
@@ -77,8 +75,6 @@ class AudioProcess:
         self.player = None
         
         logger.info(f"音频处理进程初始化完成")
-        logger.info(f"  采样率: {self.sample_rate} Hz")
-        logger.info(f"  声道数: {self.channels}")
         logger.info(f"  音量阈值: {self.volume_threshold_db} dB")
         logger.info(f"  置信度阈值: {self.confidence_threshold}")
     
@@ -131,10 +127,7 @@ class AudioProcess:
         """初始化所有组件"""
         try:
             # 1. 初始化音频采集管理器
-            self.capture_manager = AudioCaptureManager(
-                sample_rate=self.sample_rate,
-                channels=self.channels
-            )
+            self.capture_manager = AudioCaptureManager()
             
             # 2. 初始化音量监控器
             self.volume_monitor = VolumeMonitor(

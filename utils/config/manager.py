@@ -206,8 +206,6 @@ class ConfigManager:
         # 解析音频配置
         audio_raw = raw.get('audio', {})
         self.audio = AudioConfig(
-            sample_rate=audio_raw.get('sample_rate', 16000),
-            channels=audio_raw.get('channels', 1),
             chunk_size=audio_raw.get('chunk_size', 1024),
             anomaly_threshold=audio_raw.get('anomaly_threshold', 0.8)
         )

@@ -23,23 +23,22 @@ class AudioCaptureManager:
     3. 提供回调机制通知新数据
     
     参数：
-    - sample_rate: 采样率（Hz），YamNet 要求 16000
-    - channels: 声道数，单声道=1
     - chunk_duration: 每次采集的音频块时长（秒）
     - buffer_duration: 环形缓冲区保存的时长（秒）
     """
+
+    DEFAULT_SAMPLE_RATE = 16000
+    DEFAULT_CHANNELS = 2
     
     def __init__(
         self,
-        sample_rate: int = 16000,
-        channels: int = 1,
         chunk_duration: float = 0.1,
         buffer_duration: float = 10.0
     ):
-        self.sample_rate = sample_rate
-        self.channels = channels
+        self.sample_rate = self.DEFAULT_SAMPLE_RATE
+        self.channels = self.DEFAULT_CHANNELS
         self.chunk_duration = chunk_duration
-        self.chunk_size = int(sample_rate * chunk_duration)
+        self.chunk_size = int(self.sample_rate * chunk_duration)
         self.buffer_duration = buffer_duration
         
         # 环形缓冲区（保存最近10秒）
@@ -58,8 +57,8 @@ class AudioCaptureManager:
         self.stream = None
         
         logger.info(f"音频采集管理器初始化")
-        logger.info(f"  采样率: {sample_rate} Hz")
-        logger.info(f"  声道数: {channels}")
+        logger.info(f"  采样率: {self.sample_rate} Hz")
+        logger.info(f"  声道数: {self.channels}")
         logger.info(f"  块大小: {self.chunk_size} samples")
         logger.info(f"  缓冲时长: {buffer_duration}s")
     
@@ -84,8 +83,8 @@ class AudioCaptureManager:
             import sounddevice as sd
 
             self.stream = sd.InputStream(
-                samplerate=16000,
-                channels=2,
+                samplerate=self.sample_rate,
+                channels=self.channels,
                 dtype="float32",
                 blocksize=self.chunk_size,
                 device="seedsnoop_plug",
