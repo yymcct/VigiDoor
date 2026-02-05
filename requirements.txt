@@ -16,7 +16,7 @@ ultralytics>=8.3.100  # YOLO，初版可选
 numpy==2.2.4 #
 
 # 音频处理
-pyaudio>=0.2.13  # 麦克风/喇叭
+sounddevice>=0.4.7  # 麦克风/喇叭
 
 #tflite-runtime==2.14.0 # YamNet 音频异常检测
 # scipy>=1.11.0  # 音频分析
