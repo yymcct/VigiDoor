@@ -30,7 +30,7 @@ class DBManager:
     """
     
     # 数据库文件目录
-    DB_DIR = Path(__file__).parent.parent / "data"
+    DB_DIR = Path(__file__).parent.parent.parent / "data"
     
     # 数据保留期限 (天)
     RETENTION_DAYS = {

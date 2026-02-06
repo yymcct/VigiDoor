@@ -200,10 +200,7 @@ INTEGRATION_CHECKLIST = """
        → 使用 DBReader 查询最近事件
        → 避免重复上报
 
-⏳ Step 5: 配置合并 (ConfigLoader)
-   [ ] 创建 utils/config/db_config_loader.py
-   [ ] 在 ConfigManager 中集成
-   [ ] DB 配置优先级高于 YAML 默认值
+
 
 ✅ = 已完成  ⏳ = 待实现  [ ] = 需手动集成
 """
