@@ -112,7 +112,14 @@ class AudioCaptureManager:
         if status:
             logger.warning(f"音频流状态: {status}")
 
-        audio_chunk = np.asarray(in_data, dtype=np.float32).reshape(-1)
+        # 正确转换双声道到单声道：取两个声道的平均值
+        audio_data = np.asarray(in_data, dtype=np.float32)
+        if audio_data.ndim == 2 and audio_data.shape[1] == 2:
+            # 双声道，取平均转单声道
+            audio_chunk = np.mean(audio_data, axis=1)
+        else:
+            # 已经是单声道
+            audio_chunk = audio_data.reshape(-1)
         
         # 保存到环形缓冲区
         with self.buffer_lock:

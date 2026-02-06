@@ -18,6 +18,10 @@ class AudioEventType(Enum):
     ALARM = "alarm"                      # 警报声
     EXPLOSION = "explosion"              # 爆炸声
     GUNSHOT = "gunshot"                  # 枪声
+    TOOL_USAGE = "tool_usage"            # 工具使用（破坏工具）
+    IMPACT = "impact"                    # 剧烈撞击
+    WOOD_BREAKING = "wood_breaking"      # 木头破坏
+    DOOR_SLAM = "door_slam"              # 门被大力关上
     DOG_BARK = "dog_bark"                # 狗叫（可选）
     NORMAL = "normal"                    # 正常声音
 
@@ -33,34 +37,57 @@ class EventClassifier:
     """
     
     # AudioSet 类别 ID 到业务事件的映射
-    # 注意：这些 ID 需要根据实际的 YamNet 类别映射文件调整
+    # 根据 yamnet_class_map.csv 实际类别调整
     EVENT_MAPPING = {
         AudioEventType.GLASS_BREAKING: [
-            311,  # Glass shatter
-            312,  # Glass break
+            435,  # Glass (玻璃)
+            437,  # Shatter (碎裂)
+            464,  # Breaking (打破)
         ],
         AudioEventType.SCREAM: [
-            250,  # Scream
-            251,  # Shout
-            367,  # Crying, sobbing
+            11,   # Screaming (尖叫)
+            6,    # Shout (喊叫)
+            7,    # Bellow (吼叫)
+            9,    # Yell (大喊)
         ],
         AudioEventType.ALARM: [
-            388,  # Alarm
-            389,  # Smoke detector, smoke alarm
-            390,  # Fire alarm
-            391,  # Siren
+            382,  # Alarm (警报)
+            390,  # Siren (警笛)
+            391,  # Civil defense siren (防空警报)
+            393,  # Smoke detector (烟雾报警器)
+            394,  # Fire alarm (火警)
+            304,  # Car alarm (汽车警报)
         ],
         AudioEventType.EXPLOSION: [
-            425,  # Explosion
-            426,  # Burst, pop
+            420,  # Explosion (爆炸)
+            421,  # Gunshot, gunfire (枪声) - 也归入爆炸类
         ],
         AudioEventType.GUNSHOT: [
-            427,  # Gunshot, gunfire
-            428,  # Machine gun
+            421,  # Gunshot, gunfire (枪声)
+        ],
+        AudioEventType.TOOL_USAGE: [
+            412,  # Tools (工具)
+            413,  # Hammer (锤子)
+            414,  # Jackhammer (风镐)
+            415,  # Sawing (锯木)
+            418,  # Power tool (电动工具)
+            419,  # Drill (钻)
+        ],
+        AudioEventType.IMPACT: [
+            460,  # Bang (砰)
+            462,  # Whack, thwack (重击)
+            463,  # Smash, crash (砸、撞)
+        ],
+        AudioEventType.WOOD_BREAKING: [
+            432,  # Chop (砍)
+            433,  # Splinter (木屑)
+            434,  # Crack (裂开)
+        ],
+        AudioEventType.DOOR_SLAM: [
+            352,  # Slam (甩门)
         ],
         AudioEventType.DOG_BARK: [
-            74,   # Bark
-            75,   # Howl
+            70,   # Bark (狗吠)
         ],
     }
     
@@ -97,14 +124,22 @@ class EventClassifier:
         logger.info(f"  监控事件: {len(self.class_to_event)} 个类别")
     
     def _load_class_names(self, path: Optional[str]) -> Optional[List[str]]:
-        """加载 YamNet 类别名称"""
+        """加载 YamNet 类别名称（从 CSV 文件）"""
         if path is None:
             return None
         
         try:
-            with open(path, 'r') as f:
-                class_names = [line.strip() for line in f]
-            logger.info(f"加载了 {len(class_names)} 个类别名称")
+            import csv
+            class_names = {}
+            with open(path, 'r', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    idx = int(row['index'])
+                    # 优先使用中文名，没有则用英文名
+                    name = row.get('display_name_zh') or row['display_name']
+                    class_names[idx] = name
+            
+            logger.info(f"✅ 加载了 {len(class_names)} 个类别名称")
             return class_names
         except Exception as e:
             logger.warning(f"加载类别名称失败: {e}")
@@ -139,7 +174,7 @@ class EventClassifier:
             logger.info(f"  置信度: {score:.3f}")
             logger.info(f"  类别 ID: {class_id}")
             
-            if self.class_names and class_id < len(self.class_names):
+            if self.class_names and class_id in self.class_names:
                 logger.info(f"  类别名称: {self.class_names[class_id]}")
             
             return (event_type, score, class_id)
@@ -154,6 +189,10 @@ class EventClassifier:
             AudioEventType.ALARM: "警报声",
             AudioEventType.EXPLOSION: "爆炸声",
             AudioEventType.GUNSHOT: "枪声",
+            AudioEventType.TOOL_USAGE: "工具使用（可能破坏）",
+            AudioEventType.IMPACT: "剧烈撞击",
+            AudioEventType.WOOD_BREAKING: "木头破坏",
+            AudioEventType.DOOR_SLAM: "门被大力关上",
             AudioEventType.DOG_BARK: "狗叫",
             AudioEventType.NORMAL: "正常声音",
         }

@@ -68,6 +68,14 @@ class AudioProcess:
         self.model_path = detector_config.get('model_path', 'models/yamnet.tflite')
         self.enable_dog_bark = detector_config.get('enable_dog_bark', False)
         
+        # 延迟检测配置（在音量触发后等待一段时间再采集音频）
+        self.chunk_duration = 0.1  # 每个chunk的时长（秒）
+        self.detection_delay_seconds = detector_config.get('detection_delay_seconds', 0.8)
+        self.detection_window_seconds = detector_config.get('detection_window_seconds', 1)
+        self.detection_delay_chunks = int(self.detection_delay_seconds / self.chunk_duration)
+        self._detect_countdown = 0  # 延迟检测倒计时（剩余chunk数）
+        self._trigger_db_value = 0.0  # 触发时的音量值
+        
         # 组件（延迟初始化）
         self.capture_manager = None
         self.volume_monitor = None
@@ -77,6 +85,8 @@ class AudioProcess:
         logger.info(f"音频处理进程初始化完成")
         logger.info(f"  音量阈值: {self.volume_threshold_db} dB")
         logger.info(f"  置信度阈值: {self.confidence_threshold}")
+        logger.info(f"  检测延迟: {self.detection_delay_seconds}秒 ({self.detection_delay_chunks}块)")
+        logger.info(f"  检测窗口: {self.detection_window_seconds}秒")
     
     def run(self):
         """主循环"""
@@ -185,23 +195,58 @@ class AudioProcess:
             return False
     
     def _on_audio_chunk(self, audio_chunk):
-        """音频块回调：进行音量检测"""
+        """音频块回调：进行音量检测和延迟检测管理"""
         try:
-            # 音量监控
+            # 1. 处理延迟检测倒计时
+            if self._detect_countdown > 0:
+                self._detect_countdown -= 1
+                if self._detect_countdown == 0:
+                    # 延迟结束，执行检测
+                    self._execute_delayed_detection()
+            
+            # 2. 音量监控：检查是否触发新的检测
             should_detect, db_value = self.volume_monitor.analyze(audio_chunk)
             
             if should_detect:
-                logger.info(f"🔊 音量触发检测: {db_value:.1f} dB")
-                
-                # 获取最近 1 秒的音频进行检测
-                audio_window = self.capture_manager.get_buffer_window(duration=1.0)
-                
-                if audio_window is not None:
-                    # 异步检测
-                    self.detector.detect(audio_window)
+                self._start_delayed_detection(db_value)
                 
         except Exception as e:
             logger.error(f"音频块处理异常: {e}")
+    
+    def _start_delayed_detection(self, db_value: float):
+        """启动延迟检测：记录触发点，等待异常声音完整采集"""
+        if self._detect_countdown == 0:
+            # 只在没有进行中的检测时才启动新检测
+            self._trigger_db_value = db_value
+            self._detect_countdown = self.detection_delay_chunks
+            logger.info(
+                f"🔊 音量触发: {db_value:.1f} dB "
+                f"(延迟{self.detection_delay_seconds}秒后检测)"
+            )
+        else:
+            # 已有检测在等待中，忽略此次触发
+            logger.debug(f"音量触发被忽略: {db_value:.1f} dB (检测进行中)")
+    
+    def _execute_delayed_detection(self):
+        """执行延迟检测：获取音频窗口并提交给检测器"""
+        try:
+            # 获取最近N秒的音频（现在包含了触发点之后的声音）
+            audio_window = self.capture_manager.get_buffer_window(
+                duration=self.detection_window_seconds
+            )
+            
+            if audio_window is not None:
+                logger.info(
+                    f"📊 执行延迟检测 (触发音量: {self._trigger_db_value:.1f} dB, "
+                    f"窗口: {self.detection_window_seconds}秒)"
+                )
+                # 异步检测
+                self.detector.detect(audio_window)
+            else:
+                logger.warning("无法获取音频窗口，跳过检测")
+                
+        except Exception as e:
+            logger.error(f"执行延迟检测失败: {e}")
     
     def _on_anomaly_detected(self, result: dict):
         """异常检测回调：上报到 Supervisor"""

@@ -5,10 +5,24 @@
 
 import time
 import threading
+import os
 import numpy as np
 from typing import Optional
 from queue import Queue, Empty
+from datetime import datetime
 from utils.logger import setup_logger
+
+# 导入音频文件保存库
+try:
+    from scipy.io import wavfile
+    SCIPY_AVAILABLE = True
+except ImportError:
+    try:
+        import soundfile as sf
+        SCIPY_AVAILABLE = False
+    except ImportError:
+        sf = None
+        SCIPY_AVAILABLE = None
 
 from .models import YamNetLoader, EventClassifier, AudioEventType
 
@@ -42,6 +56,7 @@ class AudioAnomalyDetector:
         # 初始化组件
         self.yamnet = YamNetLoader(model_path)
         self.classifier = EventClassifier(
+            class_names_path='models/yamnet_class_map.csv',
             confidence_threshold=confidence_threshold,
             enable_dog_bark=enable_dog_bark
         )
@@ -147,6 +162,9 @@ class AudioAnomalyDetector:
         
         start_time = time.time()
         
+        # 保存音频到logs文件夹用于调试
+        #self._save_audio_for_debug(audio_data, timestamp)
+        
         try:
             # YamNet 推理
             scores = self.yamnet.predict(audio_data)
@@ -158,8 +176,14 @@ class AudioAnomalyDetector:
             # 获取 Top-5 预测
             top_predictions = self.yamnet.get_top_predictions(scores, top_k=5)
             
+            # 添加详细的调试日志
+            logger.debug(f"音频数据 - 长度: {len(audio_data)}, 范围: [{audio_data.min():.3f}, {audio_data.max():.3f}]")
+            logger.debug(f"YamNet 输出 shape: {scores.shape}")
+            logger.debug(f"YamNet Top-5 预测: {top_predictions}")
+            
             # 事件分类
             event_result = self.classifier.classify(top_predictions)
+            logger.debug(f"事件分类结果: {event_result}")
             
             inference_time = (time.time() - start_time) * 1000
             logger.debug(f"YamNet 推理耗时: {inference_time:.1f}ms")
@@ -205,6 +229,46 @@ class AudioAnomalyDetector:
             self.thread.join(timeout=2.0)
         
         logger.info("✅ 音频检测已停止")
+    
+    def _save_audio_for_debug(self, audio_data: np.ndarray, timestamp: float):
+        """
+        保存音频数据到logs文件夹用于调试
+        
+        Args:
+            audio_data: 音频数据
+            timestamp: 时间戳
+        """
+        try:
+            # 创建logs目录
+            logs_dir = 'logs/audio_debug'
+            os.makedirs(logs_dir, exist_ok=True)
+            
+            # 生成文件名（使用时间戳）
+            dt = datetime.fromtimestamp(timestamp)
+            filename = f"{dt.strftime('%Y%m%d_%H%M%S_%f')[:-3]}.wav"
+            filepath = os.path.join(logs_dir, filename)
+            
+            # 保存wav文件
+            sample_rate = 16000  # YamNet使用16kHz采样率
+            
+            if SCIPY_AVAILABLE is True:
+                # 使用scipy保存
+                # 将float32数据转换为int16格式
+                audio_int16 = (audio_data * 32767).astype(np.int16)
+                wavfile.write(filepath, sample_rate, audio_int16)
+            elif SCIPY_AVAILABLE is False and sf is not None:
+                # 使用soundfile保存
+                sf.write(filepath, audio_data, sample_rate)
+            else:
+                # 没有可用的库，跳过保存
+                if self.total_detections == 1:
+                    logger.warning("未安装scipy或soundfile，无法保存调试音频")
+                return
+            
+            logger.debug(f"已保存调试音频: {filepath}")
+            
+        except Exception as e:
+            logger.error(f"保存调试音频失败: {e}")
     
     def get_statistics(self) -> dict:
         """获取检测统计信息"""
