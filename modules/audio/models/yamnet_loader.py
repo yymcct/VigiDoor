@@ -13,7 +13,7 @@ logger = setup_logger('yamnet_loader')
 
 class YamNetLoader:
     """
-    YamNet 模型加载器
+    YamNet 模型加载器（TFLite）
     
     YamNet 是 Google 开源的音频分类模型，可识别 521 种声音类别
     
@@ -23,16 +23,14 @@ class YamNetLoader:
     参考：https://github.com/tensorflow/models/tree/master/research/audioset/yamnet
     """
     
-    def __init__(self, model_path: str, use_tflite: bool = True):
+    def __init__(self, model_path: str):
         """
         初始化 YamNet 加载器
         
         Args:
-            model_path: 模型文件路径（.tflite 或 .onnx）
-            use_tflite: 是否使用 TFLite（推荐树莓派使用）
+            model_path: 模型文件路径（.tflite）
         """
         self.model_path = Path(model_path)
-        self.use_tflite = use_tflite
         
         # 模型参数
         self.sample_rate = 16000
@@ -45,7 +43,6 @@ class YamNetLoader:
         
         logger.info(f"YamNet 加载器初始化")
         logger.info(f"  模型路径: {self.model_path}")
-        logger.info(f"  使用 TFLite: {use_tflite}")
     
     def load(self) -> bool:
         """加载模型"""
@@ -57,10 +54,7 @@ class YamNetLoader:
             return False
         
         try:
-            if self.use_tflite:
-                return self._load_tflite()
-            else:
-                return self._load_onnx()
+            return self._load_tflite()
         except Exception as e:
             logger.error(f"加载模型失败: {e}", exc_info=True)
             return False
@@ -68,10 +62,10 @@ class YamNetLoader:
     def _load_tflite(self) -> bool:
         """加载 TensorFlow Lite 模型"""
         try:
-            import tensorflow as tf
+            import tflite_runtime.interpreter as tflite
             
             # 加载 TFLite 模型
-            self.interpreter = tf.lite.Interpreter(model_path=str(self.model_path))
+            self.interpreter = tflite.Interpreter(model_path=str(self.model_path))
             self.interpreter.allocate_tensors()
             
             # 获取输入输出详情
@@ -90,28 +84,6 @@ class YamNetLoader:
             return False
         except Exception as e:
             logger.error(f"加载 TFLite 模型失败: {e}")
-            return False
-    
-    def _load_onnx(self) -> bool:
-        """加载 ONNX 模型"""
-        try:
-            import onnxruntime as ort
-            
-            # 加载 ONNX 模型
-            self.interpreter = ort.InferenceSession(
-                str(self.model_path),
-                providers=['CPUExecutionProvider']
-            )
-            
-            logger.info("✅ ONNX 模型加载成功")
-            return True
-            
-        except ImportError:
-            logger.error("ONNX Runtime 未安装")
-            logger.info("安装命令: pip3 install onnxruntime")
-            return False
-        except Exception as e:
-            logger.error(f"加载 ONNX 模型失败: {e}")
             return False
     
     def predict(self, waveform: np.ndarray) -> Optional[np.ndarray]:
@@ -133,10 +105,7 @@ class YamNetLoader:
             waveform = self._preprocess(waveform)
             
             # 推理
-            if self.use_tflite:
-                return self._predict_tflite(waveform)
-            else:
-                return self._predict_onnx(waveform)
+            return self._predict_tflite(waveform)
                 
         except Exception as e:
             logger.error(f"预测失败: {e}", exc_info=True)
@@ -186,13 +155,6 @@ class YamNetLoader:
         scores = self.interpreter.get_tensor(self.output_details[0]['index'])
         
         return scores[0]  # 移除 batch 维度
-    
-    def _predict_onnx(self, waveform: np.ndarray) -> np.ndarray:
-        """使用 ONNX 进行预测"""
-        input_name = self.interpreter.get_inputs()[0].name
-        outputs = self.interpreter.run(None, {input_name: waveform.reshape(1, -1)})
-        
-        return outputs[0][0]  # 移除 batch 维度
     
     def get_top_predictions(
         self,

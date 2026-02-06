@@ -40,7 +40,7 @@ class AudioAnomalyDetector:
         self.confidence_threshold = confidence_threshold
         
         # 初始化组件
-        self.yamnet = YamNetLoader(model_path, use_tflite=True)
+        self.yamnet = YamNetLoader(model_path)
         self.classifier = EventClassifier(
             confidence_threshold=confidence_threshold,
             enable_dog_bark=enable_dog_bark
