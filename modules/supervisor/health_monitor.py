@@ -172,7 +172,7 @@ class HealthMonitor:
                 )
                 msg.target = ProcessName.MQTT_CLIENT
                 self.ipc_client.send_message(msg)
-                self.logger.info(f"健康上报已发送: CPU={metrics.get('cpu_usage', 0):.1f}% MEM={metrics.get('memory_usage', 0):.1f}%")
+                self.logger.debug(f"健康上报已发送: msg={vars(msg)}")
                 # 上报间隔
                 report_interval = self.config_manager.monitoring.health_report_interval
                 time.sleep(report_interval)
@@ -180,7 +180,7 @@ class HealthMonitor:
             except Exception as e:
                 self.logger.error(f"健康上报异常: {e}")
                 time.sleep(60)
-     # TODO 服务器端适配
+
     def collect_system_metrics(self) -> dict:
         """
         采集系统健康指标
@@ -191,13 +191,13 @@ class HealthMonitor:
         try:
             import psutil
             return {
-                # 'timestamp': time.time(),
+                'timestamp': time.time(),
                 'cpu_usage': psutil.cpu_percent(interval=1),
-                # 'memory_usage': psutil.virtual_memory().percent,
-               # 'disk_usage': psutil.disk_usage('/').percent,
-                 'temperature': self._get_cpu_temperature(),
-                # 'uptime': time.time() - psutil.boot_time(),
-                # 'process_status': self.process_manager.get_process_status()
+                'memory_usage': psutil.virtual_memory().percent,
+                'disk_usage': psutil.disk_usage('/').percent,
+                'temperature': self._get_cpu_temperature(),
+                'uptime': time.time() - psutil.boot_time(),
+                #'process_status': self.process_manager.get_process_status()
             }
         except Exception as e:
             self.logger.error(f"采集指标失败: {e}")
