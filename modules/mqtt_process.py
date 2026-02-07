@@ -249,7 +249,7 @@ class MQTTClientProcess:
             self.publisher.publish_alarm_intrusion(data)
             logger.info("📤 告警已上报")
             
-        elif msg_type == 'report_health':
+        elif msg_type == MessageType.REPORT_HEALTH.value:
             # 上报健康状态
             self.publisher.publish_health_metrics(data)
             logger.debug("📤 健康状态已上报")

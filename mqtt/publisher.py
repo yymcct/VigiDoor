@@ -7,6 +7,7 @@ from collections import deque
 from typing import Optional
 import time
 import logging
+import json
 
 from mqtt.topics import TopicManager
 from mqtt.messages import MQTTMessageBase
@@ -51,16 +52,54 @@ class MQTTPublisher:
             'dropped': 0
         }
     
+    def _publish_raw(self, topic: str, payload: str, qos: int, retain: bool, 
+                     msg_id: Optional[str] = None) -> bool:
+        """
+        底层发布方法（内部使用）
+        
+        Args:
+            topic: 完整话题
+            payload: JSON字符串负载
+            qos: QoS 级别
+            retain: 保留标志
+            msg_id: 消息ID（用于日志）
+        
+        Returns:
+            是否成功发布
+        """
+        try:
+            result = self.client.publish(topic, payload, qos=qos, retain=retain)
+            
+            # 检查发布结果
+            if result.rc == 0:  # mqtt.MQTT_ERR_SUCCESS
+                self.stats['published'] += 1
+                log_msg = f"📤 已发布: {topic} (QoS={qos}, Retain={retain}"
+                if msg_id:
+                    log_msg += f", msg_id={msg_id}"
+                log_msg += ")"
+                self.logger.debug(log_msg)
+                return True
+            else:
+                raise Exception(f"发布失败，返回码: {result.rc}")
+                
+        except Exception as e:
+            self.logger.error(f"发布消息失败: {e}")
+            self.stats['failed'] += 1
+            
+            # 缓存消息待重发
+            self._buffer_message(topic, payload, qos, retain)
+            return False
+    
     def publish(self, 
                 topic_template: str, 
                 message: MQTTMessageBase,
                 qos: Optional[int] = None,
                 retain: Optional[bool] = None) -> bool:
         """
-        发布消息（统一入口）
+        发布消息（统一入口，使用消息对象）
         
         Args:
-            topic_template: 话题模板（如 TopicManager.ALARM_INTRUSION
+            topic_template: 话题模板（如 TopicManager.ALARM_INTRUSION）
             message: 消息对象
             qos: QoS 级别（可选，默认根据话题自动判断）
             retain: 是否保留消息（可选，默认根据话题自动判断）
@@ -89,28 +128,43 @@ class MQTTPublisher:
         if retain is None:
             retain = TopicManager.should_retain(topic_template)
         
-        # 发布消息
-        try:
-            result = self.client.publish(topic, payload, qos=qos, retain=retain)
-            
-            # 检查发布结果
-            if result.rc == 0:  # mqtt.MQTT_ERR_SUCCESS
-                self.stats['published'] += 1
-                self.logger.debug(
-                    f"📤 已发布: {topic} (QoS={qos}, Retain={retain}, "
-                    f"msg_id={message.msg_id})"
-                )
-                return True
-            else:
-                raise Exception(f"发布失败，返回码: {result.rc}")
-                
-        except Exception as e:
-            self.logger.error(f"发布消息失败: {e}")
-            self.stats['failed'] += 1
-            
-            # 缓存消息待重发
-            self._buffer_message(topic, payload, qos, retain)
-            return False
+        # 调用底层发布方法
+        return self._publish_raw(topic, payload, qos, retain, msg_id=message.msg_id)
+    
+    def publish_json(self, 
+                     topic_template: str, 
+                     payload: str,
+                     qos: Optional[int] = None,
+                     retain: Optional[bool] = None) -> bool:
+        """
+        发布消息（直接传入JSON字符串）
+        
+        Args:
+            topic_template: 话题模板（如 TopicManager.ALARM_INTRUSION）
+            payload: JSON字符串负载
+            qos: QoS 级别（可选，默认根据话题自动判断）
+            retain: 是否保留消息（可选，默认根据话题自动判断）
+        
+        Returns:
+            是否成功发布
+        
+        Examples:
+            >>> publisher = MQTTPublisher(client, topic_manager)
+            >>> payload = '{"device_id": "RPI_001", "alarm_type": "intrusion"}'
+            >>> publisher.publish_json(TopicManager.ALARM_INTRUSION, payload)
+            True
+        """
+        # 构建话题
+        topic = self.tm.build(topic_template)
+        
+        # 自动确定 QoS 和 Retain
+        if qos is None:
+            qos = TopicManager.get_qos_for_topic(topic_template)
+        if retain is None:
+            retain = TopicManager.should_retain(topic_template)
+        
+        # 调用底层发布方法
+        return self._publish_raw(topic, payload, qos, retain)
     
     def _buffer_message(self, topic: str, payload: str, qos: int, retain: bool):
         """
@@ -271,14 +325,30 @@ class MQTTPublisher:
         return self.publish(TopicManager.ALARM_SYSTEM, msg, qos=2)
     
     def publish_health_metrics(self, metrics: dict) -> bool:
-        """发布系统健康指标"""
-        from mqtt.messages import HealthMetricsMessage
+        """
+        发布系统健康指标
         
-        msg = HealthMetricsMessage(
-            device_id=self.tm.device_id,
-            data=metrics
-        )
-        return self.publish(TopicManager.HEALTH_METRICS, msg)
+        Args:
+            metrics: 健康指标属性字典，应包含以下字段：
+                - cpu_usage: CPU使用率
+                - memory_usage: 内存使用率
+                - disk_usage: 磁盘使用率
+                - temperature: 温度
+                - uptime: 运行时间
+                - network: 网络信息
+                - process_status: 进程状态
+        """
+        
+        msg = {
+            "services": [
+                {
+                    "service_id": "metrics",
+                    "properties": metrics
+                }
+            ]
+        }
+        self.logger.debug(f"📊 发布健康指标: {json.dumps(msg, ensure_ascii=False)}")
+        return self.publish_json(TopicManager.HEALTH_METRICS, json.dumps(msg))
     
     def publish_health_process(self, process_data: dict) -> bool:
         """发布进程状态变更"""

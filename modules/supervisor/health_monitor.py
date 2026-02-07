@@ -13,7 +13,7 @@ import time
 import logging
 from typing import Optional, TYPE_CHECKING
 
-from core.ipc import MessageBus
+from core.ipc.bus import IPCClient
 from core.ipc.message import MessageType, StatusMessage, AlarmMessage, MessagePriority, CommandMessage
 from core.ipc.registry import ProcessName
 from .process_manager import ProcessManager
@@ -32,7 +32,7 @@ class HealthMonitor:
     def __init__(
         self,
         process_manager: ProcessManager,
-        message_bus: MessageBus,   
+        ipc_client: IPCClient,
         state_manager: SharedStateManager,
         config_manager: 'ConfigManager',
         logger: logging.Logger
@@ -42,13 +42,13 @@ class HealthMonitor:
         
         Args:
             process_manager: 进程管理器
-            message_bus: 消息总线
+            ipc_client: IPC 客户端
             state_manager: 共享状态管理器
             config_manager: ConfigManager 实例
             logger: 日志记录器
         """
         self.process_manager = process_manager
-        self.message_bus = message_bus
+        self.ipc_client = ipc_client
         self.state_manager = state_manager
         self.config_manager = config_manager
         self.logger = logger
@@ -152,7 +152,7 @@ class HealthMonitor:
         )
         msg.target = ProcessName.MQTT_CLIENT
         msg.priority = MessagePriority.CRITICAL
-        self.message_bus.send(ProcessName.MQTT_CLIENT, msg)
+        self.ipc_client.send_message(msg)
     
     # ==================== 健康上报 ====================
     
@@ -171,8 +171,8 @@ class HealthMonitor:
                     status_data=metrics
                 )
                 msg.target = ProcessName.MQTT_CLIENT
-                self.message_bus.send(ProcessName.MQTT_CLIENT, msg)
-                
+                self.ipc_client.send_message(msg)
+                self.logger.info(f"健康上报已发送: CPU={metrics.get('cpu_usage', 0):.1f}% MEM={metrics.get('memory_usage', 0):.1f}%")
                 # 上报间隔
                 report_interval = self.config_manager.monitoring.health_report_interval
                 time.sleep(report_interval)
@@ -191,13 +191,13 @@ class HealthMonitor:
         try:
             import psutil
             return {
-                'timestamp': time.time(),
+                # 'timestamp': time.time(),
                 'cpu_usage': psutil.cpu_percent(interval=1),
-                'memory_usage': psutil.virtual_memory().percent,
-                'disk_usage': psutil.disk_usage('/').percent,
-                'temperature': self._get_cpu_temperature(),
-                'uptime': time.time() - psutil.boot_time(),
-                'process_status': self.process_manager.get_process_status()
+                # 'memory_usage': psutil.virtual_memory().percent,
+               # 'disk_usage': psutil.disk_usage('/').percent,
+                 'temperature': self._get_cpu_temperature(),
+                # 'uptime': time.time() - psutil.boot_time(),
+                # 'process_status': self.process_manager.get_process_status()
             }
         except Exception as e:
             self.logger.error(f"采集指标失败: {e}")
@@ -241,7 +241,7 @@ class HealthMonitor:
                     target=ProcessName.DEVICE_CONTROLLER,
                     cmd_data={'mode': 'safe'}
                 )
-                self.message_bus.send(ProcessName.DEVICE_CONTROLLER, light_msg)
+                self.ipc_client.send_message(light_msg)
                 
         except Exception as e:
             self.logger.error(f"报警自动恢复异常: {e}")

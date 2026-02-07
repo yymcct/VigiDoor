@@ -82,7 +82,7 @@ class ProcessSupervisor:
         # 创建健康监控器
         self.health_monitor = HealthMonitor(
             process_manager=self.process_manager,
-            message_bus=self.message_bus,
+            ipc_client=self.message_bus.get_client(ProcessName.SUPERVISOR),
             state_manager=self.state_manager,
             config_manager=self.config_manager,
             logger=logger

@@ -2,6 +2,7 @@
 MQTT 话题管理器
 统一管理所有 MQTT 话题模板，避免硬编码和拼写错误
 """
+from string import Formatter
 
 
 class TopicManager:
@@ -19,7 +20,6 @@ class TopicManager:
     NAMESPACE = "vigidoor"
     
     # ==================== 上行话题（设备→平台）====================
-    
     # 2.1 设备生命周期管理
     LIFECYCLE_ONLINE = "{ns}/up/{device_id}/lifecycle/online"
     LIFECYCLE_OFFLINE = "{ns}/up/{device_id}/lifecycle/offline"
@@ -29,8 +29,12 @@ class TopicManager:
     ALARM_INTRUSION = "{ns}/up/{device_id}/alarm/intrusion"
     ALARM_SYSTEM = "{ns}/up/{device_id}/alarm/system"
     
+
+    
     # 2.3 系统健康状态上报
-    HEALTH_METRICS = "{ns}/up/{device_id}/health/metrics"
+    HEALTH_METRICS = "$oc/devices/{device_id}/sys/properties/report"
+    
+    
     HEALTH_PROCESS = "{ns}/up/{device_id}/health/process"
     
     # 2.4 业务状态上报
@@ -92,7 +96,7 @@ class TopicManager:
         构建具体话题
         
         Args:
-            template: 话题模板（如 TopicManager.ALARM_VISION）
+            template: 话题模板（如 TopicManager.ALARM_INTRUSION 或 TopicManager.HEALTH_METRICS）
             **kwargs: 额外参数（默认会注入 ns 和 device_id）
         
         Returns:
@@ -100,15 +104,26 @@ class TopicManager:
         
         Examples:
             >>> tm = TopicManager("RPI_001")
-            >>> tm.build(TopicManager.ALARM_VISION)
-            'vigidoor/up/RPI_001/alarm/vision'
+            >>> tm.build(TopicManager.ALARM_INTRUSION)
+            'vigidoor/up/RPI_001/alarm/intrusion'
+            >>> tm.build(TopicManager.HEALTH_METRICS)
+            '$oc/devices/RPI_001/sys/properties/report'
         """
+        # 准备默认参数
         params = {
             'ns': self.namespace,
             'device_id': self.device_id,
             **kwargs
         }
-        return template.format(**params)
+        
+        # 提取模板中实际需要的字段名
+        formatter = Formatter()
+        field_names = {field_name for _, field_name, _, _ in formatter.parse(template) if field_name}
+        
+        # 只传递模板中需要的参数，避免传递多余参数
+        filtered_params = {k: v for k, v in params.items() if k in field_names}
+        
+        return template.format(**filtered_params)
     
     def get_device_subscribe_topics(self, qos_map: dict = None) -> list:
         """
