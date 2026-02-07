@@ -165,14 +165,27 @@ class HealthMonitor:
                 # 采集系统指标
                 metrics = self.collect_system_metrics()
                 
+                # 写入数据库
+                from core.ipc.message import IPCMessage
+                db_msg = IPCMessage(
+                    msg_type=MessageType.DB_WRITE,
+                    target=ProcessName.SUPERVISOR,
+                    data={
+                        "action": "write_health_metric",
+                        "data": metrics
+                    }
+                )
+                self.ipc_client.send_message(db_msg)
+                
                 # 通过 MQTT 上报
-                msg = StatusMessage(
+                mqtt_msg = StatusMessage(
                     status_type=MessageType.REPORT_HEALTH,
                     status_data=metrics
                 )
-                msg.target = ProcessName.MQTT_CLIENT
-                self.ipc_client.send_message(msg)
-                self.logger.debug(f"健康上报已发送: msg={vars(msg)}")
+                mqtt_msg.target = ProcessName.MQTT_CLIENT
+                self.ipc_client.send_message(mqtt_msg)
+                
+                self.logger.debug(f"健康数据已采集并发送: CPU={metrics.get('cpu_usage')}%")
                 # 上报间隔
                 report_interval = self.config_manager.monitoring.health_report_interval
                 time.sleep(report_interval)

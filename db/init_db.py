@@ -206,6 +206,20 @@ class DatabaseInitializer:
                 )
             """)
             
+            # 创建系统健康指标表
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS health_metrics (
+                    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp     REAL NOT NULL,
+                    cpu_usage     REAL,
+                    memory_usage  REAL,
+                    disk_usage    REAL,
+                    temperature   REAL,
+                    uptime        REAL,
+                    recorded_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
             # 创建索引
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_people_window 
@@ -215,6 +229,16 @@ class DatabaseInitializer:
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_audio_sampled 
                 ON audio_metrics(sampled_at)
+            """)
+            
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_health_timestamp 
+                ON health_metrics(timestamp)
+            """)
+            
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_health_recorded 
+                ON health_metrics(recorded_at)
             """)
             
             conn.commit()

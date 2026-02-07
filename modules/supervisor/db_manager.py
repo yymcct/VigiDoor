@@ -34,8 +34,9 @@ class DBManager:
     
     # 数据保留期限 (天)
     RETENTION_DAYS = {
-        "events": 7,    # 事件日志保留7天
-        "metrics": 30   # 统计数据保留30天
+        "events": 7,           # 事件日志保留7天
+        "metrics": 30,         # 统计数据保留30天
+        "health_metrics": 7    # 健康指标保留7天
     }
     
     def __init__(self, write_queue: queue.Queue):
@@ -161,6 +162,8 @@ class DBManager:
                 self._write_event(msg["data"])
             elif action == "write_metric":
                 self._write_metric(msg["data"])
+            elif action == "write_health_metric":
+                self._write_health_metric(msg["data"])
             elif action == "set_config":
                 self._set_config(msg["key"], msg["value"])
             elif action == "cleanup":
@@ -204,6 +207,32 @@ class DBManager:
         """
         # TODO: 实现统计数据写入逻辑
         logger.debug(f"写入统计数据: {data}")
+    
+    def _write_health_metric(self, data: Dict[str, Any]) -> None:
+        """
+        写入系统健康指标
+        
+        Args:
+            data: 健康指标数据
+                - timestamp: 采集时间戳
+                - cpu_usage: CPU使用率
+                - memory_usage: 内存使用率
+                - disk_usage: 磁盘使用率
+                - temperature: CPU温度
+                - uptime: 系统运行时间
+        """
+        try:
+            conn = self._connections["metrics"]
+            conn.execute(
+                """INSERT INTO health_metrics
+                   (timestamp, cpu_usage, memory_usage, disk_usage, temperature, uptime)
+                   VALUES (:timestamp, :cpu_usage, :memory_usage, :disk_usage, :temperature, :uptime)""",
+                data
+            )
+            conn.commit()
+            logger.debug(f"健康指标已写入: CPU={data.get('cpu_usage')}%, MEM={data.get('memory_usage')}%")
+        except Exception as e:
+            logger.error(f"写入健康指标失败: {e}", exc_info=True)
     
     def _set_config(self, key: str, value: str) -> None:
         """
@@ -261,6 +290,17 @@ class DBManager:
             conn_metrics.commit()
             
             logger.info(f"已删除 {deleted_metrics} 条过期统计")
+            
+            # 清理健康指标
+            health_cutoff = now - timedelta(days=self.RETENTION_DAYS["health_metrics"])
+            cursor = conn_metrics.execute(
+                "DELETE FROM health_metrics WHERE recorded_at < ?",
+                (health_cutoff,)
+            )
+            deleted_health = cursor.rowcount
+            conn_metrics.commit()
+            
+            logger.info(f"已删除 {deleted_health} 条过期健康指标")
             
             # 执行 VACUUM 回收空间
             if deleted_events > 0:
