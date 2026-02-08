@@ -150,10 +150,19 @@ class StreamPipeline:
                         self.error_count += 1
                         consecutive_errors += 1
                         
+                        # 首次编码失败时记录详细信息
+                        if consecutive_errors == 1:
+                            logger.error(
+                                f"⚠️ 编码失败（第 {self.encoded_frame_count + 1} 帧）"
+                            )
+                            logger.error(f"   已成功编码: {self.encoded_frame_count} 帧")
+                        
                         if consecutive_errors >= max_consecutive_errors:
                             logger.error(
-                                f"连续 {consecutive_errors} 次编码失败，停止推流"
+                                f"❌ 连续 {consecutive_errors} 次编码失败，停止推流"
                             )
+                            logger.error(f"   总成功帧数: {self.encoded_frame_count}")
+                            logger.error(f"   总失败次数: {self.error_count}")
                             break
                 
                 except Exception as e:

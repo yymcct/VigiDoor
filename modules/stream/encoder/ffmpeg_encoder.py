@@ -27,6 +27,8 @@ class FFmpegEncoder(EncoderBase):
         self.process = None
         self.stderr_thread = None
         self.stream_url = None
+        self.last_error = None  # 记录最后的错误信息
+        self.error_type = None  # 错误类型
     
     def initialize(self, stream_url: str) -> bool:
         """初始化 FFmpeg 编码器"""
@@ -69,12 +71,14 @@ class FFmpegEncoder(EncoderBase):
                 cmd.extend([
                     '-f', 'rtsp',
                     '-rtsp_transport', 'tcp',
+                    '-timeout', '5000000',  # 5秒超时 (微秒)
                     stream_url
                 ])
             else:
                 # RTMP/FLV
                 cmd.extend([
                     '-f', 'flv',
+                    '-timeout', '5000000',  # 5秒超时
                     stream_url
                 ])
             
@@ -117,17 +121,27 @@ class FFmpegEncoder(EncoderBase):
         if not self._is_initialized or not self.process:
             return False
         
+        # 检查 FFmpeg 进程是否还活着
+        if self.process.poll() is not None:
+            exit_code = self.process.returncode
+            logger.error(f"❌ FFmpeg 进程已退出，返回码: {exit_code}")
+            self._diagnose_error()
+            self._is_initialized = False
+            return False
+        
         try:
             self.process.stdin.write(frame.tobytes())
             self.process.stdin.flush()
             return True
             
         except BrokenPipeError:
-            logger.error("FFmpeg 管道断开")
+            exit_code = self.process.poll()
+            logger.error(f"❌ FFmpeg 管道断开（Broken Pipe），进程退出码: {exit_code}")
+            self._diagnose_error()
             self._is_initialized = False
             return False
         except IOError as e:
-            logger.error(f"写入 FFmpeg 失败: {e}")
+            logger.error(f"❌ 写入 FFmpeg 失败: {e}")
             return False
     
     def release(self):
@@ -150,14 +164,86 @@ class FFmpegEncoder(EncoderBase):
                 for line in self.process.stderr:
                     line_str = line.decode('utf-8', errors='ignore').strip()
                     if line_str:
-                        # 只记录错误和警告
-                        if 'error' in line_str.lower() or 'warning' in line_str.lower():
+                        # 记录所有FFmpeg输出以便诊断
+                        if 'error' in line_str.lower():
+                            logger.error(f"FFmpeg: {line_str}")
+                            self.last_error = line_str  # 保存错误信息
+                            self._classify_error(line_str)
+                        elif 'warning' in line_str.lower():
                             logger.warning(f"FFmpeg: {line_str}")
-            except:
-                pass
+                        else:
+                            # 记录重要的状态信息
+                            if any(keyword in line_str.lower() for keyword in 
+                                   ['connection', 'timeout', 'refused', 'failed', 'unable', 'broken pipe']):
+                                logger.warning(f"FFmpeg: {line_str}")
+                                self.last_error = line_str
+                                self._classify_error(line_str)
+                            else:
+                                logger.debug(f"FFmpeg: {line_str}")
+            except Exception as e:
+                logger.error(f"stderr读取线程异常: {e}")
         
         self.stderr_thread = threading.Thread(target=read_stderr, daemon=True)
         self.stderr_thread.start()
+    
+    def _classify_error(self, error_msg: str):
+        """分类错误信息"""
+        error_msg_lower = error_msg.lower()
+        if 'broken pipe' in error_msg_lower:
+            self.error_type = 'BROKEN_PIPE'
+        elif 'connection refused' in error_msg_lower:
+            self.error_type = 'CONNECTION_REFUSED'
+        elif 'timeout' in error_msg_lower:
+            self.error_type = 'TIMEOUT'
+        elif 'no route to host' in error_msg_lower:
+            self.error_type = 'NETWORK_ERROR'
+        else:
+            self.error_type = 'UNKNOWN'
+    
+    def _diagnose_error(self):
+        """诊断并输出错误建议"""
+        logger.error("="*60)
+        logger.error("📋 推流失败诊断")
+        logger.error(f"   推流地址: {self.stream_url}")
+        
+        if self.last_error:
+            logger.error(f"   错误信息: {self.last_error}")
+        
+        if self.error_type == 'BROKEN_PIPE':
+            logger.error("   错误类型: 管道断开 (Broken Pipe)")
+            logger.error("")
+            logger.error("🔧 可能原因和解决方案：")
+            logger.error("   1. RTSP/RTMP 服务器断开连接")
+            logger.error("      → 检查 ZLMediaKit 是否正在运行")
+            logger.error("      → 测试命令: curl -v http://192.168.1.119:80/index/api/getMediaList")
+            logger.error("   2. 服务器超时配置")
+            logger.error("      → 检查 ZLMediaKit 的超时配置")
+            logger.error("   3. 网络连接不稳定")
+            logger.error("      → 测试命令: ping 192.168.1.119")
+            logger.error("      → 检查防火墙设置")
+        elif self.error_type == 'CONNECTION_REFUSED':
+            logger.error("   错误类型: 连接被拒绝")
+            logger.error("")
+            logger.error("🔧 解决方案：")
+            logger.error("   1. 检查 RTSP 服务器是否启动")
+            logger.error("   2. 验证端口是否正确（默认 RTSP: 554 或 8554）")
+            logger.error("   3. 检查防火墙是否阻止连接")
+        elif self.error_type == 'TIMEOUT':
+            logger.error("   错误类型: 连接超时")
+            logger.error("")
+            logger.error("🔧 解决方案：")
+            logger.error("   1. 检查网络连接")
+            logger.error("   2. 增加 FFmpeg 超时设置")
+            logger.error("   3. 验证服务器地址是否正确")
+        else:
+            logger.error("   错误类型: 未知错误")
+            logger.error("")
+            logger.error("🔧 建议：")
+            logger.error("   1. 检查 FFmpeg 日志获取详细信息")
+            logger.error("   2. 验证推流地址格式是否正确")
+            logger.error("   3. 测试服务器是否可访问")
+        
+        logger.error("="*60)
     
     def _cleanup_process(self):
         """清理 FFmpeg 进程"""

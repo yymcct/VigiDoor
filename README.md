@@ -127,3 +127,44 @@ https://125.46.78.210:8443/webrtc/?app=live&stream=697882367f2e6c302f4e7aac_RPI_
 
 ```
 
+## 测试推流
+v1
+现象： 播放卡顿，没有声音
+```
+ffmpeg -re -i test.mp4 -vcodec copy -acodec copy -f rtsp -rtsp_transport tcp rtsp://192.168.2.139:8554/live/VIGIDOOR_7c3a41081017190d_RPI
+```
+---
+
+v2
+```
+ffmpeg -re \
+  -i test.mp4 \
+  -c:v libx264 -profile:v baseline -preset veryfast -bf 0 -g 60 -tune zerolatency \
+  -c:a aac -b:a 128k \
+  -f rtsp -rtsp_transport tcp \
+  rtsp://192.168.2.139:8554/live/VIGIDOOR_7c3a41081017190d_RPI
+```
+
+
+---
+
+```
+ffmpeg -re \
+  -i test.mp4 \
+  -c:v libx264 -profile:v baseline -level 3.0 -preset veryfast -bf 0 -g 60 -tune zerolatency \
+  -c:a aac -b:a 128k -ar 44100 \
+  -f rtsp -rtsp_transport tcp \
+  rtsp://192.168.2.139:8554/live/VIGIDOOR_7c3a41081017190d_RPI
+```
+
+---
+V3 禁用音频 提升4.0
+
+```
+ffmpeg -re -i test.mp4 \
+  -c:v libx264 -profile:v baseline -level 4.0 \
+  -preset veryfast -bf 0 -g 60 -tune zerolatency \
+  -an \
+  -f rtsp -rtsp_transport tcp \
+  rtsp://192.168.2.139:8554/live/VIGIDOOR_7c3a41081017190d_RPI
+```
