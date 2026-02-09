@@ -5,21 +5,21 @@ services:
     container_name: zlmediakit
     restart: unless-stopped
     
-    # ports:
-      # 核心推拉流端口（根据实际需求开启）
-      # - "1935:1935"         # RTMP 推流/播放 (最常用)
-      # - "8554:554"          # RTSP 播放 (tcp)
-      # - "10000:10000"       # RTP 端口 (tcp)
-      # - "10000:10000/udp"   # RTP 端口 (udp) - 非常重要，很多设备需要
-      # - "8000:8000/udp"     # RTSP over UDP
-      # - "9000:9000/udp"     # SRT
+    ports:
+      #核心推拉流端口（根据实际需求开启）
+      - "1935:1935"         # RTMP 推流/播放 (最常用)
+      - "8554:554"          # RTSP 播放 (tcp)
+      - "10000:10000"       # RTP 端口 (tcp)
+      - "10000:10000/udp"   # RTP 端口 (udp) - 非常重要，很多设备需要
+      - "8000:8000/udp"     # RTSP over UDP
+      - "9000:9000/udp"     # SRT
       
-      # # HTTP/HLS/HTTP-FLV/WebRTC 等服务端口
-      # - "8080:80"           # HTTP 端口 (HLS、HTTP-FLV、WebSocket 等)
-      # - "8443:443"          # HTTPS 端口 (需要证书时使用)
+      # HTTP/HLS/HTTP-FLV/WebRTC 等服务端口
+      - "8080:80"           # HTTP 端口 (HLS、HTTP-FLV、WebSocket 等)
+      - "8443:443"          # HTTPS 端口 (需要证书时使用)
       
-      # 管理界面 (hook api、WebRTC播放测试等)
-      # - "10800:10800"     # 老版本web管理界面（新版基本不用这个了）
+      #管理界面 (hook api、WebRTC播放测试等)
+      #- "10800:10800"     # 老版本web管理界面（新版基本不用这个了）
 
     volumes:
       # 强烈建议持久化配置文件和录像、证书等
@@ -35,7 +35,7 @@ services:
       # 如果你想修改默认密码（api管理密码），可以在 config.ini 里设置
       # 或者通过环境变量（部分支持，但推荐直接改 config.ini）
     
-    network_mode: host         
+    #network_mode: host         
     # network_mode: bridge      # 默认桥接网络（上面 ports 有效）
 
     # 如果使用 host 网络，可以把 ports 全部注释掉

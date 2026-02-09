@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VigiDoor 直播播放器</title>
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Video.js CSS -->
+    <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
+    
+    <!-- flv.js for HTTP-FLV -->
+    <script src="https://cdn.jsdelivr.net/npm/flv.js@1.6.2/dist/flv.min.js"></script>
+    
+    <!-- Video.js -->
+    <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
+    
+    <style>
+        .video-container {
+            position: relative;
+            width: 100%;
+            padding-bottom: 56.25%; /* 16:9 比例 */
+        }
+        
+        .video-container video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+        }
+        
+        .protocol-btn {
+            transition: all 0.3s ease;
+        }
+        
+        .protocol-btn.active {
+            background: #3b82f6;
+            color: white;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <!-- 标题区域 -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">VigiDoor 直播播放器</h1>
+            <p class="text-gray-600">设备: RPI_001_0_0 | 流ID: 697882367f2e6c302f4e7aac</p>
+        </div>
+        
+        <!-- 播放器区域 -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+            <div class="mb-4">
+                <h2 class="text-xl font-semibold text-gray-800 mb-3">选择播放协议</h2>
+                <div class="flex flex-wrap gap-3">
+                    <button id="btn-hls" class="protocol-btn px-6 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 font-medium" onclick="switchProtocol('hls')">
+                        HLS (兼容性最好)
+                    </button>
+                    <button id="btn-flv" class="protocol-btn active px-6 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 font-medium" onclick="switchProtocol('flv')">
+                        HTTP-FLV (推荐)
+                    </button>
+                    <button id="btn-webrtc" class="protocol-btn px-6 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 font-medium" onclick="switchProtocol('webrtc')">
+                        WebRTC (超低延迟)
+                    </button>
+                </div>
+            </div>
+            
+            <!-- 播放器容器 -->
+            <div class="video-container rounded-lg overflow-hidden">
+                <video id="videoPlayer" class="video-js vjs-default-skin vjs-big-play-centered" controls muted autoplay playsinline></video>
+            </div>
+            
+            <!-- 状态信息 -->
+            <div class="mt-4 p-4 bg-gray-50 rounded-lg">
+                <div class="flex items-center justify-between flex-wrap gap-2 mb-3">
+                    <div class="flex items-center gap-2">
+                        <span id="statusIndicator" class="w-3 h-3 rounded-full bg-gray-400"></span>
+                        <span id="statusText" class="text-sm font-medium text-gray-600">未连接</span>
+                    </div>
+                    <div class="text-sm text-gray-600">
+                        <span id="currentProtocol" class="font-medium">HTTP-FLV</span>
+                    </div>
+                </div>
+                <!-- 实时统计信息 -->
+                <div id="statsInfo" class="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-gray-600 hidden">
+                    <div>
+                        <span class="text-gray-500">帧率:</span>
+                        <span id="statFps" class="font-mono font-semibold">0</span> fps
+                    </div>
+                    <div>
+                        <span class="text-gray-500">码率:</span>
+                        <span id="statBitrate" class="font-mono font-semibold">0</span> kbps
+                    </div>
+                    <div>
+                        <span class="text-gray-500">延迟:</span>
+                        <span id="statDelay" class="font-mono font-semibold">0</span> 秒
+                    </div>
+                    <div>
+                        <span class="text-gray-500">丢帧:</span>
+                        <span id="statDropped" class="font-mono font-semibold">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 连接信息 -->
+        <div class="bg-white rounded-lg shadow-lg p-6">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">播放地址</h2>
+            <div class="space-y-3">
+                <div class="p-3 bg-gray-50 rounded-lg">
+                    <p class="text-xs text-gray-500 mb-1">RTMP (原始地址)</p>
+                    <p class="text-sm font-mono text-gray-700 break-all">rtmp://192.168.1.119:1935/live/697882367f2e6c302f4e7aac_RPI_001_0_0_2026012710</p>
+                </div>
+                <div class="p-3 bg-gray-50 rounded-lg">
+                    <p class="text-xs text-gray-500 mb-1">HTTP-FLV (推荐)</p>
+                    <p class="text-sm font-mono text-gray-700 break-all" id="flvUrl"></p>
+                </div>
+                <div class="p-3 bg-gray-50 rounded-lg">
+                    <p class="text-xs text-gray-500 mb-1">HLS (兼容性好)</p>
+                    <p class="text-sm font-mono text-gray-700 break-all" id="hlsUrl"></p>
+                </div>
+                <div class="p-3 bg-gray-50 rounded-lg">
+                    <p class="text-xs text-gray-500 mb-1">WebRTC (超低延迟)</p>
+                    <p class="text-sm font-mono text-gray-700 break-all" id="webrtcUrl"></p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 提示信息 -->
+        <div class="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <h3 class="text-sm font-semibold text-blue-800 mb-2">💡 使用提示</h3>
+            <ul class="text-sm text-blue-700 space-y-1">
+                <li>• <strong>HTTP-FLV</strong>: 延迟低（1-3秒），兼容性好，推荐使用</li>
+                <li>• <strong>HLS</strong>: 兼容性最好，但延迟较高（5-15秒）</li>
+                <li>• <strong>WebRTC</strong>: 延迟最低（0.5秒内），但需要服务器支持</li>
+                <li>• 确保 ZLMediaKit 服务器已启动且端口开放</li>
+            </ul>
+        </div>
+    </div>
+    
+    <script>
+        // 流配置
+        const streamConfig = {
+            host: 'localhost',
+            rtmpPort: '1935',
+            httpPort: '8080',
+            app: 'live',
+            stream: 'VIGIDOOR_7c3a41081017190d_RPI',
+            vhost: '__defaultVhost__'
+        };
+        
+        // 生成各协议的播放地址
+        const urls = {
+            rtmp: `rtmp://${streamConfig.host}:${streamConfig.rtmpPort}/${streamConfig.app}/${streamConfig.stream}?vhost=${streamConfig.vhost}`,
+            flv: `http://${streamConfig.host}:${streamConfig.httpPort}/${streamConfig.app}/${streamConfig.stream}.live.flv?vhost=${streamConfig.vhost}`,
+            hls: `http://${streamConfig.host}:${streamConfig.httpPort}/${streamConfig.app}/${streamConfig.stream}.live.m3u8?vhost=${streamConfig.vhost}`,
+            webrtc: `http://${streamConfig.host}:${streamConfig.httpPort}/index/api/webrtc?app=${streamConfig.app}&stream=${streamConfig.stream}&type=play`
+        };
+        
+        // 显示播放地址
+        document.getElementById('flvUrl').textContent = urls.flv;
+        document.getElementById('hlsUrl').textContent = urls.hls;
+        document.getElementById('webrtcUrl').textContent = urls.webrtc;
+        
+        let player = null;
+        let flvPlayer = null;
+        let currentProtocol = 'flv';
+        let isRestarting = false;  // 防止重复重启
+        let statsInterval = null;  // 统计信息定时器
+        
+        // 更新状态显示
+        function updateStatus(status, text) {
+            const indicator = document.getElementById('statusIndicator');
+            const statusText = document.getElementById('statusText');
+            
+            indicator.className = 'w-3 h-3 rounded-full ' + 
+                (status === 'playing' ? 'bg-green-500 animate-pulse' :
+                 status === 'loading' ? 'bg-yellow-500 animate-pulse' :
+                 status === 'error' ? 'bg-red-500' : 'bg-gray-400');
+            
+            statusText.textContent = text;
+        }
+        
+        // 切换协议
+        function switchProtocol(protocol) {
+            if (currentProtocol === protocol) return;
+            
+            // 更新按钮状态
+            document.querySelectorAll('.protocol-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.getElementById(`btn-${protocol}`).classList.add('active');
+            
+            // 更新协议显示
+            const protocolNames = {
+                'hls': 'HLS',
+                'flv': 'HTTP-FLV',
+                'webrtc': 'WebRTC'
+            };
+            document.getElementById('currentProtocol').textContent = protocolNames[protocol];
+            
+            currentProtocol = protocol;
+            
+            // 停止当前播放
+            stopPlayer();
+            
+            // 启动新播放器
+            updateStatus('loading', '正在加载...');
+            
+            setTimeout(() => {
+                if (protocol === 'hls') {
+                    playHLS();
+                } else if (protocol === 'flv') {
+                    playFLV();
+                } else if (protocol === 'webrtc') {
+                    playWebRTC();
+                }
+            }, 500);
+        }
+        
+        // 停止播放器
+        function stopPlayer() {
+            console.log('停止播放器...');
+            
+            // 清理统计信息定时器
+            if (statsInterval) {
+                clearInterval(statsInterval);
+                statsInterval = null;
+            }
+            
+            // 隐藏统计信息
+            document.getElementById('statsInfo').classList.add('hidden');
+            
+            // 先销毁 flvPlayer
+            if (flvPlayer) {
+                try {
+                    flvPlayer.pause();
+                    flvPlayer.unload();
+                    flvPlayer.detachMediaElement();
+                    flvPlayer.destroy();
+                } catch (e) {
+                    console.warn('停止 flvPlayer 时出错:', e);
+                }
+                flvPlayer = null;
+            }
+            
+            // 清理 video 元素
+            const videoElement = document.getElementById('videoPlayer');
+            if (videoElement) {
+                try {
+                    videoElement.pause();
+                    videoElement.removeAttribute('src');
+                    videoElement.srcObject = null;
+                    videoElement.load();
+                } catch (e) {
+                    console.warn('清理 video 元素时出错:', e);
+                }
+            }
+            
+            updateStatus('未连接', '未连接');
+        }
+        
+        // HLS 播放
+        function playHLS() {
+            const videoElement = document.getElementById('videoPlayer');
+            
+            if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
+                // 原生支持 HLS (Safari, iOS)
+                videoElement.src = urls.hls;
+                videoElement.play().then(() => {
+                    updateStatus('playing', '正在播放');
+                }).catch(err => {
+                    console.error('HLS 播放失败:', err);
+                    updateStatus('error', '播放失败: ' + err.message);
+                });
+            } else {
+                // 使用 hls.js (其他浏览器)
+                if (typeof Hls !== 'undefined' && Hls.isSupported()) {
+                    const hls = new Hls();
+                    hls.loadSource(urls.hls);
+                    hls.attachMedia(videoElement);
+                    hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                        videoElement.play().then(() => {
+                            updateStatus('playing', '正在播放');
+                        });
+                    });
+                    hls.on(Hls.Events.ERROR, (event, data) => {
+                        console.error('HLS 错误:', data);
+                        updateStatus('error', 'HLS 错误: ' + data.type);
+                    });
+                } else {
+                    updateStatus('error', '浏览器不支持 HLS 播放');
+                    alert('您的浏览器不支持 HLS 播放，请尝试使用 HTTP-FLV 协议');
+                }
+            }
+        }
+        
+        // HTTP-FLV 播放
+        function playFLV() {
+            if (!flvjs.isSupported()) {
+                updateStatus('error', '浏览器不支持 FLV 播放');
+                alert('您的浏览器不支持 FLV 播放，请尝试使用 HLS 协议');
+                return;
+            }
+            
+            const videoElement = document.getElementById('videoPlayer');
+            
+            // 确保 video 元素处于干净状态
+            try {
+                videoElement.pause();
+                videoElement.removeAttribute('src');
+                videoElement.srcObject = null;
+                videoElement.load();
+            } catch (e) {
+                console.warn('清理 video 状态时出错:', e);
+            }
+            
+            flvPlayer = flvjs.createPlayer({
+                type: 'flv',
+                url: urls.flv,
+                isLive: true,
+                hasAudio: true,
+                hasVideo: true,
+                // 低延迟优化配置（局域网直播）
+                enableStashBuffer: false,  // 禁用stash buffer以降低延迟
+                stashInitialSize: 128,      // 如果启用buffer，初始大小128KB
+                // 启用 Worker 提升解码性能
+                enableWorker: true,
+                // 自动清理缓冲区以避免延迟累积
+                autoCleanupSourceBuffer: true,
+                autoCleanupMaxBackwardDuration: 3,  // 最多保留3秒历史数据
+                autoCleanupMinBackwardDuration: 2,  // 最少保留2秒历史数据
+                // 修复时间戳问题
+                fixAudioTimestampGap: true,
+                // 懒加载配置
+                lazyLoad: false,  // 直播不使用懒加载
+                lazyLoadMaxDuration: 0,
+                // 降低延迟的关键配置
+                deferLoadAfterSourceOpen: false,
+                // 准确的 seek
+                accurateSeek: false,
+                // 错误恢复配置
+                reuseRedirectedURL: true
+            });
+            
+            flvPlayer.attachMediaElement(videoElement);
+            flvPlayer.load();
+            
+            // 显示统计信息
+            document.getElementById('statsInfo').classList.remove('hidden');
+            
+            // 实时统计信息监听
+            let lastDecodedFrames = 0;
+            let lastTime = Date.now();
+            
+            statsInterval = setInterval(() => {
+                if (!flvPlayer || !videoElement) return;
+                
+                try {
+                    const stats = flvPlayer.statisticsInfo;
+                    if (stats) {
+                        // 计算实际帧率
+                        const now = Date.now();
+                        const deltaTime = (now - lastTime) / 1000;
+                        const currentFrames = stats.decodedFrames || 0;
+                        const fps = Math.round((currentFrames - lastDecodedFrames) / deltaTime);
+                        lastDecodedFrames = currentFrames;
+                        lastTime = now;
+                        
+                        // 更新显示
+                        document.getElementById('statFps').textContent = fps || 0;
+                        document.getElementById('statBitrate').textContent = 
+                            Math.round((stats.speed || 0) * 8 / 1024); // 转换为 kbps
+                        document.getElementById('statDropped').textContent = 
+                            stats.droppedFrames || 0;
+                        
+                        // 计算延迟
+                        if (videoElement.buffered.length > 0) {
+                            const bufferEnd = videoElement.buffered.end(videoElement.buffered.length - 1);
+                            const delay = bufferEnd - videoElement.currentTime;
+                            document.getElementById('statDelay').textContent = delay.toFixed(2);
+                            
+                            // 如果延迟过大，高亮显示
+                            const delayEl = document.getElementById('statDelay');
+                            if (delay > 3) {
+                                delayEl.classList.add('text-red-600');
+                                delayEl.classList.remove('font-semibold');
+                                delayEl.classList.add('font-bold');
+                            } else {
+                                delayEl.classList.remove('text-red-600', 'font-bold');
+                                delayEl.classList.add('font-semibold');
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.warn('获取统计信息失败:', e);
+                }
+            }, 1000);
+            
+            // 监听统计信息（flv.js 事件）
+            flvPlayer.on(flvjs.Events.STATISTICS_INFO, (info) => {
+                // console.log('统计信息:', info);
+                // 如果缓冲太多，强制跳转到最新位置
+                if (videoElement.buffered.length > 0) {
+                    const bufferEnd = videoElement.buffered.end(videoElement.buffered.length - 1);
+                    const currentTime = videoElement.currentTime;
+                    const delay = bufferEnd - currentTime;
+                    
+                    // 如果延迟超过3秒，跳转到最新位置
+                    if (delay > 3) {
+                        console.log('检测到延迟过大 (' + delay.toFixed(2) + 's)，跳转到最新位置');
+                        videoElement.currentTime = bufferEnd - 0.5;
+                    }
+                }
+            });
+            
+            flvPlayer.on(flvjs.Events.LOADING_COMPLETE, () => {
+                updateStatus('playing', '正在播放');
+            });
+            
+            // 增强错误处理和自动恢复
+            let errorRecoveryCount = 0;
+            const maxRecoveryAttempts = 3;
+            
+            flvPlayer.on(flvjs.Events.ERROR, (errType, errDetail) => {
+                console.error('FLV 错误:', errType, errDetail);
+                
+                // 如果已经在重启，忽略后续错误
+                if (isRestarting) {
+                    console.log('已在重启中，忽略错误');
+                    return;
+                }
+                
+                if (errType === flvjs.ErrorTypes.NETWORK_ERROR) {
+                    if (errorRecoveryCount < maxRecoveryAttempts) {
+                        errorRecoveryCount++;
+                        updateStatus('error', `网络错误，尝试重连... (${errorRecoveryCount}/${maxRecoveryAttempts})`);
+                        isRestarting = true;
+                        setTimeout(() => {
+                            if (currentProtocol === 'flv') {
+                                console.log('自动重连 FLV 流...');
+                                stopPlayer();
+                                setTimeout(() => {
+                                    isRestarting = false;
+                                    playFLV();
+                                }, 1000);
+                            } else {
+                                isRestarting = false;
+                            }
+                        }, 2000);
+                    } else {
+                        updateStatus('error', '网络错误，已达到最大重试次数');
+                        errorRecoveryCount = 0;
+                    }
+                } else if (errType === flvjs.ErrorTypes.MEDIA_ERROR) {
+                    if (errDetail === flvjs.ErrorDetails.MEDIA_MSE_ERROR) {
+                        // MSE 错误，需要完全重启播放器
+                        console.log('MSE 错误，完全重启播放器');
+                        updateStatus('error', 'MSE 错误，重启播放器...');
+                        if (currentProtocol === 'flv' && !isRestarting) {
+                            isRestarting = true;
+                            stopPlayer();
+                            setTimeout(() => {
+                                isRestarting = false;
+                                playFLV();
+                            }, 1500);
+                        }
+                    } else {
+                        // 其他媒体错误，尝试 unload/load 恢复
+                        updateStatus('error', '媒体错误，尝试恢复...');
+                        try {
+                            flvPlayer.unload();
+                            flvPlayer.load();
+                            videoElement.play();
+                        } catch (e) {
+                            console.error('恢复失败，重启播放器:', e);
+                            if (!isRestarting) {
+                                isRestarting = true;
+                                stopPlayer();
+                                setTimeout(() => {
+                                    isRestarting = false;
+                                    playFLV();
+                                }, 1500);
+                            }
+                        }
+                    }
+                } else {
+                    updateStatus('error', 'FLV 错误: ' + errType);
+                }
+            });
+            
+            // 监听 video 元素的 waiting 事件（缓冲）
+            videoElement.addEventListener('waiting', () => {
+                console.log('视频缓冲中...');
+                updateStatus('loading', '缓冲中...');
+            });
+            
+            videoElement.addEventListener('playing', () => {
+                updateStatus('playing', '正在播放');
+            });
+            
+            // 监听 video 错误
+            videoElement.addEventListener('error', (e) => {
+                const error = videoElement.error;
+                if (error) {
+                    console.error('Video 元素错误:', {
+                        code: error.code,
+                        message: error.message,
+                        MEDIA_ERR_ABORTED: error.code === 1,
+                        MEDIA_ERR_NETWORK: error.code === 2,
+                        MEDIA_ERR_DECODE: error.code === 3,
+                        MEDIA_ERR_SRC_NOT_SUPPORTED: error.code === 4
+                    });
+                    
+                    if (!isRestarting) {
+                        updateStatus('error', `Video 错误: ${error.code}`);
+                        // video 错误也需要重启
+                        isRestarting = true;
+                        stopPlayer();
+                        setTimeout(() => {
+                            isRestarting = false;
+                            if (currentProtocol === 'flv') {
+                                playFLV();
+                            }
+                        }, 2000);
+                    }
+                }
+            });
+            
+            videoElement.play().then(() => {
+                updateStatus('playing', '正在播放');
+            }).catch(err => {
+                console.error('FLV 播放失败:', err);
+                updateStatus('error', '播放失败: ' + err.message);
+            });
+        }
+        
+        // WebRTC 播放
+        function playWebRTC() {
+            const videoElement = document.getElementById('videoPlayer');
+            
+            // 创建 PeerConnection
+            const pc = new RTCPeerConnection(null);
+            
+            pc.ontrack = (event) => {
+                videoElement.srcObject = event.streams[0];
+                videoElement.play().then(() => {
+                    updateStatus('playing', '正在播放');
+                }).catch(err => {
+                    console.error('WebRTC 播放失败:', err);
+                    updateStatus('error', '播放失败: ' + err.message);
+                });
+            };
+            
+            // 添加接收器
+            pc.addTransceiver('video', { direction: 'recvonly' });
+            pc.addTransceiver('audio', { direction: 'recvonly' });
+            
+            // 创建 offer
+            pc.createOffer().then(offer => {
+                pc.setLocalDescription(offer);
+                
+                // 发送 offer 到服务器
+                return fetch(urls.webrtc, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        sdp: offer.sdp,
+                        type: 'offer'
+                    })
+                });
+            }).then(response => response.json()).then(data => {
+                if (data.code === 0) {
+                    pc.setRemoteDescription(new RTCSessionDescription({
+                        type: 'answer',
+                        sdp: data.sdp
+                    }));
+                } else {
+                    throw new Error(data.msg || 'WebRTC 连接失败');
+                }
+            }).catch(err => {
+                console.error('WebRTC 错误:', err);
+                updateStatus('error', 'WebRTC 错误: ' + err.message);
+                alert('WebRTC 连接失败，请检查服务器是否支持 WebRTC。建议使用 HTTP-FLV 协议。');
+            });
+        }
+        
+        // 页面加载时默认使用 HTTP-FLV
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                playFLV();
+            }, 500);
+        });
+        
+        // 页面卸载时清理资源
+        window.addEventListener('beforeunload', () => {
+            stopPlayer();
+        });
+    </script>
+</body>
+</html>
