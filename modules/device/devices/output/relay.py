@@ -4,8 +4,9 @@
 """
 
 import time
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from ..base import OutputDevice
+from ...effects.base import EffectBase
 from utils.logger import setup_logger
 
 logger = setup_logger('relay')
@@ -46,6 +47,7 @@ class RelayDevice(OutputDevice):
         
         self._gpio = None
         self._is_on = False
+        self._current_effect: Optional[EffectBase] = None
     
     def initialize(self) -> bool:
         """
@@ -98,6 +100,10 @@ class RelayDevice(OutputDevice):
     def cleanup(self):
         """清理资源"""
         try:
+            # 停止效果
+            if self._current_effect:
+                self._current_effect.stop()
+            
             # 关闭继电器
             self.write(False)
             
@@ -124,6 +130,11 @@ class RelayDevice(OutputDevice):
         
         try:
             self._is_on = data
+            
+            # 停止当前效果（手动控制时）
+            if self._current_effect and self._current_effect.is_running():
+                self._current_effect.stop()
+                self._current_effect = None
             
             if self.simulate:
                 # 模拟模式
@@ -194,11 +205,66 @@ class RelayDevice(OutputDevice):
         time.sleep(duration)
         self.turn_off()
     
+    def set_effect(self, effect: EffectBase):
+        """
+        设置效果（如闪烁）
+        
+        Args:
+            effect: 效果对象
+        """
+        # 停止当前效果
+        if self._current_effect and self._current_effect.is_running():
+            self._current_effect.stop()
+        
+        # 启动新效果
+        self._current_effect = effect
+        self._current_effect.start()
+    
+    def stop_effect(self):
+        """停止当前效果"""
+        if self._current_effect:
+            self._current_effect.stop()
+            self._current_effect = None
+            # 关闭继电器
+            self._apply_state(False)
+    
     def update(self):
         """
-        更新状态（继电器不需要持续更新）
+        更新状态（用于驱动效果动画）
         """
-        pass
+        if not self._initialized or not self._current_effect:
+            return
+        
+        try:
+            if self._current_effect.is_running():
+                # 获取效果当前帧的状态
+                state = self._current_effect.update()
+                if state is not None:
+                    self._apply_state(state)
+        
+        except Exception as e:
+            logger.error(f"更新继电器效果失败: {e}")
+    
+    def _apply_state(self, state: bool):
+        """
+        内部方法：直接应用状态到硬件（不影响效果）
+        
+        Args:
+            state: True=开启，False=关闭
+        """
+        self._is_on = state
+        
+        if self.simulate:
+            # 模拟模式
+            logger.debug(f"  [模拟] {self.name}: {'开启' if state else '关闭'}")
+            return
+        
+        # 真实硬件
+        if self._gpio:
+            if self.normally_open:
+                self._gpio.output(self.pin, self._gpio.HIGH if state else self._gpio.LOW)
+            else:
+                self._gpio.output(self.pin, self._gpio.LOW if state else self._gpio.HIGH)
     
     def get_info(self) -> Dict[str, Any]:
         """
@@ -212,6 +278,7 @@ class RelayDevice(OutputDevice):
             'pin': self.pin,
             'normally_open': self.normally_open,
             'simulate': self.simulate,
-            'is_on': self._is_on
+            'is_on': self._is_on,
+            'current_effect': self._current_effect.name if self._current_effect else None
         })
         return info

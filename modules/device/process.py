@@ -10,6 +10,7 @@ from utils.logger import setup_logger
 from .mode import DeviceMode, ModeManager
 from .manager import DeviceManager
 from .devices.output.led_strip import LEDStripDevice
+from .devices.output.relay import RelayDevice
 from .effects.led_effects import (
     SolidColorEffect,
     BlinkEffect,
@@ -17,6 +18,7 @@ from .effects.led_effects import (
     RainbowEffect,
     PulseEffect
 )
+from .effects.relay_effects import RelayBlinkEffect
 
 logger = setup_logger('device_controller')
 
@@ -58,6 +60,9 @@ class DeviceControllerProcess:
         
         # LED 设备引用
         self._led_strip: LEDStripDevice = None
+        
+        # 警示灯继电器（GPIO 26，低电平触发）
+        self._warning_light: RelayDevice = None
         
         logger.info("设备控制进程初始化完成")
     
@@ -118,8 +123,17 @@ class DeviceControllerProcess:
                 logger.error("LED 灯带注册失败")
                 return False
             
-            # TODO: 在这里注册其他设备
-            # 例如：按钮、蜂鸣器、PIR 传感器等
+            # 创建警示灯继电器（GPIO 26，低电平触发）
+            self._warning_light = RelayDevice(
+                pin=26,
+                normally_open=False,  # 低电平触发：turn_on 输出 LOW
+                name="警示灯",
+                simulate=False
+            )
+            
+            if not self.device_manager.register_device(self._warning_light):
+                logger.error("警示灯继电器注册失败")
+                return False
             
             logger.info("✅ 所有设备初始化成功")
             return True
@@ -197,17 +211,27 @@ class DeviceControllerProcess:
             color = tuple(self.colors['safe'])
             effect = SolidColorEffect(color)
             self._led_strip.set_effect(effect)
+            # 关闭警示灯
+            if self._warning_light:
+                self._warning_light.turn_off()
 
         elif mode == DeviceMode.ALERT:
             # 黄色纯色
             color = tuple(self.colors['alert'])
             effect = SolidColorEffect(color)
             self._led_strip.set_effect(effect)
+            # 打开警示灯
+            if self._warning_light:
+                self._warning_light.turn_on()
 
         elif mode == DeviceMode.ALARM:
             # 红蓝黄暴闪
             effect = BlinkEffect(interval=0.1)
             self._led_strip.set_effect(effect)
+            # 警示灯闪烁（使用 Effect 系统）
+            if self._warning_light:
+                relay_effect = RelayBlinkEffect(interval=0.5)
+                self._warning_light.set_effect(relay_effect)
     
     def _cleanup(self):
         """清理资源"""
