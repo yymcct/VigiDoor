@@ -112,7 +112,7 @@ class VolumeAnomalyDetector:
             # 持续时长检测
             if self.alarm_start_time is None:
                 self.alarm_start_time = current_time
-                logger.debug(f"⚠️  检测到音量突变 {delta_db:+.1f}dB，开始持续检测")
+                logger.debug(f"⚠️  检测到音量突变 {delta_db:+.1f}dB，开始持续检测 {self.duration_threshold_seconds}")
                 return AlarmLevel.NORMAL, current_db, delta_db
             
             duration = current_time - self.alarm_start_time
