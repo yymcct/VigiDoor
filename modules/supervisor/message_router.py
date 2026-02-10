@@ -1,7 +1,7 @@
 """Supervisor message router."""
 
 from core.ipc.message import MessageType, IPCMessage
-from .handlers import handle_heartbeat, handle_alarm_intrusion, handle_mqtt_command
+from .handlers import handle_heartbeat, handle_alarm_intrusion, handle_audio_anomaly, handle_mqtt_command
 from .handlers import SupervisorHandlerContext
 
 
@@ -15,6 +15,7 @@ class MessageRouter:
             MessageType.HEARTBEAT: handle_heartbeat,
             'heartbeat': handle_heartbeat,
             MessageType.ALARM_INTRUSION: handle_alarm_intrusion,
+            MessageType.AUDIO_ANOMALY: handle_audio_anomaly,
             MessageType.MQTT_COMMAND: handle_mqtt_command,
             'mqtt_command': handle_mqtt_command,
         }

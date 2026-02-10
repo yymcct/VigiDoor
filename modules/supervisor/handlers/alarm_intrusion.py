@@ -49,6 +49,61 @@ def _set_global_state(ctx: SupervisorHandlerContext, state: str) -> None:
         ctx.logger.info(f"🔄 全局状态切换: {old_state} → {state}")
 
 
+def handle_audio_anomaly(ctx: SupervisorHandlerContext, msg: IPCMessage) -> None:
+    """处理音频异常检测"""
+    data: Dict[str, Any] = msg.data or {}
+    ctx.logger.warning(f"🔊 检测到音频异常: {data}")
+
+    # 计算严重程度
+    delta_db = data.get('delta_db', 0)
+    if delta_db >= 30:
+        severity = 'critical'
+    elif delta_db >= 20:
+        severity = 'high'
+    elif delta_db >= 10:
+        severity = 'medium'
+    else:
+        severity = 'low'
+
+    # 转换为 AlarmIntrusionMessage 格式
+    alarm_data = {
+        'alarm_type': 'audio_anomaly',
+        'source': 'audio',
+        'confidence': min(delta_db / 30.0, 1.0),  # 归一化为0-1
+        'intrusion_count': 0,
+        'severity': severity,
+        'snapshot_urls': [],
+        'video_urls': [],
+        'remark': f"{data.get('event_name', '音量异常')}: 当前{data.get('current_db', 0):.1f}dB, 基线{data.get('baseline_db', 0):.1f}dB, 偏差{delta_db:+.1f}dB"
+    }
+
+    # 发送给 MQTT
+    alarm_msg = create_message(
+        msg_type=MessageType.ALARM_INTRUSION,
+        target=ProcessName.MQTT_CLIENT,
+        data=alarm_data
+    )
+    ctx.message_bus.send(ProcessName.MQTT_CLIENT, alarm_msg)
+    
+    light_msg = CommandMessage(
+        cmd_type=MessageType.CMD_SET_LIGHT,
+        target=ProcessName.DEVICE_CONTROLLER,
+        cmd_data={'mode': 'alarm'}
+    )
+    ctx.message_bus.send(ProcessName.DEVICE_CONTROLLER, light_msg)
+
+    audio_msg = CommandMessage(
+        cmd_type=MessageType.CMD_PLAY_AUDIO,
+        target=ProcessName.AUDIO_PROCESSOR,
+        cmd_data={
+            'path': 'assets/audio/audio_alarm.mp3'
+        }
+    )
+    ctx.message_bus.send(ProcessName.AUDIO_PROCESSOR, audio_msg)
+    
+    ctx.logger.info(f"✅ 音频异常消息已转发至 MQTT (严重程度: {severity})")
+
+
 def _set_alarm_auto_reset(ctx: SupervisorHandlerContext) -> None:
     """设置报警自动恢复时间"""
     reset_seconds = float(ctx.shared_state.get('alarm_auto_reset_seconds', 0) or 0)
