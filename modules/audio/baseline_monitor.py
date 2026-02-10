@@ -30,7 +30,7 @@ class EnvironmentBaselineMonitor:
     
     def __init__(
         self,
-        learning_window_minutes: float = 5.0,
+        learning_window_minutes: float = 0.5,
         update_window_seconds: float = 30.0,
         outlier_threshold_iqr: float = 1.5,
         update_alpha: float = 0.1
@@ -81,6 +81,13 @@ class EnvironmentBaselineMonitor:
         if not self.is_ready:
             self.learning_buffer.append(db_value)
             
+            # 每50个样本打印一次进度
+            if self.sample_count % 50 == 0:
+                elapsed = time.time() - self.start_time
+                target_seconds = self.learning_window_minutes * 60
+                progress = min(elapsed / target_seconds * 100, 100)
+                logger.info(f"📚 学习进度: {progress:.0f}% ({self.sample_count} 样本, {elapsed:.0f}s/{target_seconds:.0f}s)")
+            
             # 检查是否达到学习时长
             elapsed = time.time() - self.start_time
             if elapsed >= self.learning_window_minutes * 60:
@@ -100,8 +107,8 @@ class EnvironmentBaselineMonitor:
     
     def _finish_learning(self):
         """完成初始学习，计算基线"""
-        if len(self.learning_buffer) < 10:
-            logger.warning("学习期样本不足，延长学习时间")
+        if len(self.learning_buffer) < 5:
+            logger.warning(f"学习期样本不足 ({len(self.learning_buffer)}/5)，延长学习时间")
             return
         
         # 过滤异常值

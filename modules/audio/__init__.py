@@ -7,12 +7,13 @@ from .process import AudioProcess
 from .capture import AudioCaptureManager
 from .detector import AudioAnomalyDetector
 from .player import AudioPlayer
-from .volume_monitor import VolumeMonitor
+from .volume_monitor import VolumeAnomalyDetector, AlarmLevel
 
 __all__ = [
     'AudioProcess',
     'AudioCaptureManager',
     'AudioAnomalyDetector',
     'AudioPlayer',
-    'VolumeMonitor',
+    'VolumeAnomalyDetector',
+    'AlarmLevel',
 ]

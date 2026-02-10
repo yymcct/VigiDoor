@@ -220,6 +220,11 @@ class AudioProcess:
     def _on_audio_chunk(self, audio_chunk):
         """音频块回调：基线学习 + 音量突变检测"""
         try:
+            # 验证输入
+            if audio_chunk is None or not hasattr(audio_chunk, '__len__') or len(audio_chunk) == 0:
+                logger.debug("收到无效的音频块，跳过处理")
+                return
+            
             # 1. 计算当前音量（dB）
             current_db = self.anomaly_detector._calculate_db(audio_chunk)
             
@@ -230,11 +235,18 @@ class AudioProcess:
             baseline_info = self.baseline_monitor.get_baseline_info()
             baseline_db = baseline_info['baseline_db']
             
+            # 基线学习期间，跳过检测
+            if baseline_db is None:
+                logger.debug(f"基线学习中... 当前音量: {current_db:.1f}dB")
+                return
+            
             # 4. 音量突变检测
-            alarm_level, current_db, delta_db = self.anomaly_detector.analyze(
-                audio_chunk,
-                baseline_db
-            )
+            result = self.anomaly_detector.analyze(audio_chunk, baseline_db)
+            if result is None:
+                logger.warning("音量突变检测返回 None，跳过处理")
+                return
+            
+            alarm_level, current_db, delta_db = result
             
             # 5. 根据报警级别处理
             if alarm_level == AlarmLevel.ALARM:
