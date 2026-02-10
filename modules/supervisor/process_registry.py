@@ -93,8 +93,8 @@ def run_ai_detector(queue, shared_state, config):
 
 def run_audio_processor(queue, shared_state, config):
     """音频处理进程入口"""
-    from modules.audio_process import AudioProcessorProcess
-    audio = AudioProcessorProcess(queue, shared_state, config)
+    from modules.audio import AudioProcess
+    audio = AudioProcess(queue, shared_state, config)
     audio.run()
 
 
