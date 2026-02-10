@@ -5,6 +5,7 @@
 
 import time
 from utils.logger import setup_logger
+from utils.config import ConfigManager
 from core.ipc import IPCClient, MessageType
 from core.ipc.registry import ProcessName
 
@@ -54,34 +55,31 @@ class AudioProcess:
     6. （可选）YamNet辅助记录
     """
     
-    def __init__(self, ipc_client: IPCClient, shared_state, config):
+    def __init__(self, ipc_client: IPCClient, shared_state, config_manager: ConfigManager):
         self.ipc = ipc_client
         self.state = shared_state
-        self.config = config
+        self.config_manager = config_manager
         self.running = True
         
-        # 音频配置
-        audio_config = config.get('audio', {})
+        # 音频配置 - 使用强类型访问
+        audio_config = config_manager.audio
         
         # 基线学习配置
-        baseline_config = audio_config.get('baseline', {})
-        self.learning_window_minutes = baseline_config.get('learning_window_minutes', 5.0)
-        self.update_window_seconds = baseline_config.get('update_window_seconds', 30.0)
-        self.outlier_threshold_iqr = baseline_config.get('outlier_threshold_iqr', 1.5)
-        self.update_alpha = baseline_config.get('update_alpha', 0.1)
+        self.learning_window_minutes = audio_config.baseline_learning_window_minutes
+        self.update_window_seconds = audio_config.baseline_update_window_seconds
+        self.outlier_threshold_iqr = audio_config.baseline_outlier_threshold_iqr
+        self.update_alpha = audio_config.baseline_update_alpha
         
         # 音量突变检测配置
-        anomaly_config = audio_config.get('anomaly_detection', {})
-        self.alert_threshold_db = anomaly_config.get('alert_threshold_db', 10.0)
-        self.alarm_threshold_db = anomaly_config.get('alarm_threshold_db', 20.0)
-        self.duration_threshold = anomaly_config.get('duration_threshold_seconds', 0.5)
-        self.cooldown_seconds = anomaly_config.get('cooldown_seconds', 10.0)
+        self.alert_threshold_db = audio_config.anomaly_alert_threshold_db
+        self.alarm_threshold_db = audio_config.anomaly_alarm_threshold_db
+        self.duration_threshold = audio_config.anomaly_duration_threshold_seconds
+        self.cooldown_seconds = audio_config.anomaly_cooldown_seconds
         
         # YamNet 配置（可选）
-        yamnet_config = audio_config.get('yamnet', {})
-        self.yamnet_enabled = yamnet_config.get('enabled', False)
-        self.yamnet_model_path = yamnet_config.get('model_path', 'models/yamnet.tflite')
-        self.yamnet_confidence = yamnet_config.get('confidence_threshold', 0.4)
+        self.yamnet_enabled = audio_config.yamnet_enabled
+        self.yamnet_model_path = audio_config.yamnet_model_path
+        self.yamnet_confidence = audio_config.yamnet_confidence_threshold
         
         # 组件（延迟初始化）
         self.capture_manager = None

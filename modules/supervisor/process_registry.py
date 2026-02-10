@@ -60,12 +60,19 @@ def process_wrapper(target_func: Callable, process_name: str, ipc_queue_or_clien
         except Exception as e:
             logger.warning(f"ConfigManager 初始化失败: {e}")
         
-        # 获取配置字典用于向后兼容（某些进程可能仍需要）
+        # 获取 ConfigManager 实例
         config_manager = ConfigManager.get_instance()
+        
+        # 向后兼容：某些进程可能仍需要原始字典
         config = config_manager.get_raw_dict()
         config['_config_path'] = config_path
-        # TODO 使用config_manager
-        target_func(ipc_queue_or_client, shared_state, config)
+        
+        # 根据进程名称传递不同的参数
+        # AudioProcess 使用 ConfigManager，其他进程暂时使用原始字典
+        if process_name == 'audio_processor':
+            target_func(ipc_queue_or_client, shared_state, config_manager)
+        else:
+            target_func(ipc_queue_or_client, shared_state, config)
         
     except KeyboardInterrupt:
         logger.info(f"⚠️ {process_name} 收到中断信号")
@@ -91,10 +98,10 @@ def run_ai_detector(queue, shared_state, config):
     detector.run()
 
 
-def run_audio_processor(queue, shared_state, config):
-    """音频处理进程入口"""
+def run_audio_processor(queue, shared_state, config_manager):
+    """音频处理进程入口（使用 ConfigManager）"""
     from modules.audio import AudioProcess
-    audio = AudioProcess(queue, shared_state, config)
+    audio = AudioProcess(queue, shared_state, config_manager)
     audio.run()
 
 
