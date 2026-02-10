@@ -1,7 +1,7 @@
 from gpiozero import DigitalOutputDevice
 from time import sleep
 
-led = DigitalOutputDevice(20)       # 26 20 21
+led = DigitalOutputDevice(26)       # 26 20 21
 
 
 led.on()            # 点亮

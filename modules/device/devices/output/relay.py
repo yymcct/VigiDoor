@@ -5,6 +5,7 @@
 
 import time
 from typing import Dict, Any, Optional
+from gpiozero import DigitalOutputDevice
 from ..base import OutputDevice
 from ...effects.base import EffectBase
 from utils.logger import setup_logger
@@ -45,7 +46,7 @@ class RelayDevice(OutputDevice):
         self.normally_open = normally_open
         self.simulate = simulate
         
-        self._gpio = None
+        self._device: Optional[DigitalOutputDevice] = None
         self._is_on = False
         self._current_effect: Optional[EffectBase] = None
     
@@ -68,15 +69,13 @@ class RelayDevice(OutputDevice):
             
             # 尝试初始化真实硬件
             try:
-                import RPi.GPIO as GPIO
-                
-                GPIO.setmode(GPIO.BCM)
-                GPIO.setup(self.pin, GPIO.OUT)
-                
-                # 初始状态：关闭
-                GPIO.output(self.pin, GPIO.LOW)
-                
-                self._gpio = GPIO
+                # 使用 gpiozero 的 DigitalOutputDevice
+                # active_high=True 表示常开(NO)，False 表示常闭(NC)
+                self._device = DigitalOutputDevice(
+                    self.pin,
+                    active_high=self.normally_open,
+                    initial_value=False
+                )
                 
                 logger.info("✅ 继电器初始化成功")
                 logger.info(f"  引脚: GPIO {self.pin}")
@@ -86,8 +85,8 @@ class RelayDevice(OutputDevice):
                 self._initialized = True
                 return True
                 
-            except ImportError:
-                logger.warning("RPi.GPIO 库未安装，切换到模拟模式")
+            except Exception as hw_error:
+                logger.warning(f"硬件初始化失败: {hw_error}，切换到模拟模式")
                 self.simulate = True
                 self._initialized = True
                 return True
@@ -105,10 +104,9 @@ class RelayDevice(OutputDevice):
                 self._current_effect.stop()
             
             # 关闭继电器
-            self.write(False)
-            
-            if self._gpio:
-                self._gpio.cleanup(self.pin)
+            if self._device:
+                self._device.off()
+                self._device.close()
             
             logger.info("继电器已清理")
             
@@ -142,14 +140,12 @@ class RelayDevice(OutputDevice):
                 return True
             
             # 真实硬件
-            if self._gpio:
-                # 注意：继电器模块通常是低电平触发
-                # 如果是常开型，开启时输出 HIGH
-                if self.normally_open:
-                    self._gpio.output(self.pin, self._gpio.HIGH if data else self._gpio.LOW)
+            if self._device:
+                # gpiozero 会根据 active_high 参数自动处理逻辑
+                if data:
+                    self._device.on()
                 else:
-                    # 常闭型：逻辑相反
-                    self._gpio.output(self.pin, self._gpio.LOW if data else self._gpio.HIGH)
+                    self._device.off()
                 return True
             
             return False
@@ -260,11 +256,11 @@ class RelayDevice(OutputDevice):
             return
         
         # 真实硬件
-        if self._gpio:
-            if self.normally_open:
-                self._gpio.output(self.pin, self._gpio.HIGH if state else self._gpio.LOW)
+        if self._device:
+            if state:
+                self._device.on()
             else:
-                self._gpio.output(self.pin, self._gpio.LOW if state else self._gpio.HIGH)
+                self._device.off()
     
     def get_info(self) -> Dict[str, Any]:
         """
