@@ -205,9 +205,36 @@ class ConfigManager:
         
         # 解析音频配置
         audio_raw = raw.get('audio', {})
+        
+        # 基线学习配置
+        baseline_config = audio_raw.get('baseline', {})
+        
+        # 音量突变检测配置
+        anomaly_config = audio_raw.get('anomaly_detection', {})
+        
+        # YamNet 配置
+        yamnet_config = audio_raw.get('yamnet', {})
+        
         self.audio = AudioConfig(
             chunk_size=audio_raw.get('chunk_size', 1024),
-            anomaly_threshold=audio_raw.get('anomaly_threshold', 0.8)
+            anomaly_threshold=audio_raw.get('anomaly_threshold', 0.8),  # 向后兼容
+            
+            # 基线学习
+            baseline_learning_window_minutes=baseline_config.get('learning_window_minutes', 5.0),
+            baseline_update_window_seconds=baseline_config.get('update_window_seconds', 30.0),
+            baseline_outlier_threshold_iqr=baseline_config.get('outlier_threshold_iqr', 1.5),
+            baseline_update_alpha=baseline_config.get('update_alpha', 0.1),
+            
+            # 音量突变检测
+            anomaly_alert_threshold_db=anomaly_config.get('alert_threshold_db', 10.0),
+            anomaly_alarm_threshold_db=anomaly_config.get('alarm_threshold_db', 20.0),
+            anomaly_duration_threshold_seconds=anomaly_config.get('duration_threshold_seconds', 0.5),
+            anomaly_cooldown_seconds=anomaly_config.get('cooldown_seconds', 10.0),
+            
+            # YamNet
+            yamnet_enabled=yamnet_config.get('enabled', False),
+            yamnet_model_path=yamnet_config.get('model_path', 'models/yamnet.tflite'),
+            yamnet_confidence_threshold=yamnet_config.get('confidence_threshold', 0.4)
         )
         
         # 解析区域配置

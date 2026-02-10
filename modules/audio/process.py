@@ -1,6 +1,6 @@
 """
 音频处理进程
-负责音频采集、异常检测和远程喊话
+负责音频采集、音量异常检测和远程喊话
 """
 
 import time
@@ -9,7 +9,8 @@ from core.ipc import IPCClient, MessageType
 from core.ipc.registry import ProcessName
 
 from .capture import AudioCaptureManager
-from .volume_monitor import VolumeMonitor
+from .baseline_monitor import EnvironmentBaselineMonitor
+from .volume_monitor import VolumeAnomalyDetector, AlarmLevel
 from .detector import AudioAnomalyDetector
 from .player import AudioPlayer
 
@@ -18,9 +19,9 @@ logger = setup_logger('audio_process')
 
 class AudioProcess:
     """
-    音频处理进程 - 负责音频采集、异常检测和远程喊话
+    音频处理进程 - 负责音频采集、音量异常检测和远程喊话
     
-    架构：三线程模型
+    架构：三线程模型 + 环境自适应检测
     ┌─────────────────────────────────────────┐
     │  主线程（AudioProcess）                  │
     │  - IPC 消息处理                          │
@@ -33,22 +34,24 @@ class AudioProcess:
     ┌──────────────┐  ┌──────────────────────┐
     │ 采集线程      │  │ 播放线程              │
     │ - 实时录音    │  │ - 远程喊话            │
-    │ - 音量检测    │  │ - 异步播放            │
-    │ - 触发分类    │  └──────────────────────┘
+    │ - 基线学习    │  │ - 异步播放            │
+    │ - 音量突变检测│  └──────────────────────┘
     └──────┬───────┘
            │
-           ↓ (音量超阈值)
+           ↓ (音量突变)
     ┌──────────────────────┐
-    │  YamNet 分类器        │
-    │  - 异步推理           │
-    │  - 事件上报           │
+    │  YamNet 分类器 (可选) │
+    │  - 仅记录日志         │
+    │  - 用于模型训练       │
     └──────────────────────┘
     
     功能：
     1. 从麦克风采集音频
-    2. 实时监控音量，超过阈值时触发 YamNet 检测
-    3. 检测异常声音（玻璃破碎、呼救声、警报声等）
-    4. 播放远程喊话音频
+    2. 学习环境噪音基线（动态适应）
+    3. 检测音量突变（相对基线）
+    4. 触发报警（多级阈值）
+    5. 播放远程喊话音频
+    6. （可选）YamNet辅助记录
     """
     
     def __init__(self, ipc_client: IPCClient, shared_state, config):
@@ -59,34 +62,39 @@ class AudioProcess:
         
         # 音频配置
         audio_config = config.get('audio', {})
-
-        # 检测配置
-        detector_config = audio_config.get('detector', {})
-        self.volume_threshold_db = detector_config.get('volume_threshold_db', 55.0)
-        self.debounce_seconds = detector_config.get('debounce_seconds', 2.0)
-        self.confidence_threshold = detector_config.get('confidence_threshold', 0.4)
-        self.model_path = detector_config.get('model_path', 'models/yamnet.tflite')
-        self.enable_dog_bark = detector_config.get('enable_dog_bark', False)
         
-        # 延迟检测配置（在音量触发后等待一段时间再采集音频）
-        self.chunk_duration = 0.1  # 每个chunk的时长（秒）
-        self.detection_delay_seconds = detector_config.get('detection_delay_seconds', 0.8)
-        self.detection_window_seconds = detector_config.get('detection_window_seconds', 1)
-        self.detection_delay_chunks = int(self.detection_delay_seconds / self.chunk_duration)
-        self._detect_countdown = 0  # 延迟检测倒计时（剩余chunk数）
-        self._trigger_db_value = 0.0  # 触发时的音量值
+        # 基线学习配置
+        baseline_config = audio_config.get('baseline', {})
+        self.learning_window_minutes = baseline_config.get('learning_window_minutes', 5.0)
+        self.update_window_seconds = baseline_config.get('update_window_seconds', 30.0)
+        self.outlier_threshold_iqr = baseline_config.get('outlier_threshold_iqr', 1.5)
+        self.update_alpha = baseline_config.get('update_alpha', 0.1)
+        
+        # 音量突变检测配置
+        anomaly_config = audio_config.get('anomaly_detection', {})
+        self.alert_threshold_db = anomaly_config.get('alert_threshold_db', 10.0)
+        self.alarm_threshold_db = anomaly_config.get('alarm_threshold_db', 20.0)
+        self.duration_threshold = anomaly_config.get('duration_threshold_seconds', 0.5)
+        self.cooldown_seconds = anomaly_config.get('cooldown_seconds', 10.0)
+        
+        # YamNet 配置（可选）
+        yamnet_config = audio_config.get('yamnet', {})
+        self.yamnet_enabled = yamnet_config.get('enabled', False)
+        self.yamnet_model_path = yamnet_config.get('model_path', 'models/yamnet.tflite')
+        self.yamnet_confidence = yamnet_config.get('confidence_threshold', 0.4)
         
         # 组件（延迟初始化）
         self.capture_manager = None
-        self.volume_monitor = None
-        self.detector = None
+        self.baseline_monitor = None
+        self.anomaly_detector = None
+        self.yamnet_detector = None
         self.player = None
         
         logger.info(f"音频处理进程初始化完成")
-        logger.info(f"  音量阈值: {self.volume_threshold_db} dB")
-        logger.info(f"  置信度阈值: {self.confidence_threshold}")
-        logger.info(f"  检测延迟: {self.detection_delay_seconds}秒 ({self.detection_delay_chunks}块)")
-        logger.info(f"  检测窗口: {self.detection_window_seconds}秒")
+        logger.info(f"  基线学习窗口: {self.learning_window_minutes} 分钟")
+        logger.info(f"  警戒阈值: +{self.alert_threshold_db} dB")
+        logger.info(f"  报警阈值: +{self.alarm_threshold_db} dB")
+        logger.info(f"  YamNet辅助: {'启用' if self.yamnet_enabled else '禁用'}")
     
     def run(self):
         """主循环"""
@@ -139,30 +147,45 @@ class AudioProcess:
             # 1. 初始化音频采集管理器
             self.capture_manager = AudioCaptureManager()
             
-            # 2. 初始化音量监控器
-            self.volume_monitor = VolumeMonitor(
-                threshold_db=self.volume_threshold_db,
-                debounce_seconds=self.debounce_seconds
+            # 2. 初始化环境基线学习器
+            self.baseline_monitor = EnvironmentBaselineMonitor(
+                learning_window_minutes=self.learning_window_minutes,
+                update_window_seconds=self.update_window_seconds,
+                outlier_threshold_iqr=self.outlier_threshold_iqr,
+                update_alpha=self.update_alpha
             )
             
-            # 3. 初始化音频检测器
-            self.detector = AudioAnomalyDetector(
-                model_path=self.model_path,
-                confidence_threshold=self.confidence_threshold,
-                enable_dog_bark=self.enable_dog_bark
+            # 3. 初始化音量突变检测器
+            self.anomaly_detector = VolumeAnomalyDetector(
+                alert_threshold_db=self.alert_threshold_db,
+                alarm_threshold_db=self.alarm_threshold_db,
+                duration_threshold_seconds=self.duration_threshold,
+                cooldown_seconds=self.cooldown_seconds
             )
             
-            # 加载 YamNet 模型
-            if not self.detector.initialize():
-                logger.warning("YamNet 模型加载失败，将无法进行音频检测")
-                # 继续运行，但不启动检测线程
+            # 4. 初始化YamNet检测器（可选）
+            if self.yamnet_enabled:
+                self.yamnet_detector = AudioAnomalyDetector(
+                    model_path=self.yamnet_model_path,
+                    confidence_threshold=self.yamnet_confidence,
+                    enable_dog_bark=False,
+                    enable_alarm=False  # 仅辅助记录，不触发报警
+                )
+                
+                # 加载 YamNet 模型
+                if not self.yamnet_detector.initialize():
+                    logger.warning("YamNet 模型加载失败，禁用 YamNet 辅助功能")
+                    self.yamnet_detector = None
+                else:
+                    logger.info("✅ YamNet 辅助功能启用")
+            else:
+                logger.info("YamNet 辅助功能已禁用")
             
-            # 4. 初始化音频播放器
+            # 5. 初始化音频播放器
             self.player = AudioPlayer()
             
-            # 5. 注册回调
+            # 6. 注册回调
             self.capture_manager.register_callback(self._on_audio_chunk)
-            self.detector.on_anomaly_detected = self._on_anomaly_detected
             
             logger.info("✅ 所有组件初始化完成")
             return True
@@ -178,11 +201,11 @@ class AudioProcess:
                 logger.error("启动音频采集失败")
                 return False
             
-            if self.detector.yamnet.interpreter is not None:
-                if not self.detector.start():
-                    logger.warning("启动音频检测失败")
-            else:
-                logger.warning("跳过音频检测线程（模型未加载）")
+            # YamNet 线程（可选）
+            if self.yamnet_detector:
+                if not self.yamnet_detector.start():
+                    logger.warning("启动 YamNet 辅助功能失败")
+                    self.yamnet_detector = None
             
             if not self.player.start():
                 logger.warning("启动音频播放失败")
@@ -195,79 +218,71 @@ class AudioProcess:
             return False
     
     def _on_audio_chunk(self, audio_chunk):
-        """音频块回调：进行音量检测和延迟检测管理"""
+        """音频块回调：基线学习 + 音量突变检测"""
         try:
-            # 1. 处理延迟检测倒计时
-            if self._detect_countdown > 0:
-                self._detect_countdown -= 1
-                if self._detect_countdown == 0:
-                    # 延迟结束，执行检测
-                    self._execute_delayed_detection()
+            # 1. 计算当前音量（dB）
+            current_db = self.anomaly_detector._calculate_db(audio_chunk)
             
-            # 2. 音量监控：检查是否触发新的检测
-            should_detect, db_value = self.volume_monitor.analyze(audio_chunk)
+            # 2. 添加样本到基线学习器
+            self.baseline_monitor.add_sample(current_db)
             
-            if should_detect:
-                self._start_delayed_detection(db_value)
+            # 3. 获取基线信息
+            baseline_info = self.baseline_monitor.get_baseline_info()
+            baseline_db = baseline_info['baseline_db']
+            
+            # 4. 音量突变检测
+            alarm_level, current_db, delta_db = self.anomaly_detector.analyze(
+                audio_chunk,
+                baseline_db
+            )
+            
+            # 5. 根据报警级别处理
+            if alarm_level == AlarmLevel.ALARM:
+                # 触发报警
+                self._trigger_alarm(current_db, baseline_db, delta_db)
                 
+                # 通知基线学习器进入报警状态（暂停更新基线）
+                self.baseline_monitor.set_alarm_state(True)
+                
+                # （可选）触发 YamNet 辅助检测
+                if self.yamnet_detector:
+                    audio_window = self.capture_manager.get_buffer_window(duration=1.0)
+                    if audio_window is not None:
+                        self.yamnet_detector.detect(audio_window)
+            
+            elif alarm_level == AlarmLevel.ALERT:
+                # 警戒状态：仅记录
+                logger.debug(f"⚠️  警戒: {current_db:.1f}dB (Δ{delta_db:+.1f}dB)")
+            
+            else:
+                # 正常状态：解除报警
+                if self.baseline_monitor.is_alarm_active:
+                    self.baseline_monitor.set_alarm_state(False)
+                    
         except Exception as e:
             logger.error(f"音频块处理异常: {e}")
     
-    def _start_delayed_detection(self, db_value: float):
-        """启动延迟检测：记录触发点，等待异常声音完整采集"""
-        if self._detect_countdown == 0:
-            # 只在没有进行中的检测时才启动新检测
-            self._trigger_db_value = db_value
-            self._detect_countdown = self.detection_delay_chunks
-            logger.info(
-                f"🔊 音量触发: {db_value:.1f} dB "
-                f"(延迟{self.detection_delay_seconds}秒后检测)"
-            )
-        else:
-            # 已有检测在等待中，忽略此次触发
-            logger.debug(f"音量触发被忽略: {db_value:.1f} dB (检测进行中)")
-    
-    def _execute_delayed_detection(self):
-        """执行延迟检测：获取音频窗口并提交给检测器"""
+    def _trigger_alarm(self, current_db: float, baseline_db: float, delta_db: float):
+        """触发音量报警"""
         try:
-            # 获取最近N秒的音频（现在包含了触发点之后的声音）
-            audio_window = self.capture_manager.get_buffer_window(
-                duration=self.detection_window_seconds
-            )
+            logger.warning(f"🚨 音量报警: {current_db:.1f}dB (基线: {baseline_db:.1f}dB, 偏差: {delta_db:+.1f}dB)")
             
-            if audio_window is not None:
-                logger.info(
-                    f"📊 执行延迟检测 (触发音量: {self._trigger_db_value:.1f} dB, "
-                    f"窗口: {self.detection_window_seconds}秒)"
-                )
-                # 异步检测
-                self.detector.detect(audio_window)
-            else:
-                logger.warning("无法获取音频窗口，跳过检测")
-                
-        except Exception as e:
-            logger.error(f"执行延迟检测失败: {e}")
-    
-    def _on_anomaly_detected(self, result: dict):
-        """异常检测回调：上报到 Supervisor"""
-        try:
-            logger.warning(f"🚨 检测到音频异常: {result['event_name']}")
-            
-            # 发送异常事件消息
+            # 发送报警消息到 Supervisor
             self.ipc.send(
                 msg_type=MessageType.AUDIO_ANOMALY,
                 target=ProcessName.SUPERVISOR,
                 data={
-                    'event_type': result['event_type'],
-                    'event_name': result['event_name'],
-                    'confidence': result['confidence'],
-                    'timestamp': result['timestamp'],
-                    'inference_time_ms': result['inference_time_ms']
+                    'event_type': 'volume_anomaly',
+                    'event_name': '音量突变异常',
+                    'current_db': current_db,
+                    'baseline_db': baseline_db,
+                    'delta_db': delta_db,
+                    'timestamp': time.time()
                 }
             )
             
         except Exception as e:
-            logger.error(f"上报异常失败: {e}")
+            logger.error(f"触发报警失败: {e}")
     
     def _handle_message(self, msg):
         """处理 IPC 消息"""
@@ -307,17 +322,29 @@ class AudioProcess:
         try:
             logger.info("=== 音频处理统计 ===")
             
-            # 音量监控统计
-            if self.volume_monitor:
-                stats = self.volume_monitor.get_statistics()
-                logger.info(f"音量检查: {stats['total_checks']} 次")
-                logger.info(f"触发检测: {stats['trigger_count']} 次 ({stats['trigger_rate']})")
+            # 基线学习统计
+            if self.baseline_monitor:
+                info = self.baseline_monitor.get_baseline_info()
+                status = "就绪" if info['is_ready'] else "学习中"
+                logger.info(f"基线状态: {status}")
+                if info['baseline_db']:
+                    logger.info(f"  基线音量: {info['baseline_db']:.1f} dB")
+                    logger.info(f"  标准差: {info['baseline_std']:.1f} dB")
+                logger.info(f"  样本数: {info['sample_count']}")
+                logger.info(f"  更新次数: {info['update_count']}")
             
-            # 异常检测统计
-            if self.detector and self.detector.yamnet.interpreter:
-                stats = self.detector.get_statistics()
+            # 音量突变统计
+            if self.anomaly_detector:
+                stats = self.anomaly_detector.get_statistics()
+                logger.info(f"音量检查: {stats['total_checks']} 次")
+                logger.info(f"警戒次数: {stats['alert_count']} 次 ({stats['alert_rate']})")
+                logger.info(f"报警次数: {stats['alarm_count']} 次 ({stats['alarm_rate']})")
+            
+            # YamNet 统计（如果启用）
+            if self.yamnet_detector:
+                stats = self.yamnet_detector.get_statistics()
                 logger.info(f"YamNet 检测: {stats['total_detections']} 次")
-                logger.info(f"异常事件: {stats['anomaly_count']} 次 ({stats['anomaly_rate']})")
+                logger.info(f"异常识别: {stats['anomaly_count']} 次")
             
             # 播放统计
             if self.player:
@@ -346,8 +373,8 @@ class AudioProcess:
             if self.capture_manager:
                 self.capture_manager.stop()
             
-            if self.detector:
-                self.detector.stop()
+            if self.yamnet_detector:
+                self.yamnet_detector.stop()
             
             if self.player:
                 self.player.stop()

@@ -31,27 +31,31 @@ logger = setup_logger('audio_detector')
 
 class AudioAnomalyDetector:
     """
-    音频异常检测器（YamNet）
+    音频异常检测器（YamNet）- 可选辅助模式
     
     功能：
     1. 在独立线程中运行 YamNet 推理
     2. 识别玻璃破碎、呼救声、警报声等异常事件
     3. 异步检测，不阻塞主线程
+    4. 【新增】可选模式：仅记录日志，不触发报警
     
     参数：
     - model_path: YamNet 模型文件路径
-    - target_events: 关注的事件类型列表
     - confidence_threshold: 置信度阈值
+    - enable_dog_bark: 是否检测狗叫声
+    - enable_alarm: 是否启用报警（False时仅记录日志）
     """
     
     def __init__(
         self,
         model_path: str,
         confidence_threshold: float = 0.4,
-        enable_dog_bark: bool = False
+        enable_dog_bark: bool = False,
+        enable_alarm: bool = False  # 新增参数
     ):
         self.model_path = model_path
         self.confidence_threshold = confidence_threshold
+        self.enable_alarm = enable_alarm  # 是否触发报警
         
         # 初始化组件
         self.yamnet = YamNetLoader(model_path)
@@ -75,9 +79,11 @@ class AudioAnomalyDetector:
         self.total_detections = 0
         self.anomaly_count = 0
         
-        logger.info(f"音频异常检测器初始化")
+        mode_str = "辅助模式（仅记录）" if not enable_alarm else "报警模式"
+        logger.info(f"音频异常检测器初始化 [{mode_str}]")
         logger.info(f"  模型路径: {model_path}")
         logger.info(f"  置信度阈值: {confidence_threshold}")
+        logger.info(f"  报警启用: {enable_alarm}")
     
     def initialize(self) -> bool:
         """初始化检测器（加载模型）"""
@@ -135,12 +141,17 @@ class AudioAnomalyDetector:
                 # 执行检测
                 result = self._detect_sync(audio_data, timestamp)
                 
-                # 如果检测到异常，触发回调
-                if result and self.on_anomaly_detected:
-                    try:
-                        self.on_anomaly_detected(result)
-                    except Exception as e:
-                        logger.error(f"回调函数异常: {e}")
+                # 如果检测到异常
+                if result:
+                    # 仅在启用报警时触发回调
+                    if self.enable_alarm and self.on_anomaly_detected:
+                        try:
+                            self.on_anomaly_detected(result)
+                        except Exception as e:
+                            logger.error(f"回调函数异常: {e}")
+                    elif not self.enable_alarm:
+                        # 辅助模式：仅记录，不触发回调
+                        logger.debug(f"[辅助模式] 跳过报警回调")
                 
             except Empty:
                 continue
@@ -206,9 +217,13 @@ class AudioAnomalyDetector:
                 'top_predictions': top_predictions[:3]  # 保存前3个预测
             }
             
-            logger.warning(f"🚨 检测到音频异常: {result['event_name']}")
-            logger.warning(f"  置信度: {confidence:.3f}")
-            logger.warning(f"  推理耗时: {inference_time:.1f}ms")
+            # 根据报警开关决定日志级别
+            if self.enable_alarm:
+                logger.warning(f"🚨 检测到音频异常: {result['event_name']}")
+                logger.warning(f"  置信度: {confidence:.3f}")
+                logger.warning(f"  推理耗时: {inference_time:.1f}ms")
+            else:
+                logger.info(f"📝 [辅助记录] 检测到: {result['event_name']} (置信度: {confidence:.3f})")
             
             return result
             

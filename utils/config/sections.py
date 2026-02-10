@@ -114,7 +114,24 @@ class DeviceConfig:
 class AudioConfig:
     """音频配置"""
     chunk_size: int
-    anomaly_threshold: float
+    anomaly_threshold: float  # 保留向后兼容
+    
+    # 基线学习配置
+    baseline_learning_window_minutes: float = 5.0
+    baseline_update_window_seconds: float = 30.0
+    baseline_outlier_threshold_iqr: float = 1.5
+    baseline_update_alpha: float = 0.1
+    
+    # 音量突变检测配置
+    anomaly_alert_threshold_db: float = 10.0
+    anomaly_alarm_threshold_db: float = 20.0
+    anomaly_duration_threshold_seconds: float = 0.5
+    anomaly_cooldown_seconds: float = 10.0
+    
+    # YamNet 配置（可选）
+    yamnet_enabled: bool = False
+    yamnet_model_path: str = "models/yamnet.tflite"
+    yamnet_confidence_threshold: float = 0.4
 
 
 @dataclass

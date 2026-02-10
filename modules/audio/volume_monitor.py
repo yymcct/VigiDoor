@@ -1,128 +1,202 @@
 """
-音量监控器
-实时监控音频分贝，决定是否触发 YamNet 检测
+音量突变检测器
+基于环境基线的音量异常检测
 """
 
 import time
 import numpy as np
+from enum import Enum
 from utils.logger import setup_logger
 
-logger = setup_logger('volume_monitor')
+logger = setup_logger('volume_anomaly')
 
 
-class VolumeMonitor:
+class AlarmLevel(Enum):
+    """报警级别"""
+    NORMAL = "NORMAL"
+    ALERT = "ALERT"
+    ALARM = "ALARM"
+
+
+class VolumeAnomalyDetector:
     """
-    音量监控器
+    音量突变检测器
     
     功能：
     1. 计算音频的 RMS 音量和分贝值
-    2. 根据阈值判断是否需要触发 YamNet 检测
-    3. 防抖逻辑，避免频繁触发
+    2. 与环境基线对比，计算音量偏差
+    3. 多级阈值判定（警戒/报警）
+    4. 持续时长检测（避免瞬时噪音）
+    5. 防抖机制（报警冷却）
     
     参数：
-    - threshold_db: 触发阈值（分贝），推荐 50-60 dB
-    - debounce_seconds: 防抖时长（秒），两次触发之间的最小间隔
+    - alert_threshold_db: 警戒阈值（相对基线，dB）
+    - alarm_threshold_db: 报警阈值（相对基线，dB）
+    - duration_threshold_seconds: 持续时长要求（秒）
+    - cooldown_seconds: 报警冷却时间（秒）
     - reference_level: 参考电平，用于计算 dB
     """
     
     def __init__(
         self,
-        threshold_db: float = 55.0,
-        debounce_seconds: float = 2.0,
+        alert_threshold_db: float = 10.0,
+        alarm_threshold_db: float = 20.0,
+        duration_threshold_seconds: float = 0.5,
+        cooldown_seconds: float = 10.0,
         reference_level: float = 1.0
     ):
-        self.threshold_db = threshold_db
-        self.debounce_seconds = debounce_seconds
+        self.alert_threshold_db = alert_threshold_db
+        self.alarm_threshold_db = alarm_threshold_db
+        self.duration_threshold_seconds = duration_threshold_seconds
+        self.cooldown_seconds = cooldown_seconds
         self.reference_level = reference_level
         
+        # 持续时长检测
+        self.alert_start_time = None
+        self.alarm_start_time = None
+        
         # 防抖控制
-        self.last_trigger_time = 0.0
+        self.last_alarm_time = 0.0
+        
+        # 当前状态
+        self.current_level = AlarmLevel.NORMAL
         
         # 统计
-        self.trigger_count = 0
         self.total_checks = 0
+        self.alert_count = 0
+        self.alarm_count = 0
         
-        logger.info(f"音量监控器初始化")
-        logger.info(f"  触发阈值: {threshold_db} dB")
-        logger.info(f"  防抖时长: {debounce_seconds}s")
+        logger.info(f"音量突变检测器初始化")
+        logger.info(f"  警戒阈值: +{alert_threshold_db} dB (相对基线)")
+        logger.info(f"  报警阈值: +{alarm_threshold_db} dB (相对基线)")
+        logger.info(f"  持续时长: {duration_threshold_seconds} 秒")
+        logger.info(f"  冷却时间: {cooldown_seconds} 秒")
     
-    def analyze(self, audio_chunk: np.ndarray) -> tuple[bool, float]:
+    def analyze(
+        self, 
+        audio_chunk: np.ndarray, 
+        baseline_db: float = None
+    ) -> tuple[AlarmLevel, float, float]:
         """
-        分析音频块，判断是否需要触发检测
+        分析音频块，判断是否有音量异常
         
         Args:
             audio_chunk: 音频数据 (float32 NumPy数组)
+            baseline_db: 环境基线音量（dB），如果为None则跳过检测
             
         Returns:
-            (是否触发, 当前分贝值)
+            (报警级别, 当前音量dB, 偏差dB)
         """
         self.total_checks += 1
         
-        # 计算 RMS 音量
-        rms = self._calculate_rms(audio_chunk)
+        # 计算当前音量
+        current_db = self._calculate_db(audio_chunk)
         
-        # 转换为分贝
-        db = self._rms_to_db(rms)
+        # 基线未就绪，跳过检测
+        if baseline_db is None:
+            return AlarmLevel.NORMAL, current_db, 0.0
         
-        # 判断是否超过阈值
-        if db < self.threshold_db:
-            return False, db
+        # 计算偏差
+        delta_db = current_db - baseline_db
         
-        # 检查防抖
+        # 多级判定
         current_time = time.time()
-        if current_time - self.last_trigger_time < self.debounce_seconds:
-            logger.debug(f"音量 {db:.1f}dB 超阈值，但在防抖期内，跳过")
-            return False, db
         
-        # 触发检测
-        self.last_trigger_time = current_time
-        self.trigger_count += 1
+        # 报警级别判定
+        if delta_db >= self.alarm_threshold_db:
+            # 检查冷却期
+            if current_time - self.last_alarm_time < self.cooldown_seconds:
+                logger.debug(f"音量异常 {delta_db:+.1f}dB，但在冷却期内")
+                return AlarmLevel.NORMAL, current_db, delta_db
+            
+            # 持续时长检测
+            if self.alarm_start_time is None:
+                self.alarm_start_time = current_time
+                logger.debug(f"⚠️  检测到音量突变 {delta_db:+.1f}dB，开始持续检测")
+                return AlarmLevel.NORMAL, current_db, delta_db
+            
+            duration = current_time - self.alarm_start_time
+            if duration >= self.duration_threshold_seconds:
+                # 触发报警
+                self.current_level = AlarmLevel.ALARM
+                self.last_alarm_time = current_time
+                self.alarm_count += 1
+                self.alarm_start_time = None  # 重置
+                
+                logger.warning(
+                    f"🚨 音量报警触发: {current_db:.1f}dB "
+                    f"(基线: {baseline_db:.1f}dB, 偏差: {delta_db:+.1f}dB, "
+                    f"持续: {duration:.1f}s)"
+                )
+                
+                return AlarmLevel.ALARM, current_db, delta_db
         
-        logger.info(f"🔊 音量触发: {db:.1f}dB (阈值: {self.threshold_db}dB)")
+        # 警戒级别判定
+        elif delta_db >= self.alert_threshold_db:
+            if self.alert_start_time is None:
+                self.alert_start_time = current_time
+            
+            duration = current_time - self.alert_start_time
+            if duration >= self.duration_threshold_seconds:
+                self.current_level = AlarmLevel.ALERT
+                self.alert_count += 1
+                
+                logger.info(
+                    f"⚠️  音量警戒: {current_db:.1f}dB "
+                    f"(基线: {baseline_db:.1f}dB, 偏差: {delta_db:+.1f}dB)"
+                )
+                
+                return AlarmLevel.ALERT, current_db, delta_db
+            
+            # 未满足持续时长
+            return AlarmLevel.NORMAL, current_db, delta_db
         
-        return True, db
+        # 正常级别
+        else:
+            # 重置持续时长计时
+            self.alarm_start_time = None
+            self.alert_start_time = None
+            self.current_level = AlarmLevel.NORMAL
+            
+            return AlarmLevel.NORMAL, current_db, delta_db
     
-    def _calculate_rms(self, audio_chunk: np.ndarray) -> float:
+    def _calculate_db(self, audio_chunk: np.ndarray) -> float:
         """
-        计算 RMS（均方根）音量
+        计算音频的分贝值
         
         Args:
             audio_chunk: 音频数据
             
         Returns:
-            RMS 值
-        """
-        # 计算均方根
-        rms = np.sqrt(np.mean(audio_chunk ** 2))
-        return max(rms, 1e-10)  # 避免 log(0)
-    
-    def _rms_to_db(self, rms: float) -> float:
-        """
-        将 RMS 转换为分贝值
-        
-        Args:
-            rms: RMS 值
-            
-        Returns:
             分贝值 (dB)
         """
+        # 计算 RMS
+        rms = np.sqrt(np.mean(audio_chunk ** 2))
+        rms = max(rms, 1e-10)  # 避免 log(0)
+        
+        # 转换为分贝
         db = 20 * np.log10(rms / self.reference_level)
         return db
     
     def get_statistics(self) -> dict:
         """获取统计信息"""
-        trigger_rate = self.trigger_count / max(self.total_checks, 1) * 100
+        alarm_rate = self.alarm_count / max(self.total_checks, 1) * 100
+        alert_rate = self.alert_count / max(self.total_checks, 1) * 100
         
         return {
             'total_checks': self.total_checks,
-            'trigger_count': self.trigger_count,
-            'trigger_rate': f"{trigger_rate:.2f}%",
-            'threshold_db': self.threshold_db,
-            'debounce_seconds': self.debounce_seconds
+            'alert_count': self.alert_count,
+            'alarm_count': self.alarm_count,
+            'alert_rate': f"{alert_rate:.2f}%",
+            'alarm_rate': f"{alarm_rate:.2f}%",
+            'current_level': self.current_level.value,
+            'alert_threshold_db': self.alert_threshold_db,
+            'alarm_threshold_db': self.alarm_threshold_db
         }
     
     def reset_statistics(self):
         """重置统计信息"""
-        self.trigger_count = 0
         self.total_checks = 0
+        self.alert_count = 0
+        self.alarm_count = 0
         logger.info("统计信息已重置")

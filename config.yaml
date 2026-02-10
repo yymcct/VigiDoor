@@ -47,13 +47,36 @@ stream:
 audio:
   chunk_size: 1024           # 音频块大小 (samples)
   
-  # 音频异常检测配置
+  # 环境基线学习配置
+  baseline:
+    learning_window_minutes: 5.0      # 初始学习窗口（分钟）
+    update_window_seconds: 30.0       # 基线更新间隔（秒）
+    outlier_threshold_iqr: 1.5        # 异常值过滤阈值（IQR倍数）
+    update_alpha: 0.1                 # EMA更新速率（0-1）
+  
+  # 音量突变检测配置
+  anomaly_detection:
+    alert_threshold_db: 10.0          # 警戒阈值（相对基线，dB）
+    alarm_threshold_db: 20.0          # 报警阈值（相对基线，dB）
+    duration_threshold_seconds: 0.5   # 持续时长要求（秒）
+    cooldown_seconds: 10.0            # 报警冷却时间（秒）
+  
+  # YamNet 配置（可选，仅辅助记录）
+  yamnet:
+    enabled: false                    # 是否启用 YamNet 辅助检测
+    model_path: "models/yamnet.tflite"
+    confidence_threshold: 0.4
+  
+  # ========== 以下为旧配置，保留向后兼容 ==========
+  anomaly_threshold: 0.8              # 旧字段，已废弃
+  
+  # 旧的检测配置（已废弃，保留兼容）
   detector:
-    model_path: "models/yamnet.tflite"        # YamNet 模型文件路径
-    volume_threshold_db: -15.0                 # 音量触发阈值 (分贝)
-    debounce_seconds: 2.0                     # 防抖时长 (秒)
-    confidence_threshold: 0.4                 # 置信度阈值（0-1）
-    enable_dog_bark: false                    # 是否检测狗叫声
+    model_path: "models/yamnet.tflite"
+    volume_threshold_db: -15.0
+    debounce_seconds: 2.0
+    confidence_threshold: 0.4
+    enable_dog_bark: false
 
 # 硬件控制配置
 hardware:
