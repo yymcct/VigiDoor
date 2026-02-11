@@ -211,9 +211,15 @@ class DeviceControllerProcess:
             color = tuple(self.colors['safe'])
             effect = SolidColorEffect(color)
             self._led_strip.set_effect(effect)
-            # 关闭警示灯
+            # 关闭警示灯（先停止效果）
             if self._warning_light:
-                self._warning_light.turn_off()
+                logger.info(f"🔴 SAFE 模式：关闭警示灯")
+                self._warning_light.stop_effect()  # 显式停止效果
+                result = self._warning_light.turn_off()
+                if not result:
+                    logger.error("警示灯关闭失败！")
+                else:
+                    logger.info(f"✅ 警示灯已关闭，当前状态: {self._warning_light.is_on()}")
 
         elif mode == DeviceMode.ALERT:
             # 黄色纯色
@@ -222,7 +228,13 @@ class DeviceControllerProcess:
             self._led_strip.set_effect(effect)
             # 打开警示灯
             if self._warning_light:
-                self._warning_light.turn_on()
+                logger.info(f"🟡 ALERT 模式：打开警示灯")
+                self._warning_light.stop_effect()  # 先停止可能存在的闪烁效果
+                result = self._warning_light.turn_on()
+                if not result:
+                    logger.error("警示灯打开失败！")
+                else:
+                    logger.info(f"✅ 警示灯已打开，当前状态: {self._warning_light.is_on()}")
 
         elif mode == DeviceMode.ALARM:
             # 红蓝黄暴闪
@@ -230,8 +242,10 @@ class DeviceControllerProcess:
             self._led_strip.set_effect(effect)
             # 警示灯闪烁（使用 Effect 系统）
             if self._warning_light:
+                logger.info(f"🔴 ALARM 模式：警示灯闪烁")
                 relay_effect = RelayBlinkEffect(interval=0.5)
                 self._warning_light.set_effect(relay_effect)
+                logger.info(f"✅ 警示灯闪烁效果已启动")
     
     def _cleanup(self):
         """清理资源"""

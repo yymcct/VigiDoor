@@ -129,10 +129,8 @@ class RelayDevice(OutputDevice):
         try:
             self._is_on = data
             
-            # 停止当前效果（手动控制时）
-            if self._current_effect and self._current_effect.is_running():
-                self._current_effect.stop()
-                self._current_effect = None
+            # 注意：效果停止逻辑已移至 turn_on/turn_off 方法
+            # 这里只负责设置硬件状态
             
             if self.simulate:
                 # 模拟模式
@@ -144,8 +142,10 @@ class RelayDevice(OutputDevice):
                 # gpiozero 会根据 active_high 参数自动处理逻辑
                 if data:
                     self._device.on()
+                    logger.debug(f"{self.name}: 硬件已开启")
                 else:
                     self._device.off()
+                    logger.debug(f"{self.name}: 硬件已关闭")
                 return True
             
             return False
@@ -161,6 +161,11 @@ class RelayDevice(OutputDevice):
         Returns:
             是否成功
         """
+        # 先停止并清空效果
+        if self._current_effect:
+            self._current_effect.stop()
+            self._current_effect = None
+            logger.debug(f"{self.name}: 停止效果并开启继电器")
         return self.write(True)
     
     def turn_off(self) -> bool:
@@ -170,6 +175,11 @@ class RelayDevice(OutputDevice):
         Returns:
             是否成功
         """
+        # 先停止并清空效果
+        if self._current_effect:
+            self._current_effect.stop()
+            self._current_effect = None
+            logger.debug(f"{self.name}: 停止效果并关闭继电器")
         return self.write(False)
     
     def toggle(self) -> bool:
@@ -228,18 +238,29 @@ class RelayDevice(OutputDevice):
         """
         更新状态（用于驱动效果动画）
         """
-        if not self._initialized or not self._current_effect:
+        # 更严格的检查：确保初始化、效果存在且正在运行
+        if not self._initialized:
+            return
+        
+        if not self._current_effect:
             return
         
         try:
-            if self._current_effect.is_running():
-                # 获取效果当前帧的状态
-                state = self._current_effect.update()
-                if state is not None:
-                    self._apply_state(state)
+            # 双重检查效果是否正在运行
+            if not self._current_effect.is_running():
+                # 效果已停止，清空引用
+                self._current_effect = None
+                return
+            
+            # 获取效果当前帧的状态
+            state = self._current_effect.update()
+            if state is not None:
+                self._apply_state(state)
         
         except Exception as e:
             logger.error(f"更新继电器效果失败: {e}")
+            # 发生错误时清空效果
+            self._current_effect = None
     
     def _apply_state(self, state: bool):
         """
