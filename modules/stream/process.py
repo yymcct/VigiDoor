@@ -95,12 +95,12 @@ class StreamManagerProcess:
         last_heartbeat = time.time()
         
         #TODO 测试代码，启动时自动开始推流，需要重构掉
-        stream_msg = IPCCommandMessage(
-            cmd_type=MessageType.CMD_START_STREAM,
-            target=ProcessName.STREAM_MANAGER,
-            cmd_data={}
-        )
-        self.ipc.send_message(stream_msg)
+        # stream_msg = IPCCommandMessage(
+        #     cmd_type=MessageType.CMD_START_STREAM,
+        #     target=ProcessName.STREAM_MANAGER,
+        #     cmd_data={}
+        # )
+        # self.ipc.send_message(stream_msg)
         try:
             while self.running:
                 # 处理消息

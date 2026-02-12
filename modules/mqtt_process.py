@@ -34,17 +34,19 @@ class MQTTClientProcess:
         # TODO 重构为强类型 MQTT 配置
         self.broker_host = config['mqtt']['broker_host']
         self.broker_port = config['mqtt']['broker_port']
-        self.device_id = config['mqtt']['client_id']
+        self.client_id = config['mqtt']['client_id'] 
+        self.device_id = config['device']['id'] 
         
         self.client = None
         self.is_connected = False
         
-        self.topic_manager = TopicManager(self.device_id)
+        self.topic_manager = TopicManager(self.device_id)  # 使用 device_id 作为前缀  
         self.publisher = None  # 延迟初始化（需要 MQTT client）
         self.dispatcher = None  # 延迟初始化
         
         logger.info(f"MQTT 通信进程初始化完成")
         logger.info(f"  Broker: {self.broker_host}:{self.broker_port}")
+        logger.info(f"  client_id: {self.client_id}")
         logger.info(f"  device_id: {self.device_id}")
     
     def run(self):
@@ -72,7 +74,7 @@ class MQTTClientProcess:
             import paho.mqtt.client as mqtt
             
             self.client = mqtt.Client(
-                client_id=f"{self.device_id}",#{self.config['mqtt']['client_id_prefix']}_
+                client_id=f"{self.client_id}",#{self.config['mqtt']['client_id_prefix']}_
                 clean_session=False,
             )
             
@@ -177,6 +179,7 @@ class MQTTClientProcess:
     def _on_message(self, client, userdata, msg):
         """收到消息回调"""
         try:
+            logger.info(f"📥 收到消息: {msg}")
             topic = msg.topic
             payload = msg.payload.decode()
             logger.info(f"📥 收到消息: {topic}")

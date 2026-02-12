@@ -105,7 +105,7 @@ class DetectionPipeline:
                 
                 # 检查是否早停
                 if not result.should_continue:
-                    logger.debug(f"Pipeline早停于第 {i+1} 级: {detector.name}")
+                    #logger.debug(f"Pipeline早停于第 {i+1} 级: {detector.name}")
                     self.stats['early_stop_count'] += 1
                     stats['stopped'] += 1
                     break

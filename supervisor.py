@@ -212,7 +212,7 @@ class ProcessSupervisor:
             return
         
         # 其他消息按原有逻辑处理
-        logger.info(f"📨 处理消息: {msg.msg_type}")
+        # logger.info(f"📨 处理消息: {msg.msg_type}")
         self.message_router.dispatch(msg)
     
     def _main_loop(self):
