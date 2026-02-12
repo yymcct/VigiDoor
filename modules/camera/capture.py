@@ -92,10 +92,10 @@ class CaptureManager:
                 
                 if self.monitor.update():
                     stats = self.monitor.get_stats()
-                    logger.debug(
-                        f"采集统计: {stats['current_fps']} FPS, "
-                        f"总帧数: {stats['frame_count']}"
-                    )
+                    # logger.debug(
+                    #     f"采集统计: {stats['current_fps']} FPS, "
+                    #     f"总帧数: {stats['frame_count']}"
+                    # )
                 
                 # 5. 发送心跳
                 stats = self.monitor.get_stats()
