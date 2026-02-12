@@ -31,7 +31,7 @@ class MQTTClientProcess:
         self.config = config
         self.running = True
         
-        # MQTT 配置
+        # TODO 重构为强类型 MQTT 配置
         self.broker_host = config['mqtt']['broker_host']
         self.broker_port = config['mqtt']['broker_port']
         self.device_id = config['mqtt']['client_id']

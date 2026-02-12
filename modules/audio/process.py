@@ -235,7 +235,7 @@ class AudioProcess:
             
             # 基线学习期间，跳过检测
             if baseline_db is None:
-                logger.debug(f"基线学习中... 当前音量: {current_db:.1f}dB")
+                #logger.debug(f"基线学习中... 当前音量: {current_db:.1f}dB")
                 return
             
             # 4. 音量突变检测
