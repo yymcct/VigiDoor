@@ -9,8 +9,8 @@ import time
 import logging
 import json
 
-from mqtt.topics import TopicManager
-from mqtt.messages import MQTTMessageBase
+from modules.mqtt.topics import TopicManager
+from modules.mqtt.messages import MQTTMessageBase
 
 
 class MQTTPublisher:
@@ -276,7 +276,7 @@ class MQTTPublisher:
                                  firmware_version: str, ip_address: str,
                                  mac_address: str) -> bool:
         """发布设备上线消息"""
-        from mqtt.messages import LifecycleOnlineMessage
+        from modules.mqtt.messages import LifecycleOnlineMessage
         
         msg = LifecycleOnlineMessage(
             device_id=self.tm.device_id,
@@ -292,7 +292,7 @@ class MQTTPublisher:
     
     def publish_lifecycle_heartbeat(self, uptime: int, global_state: str) -> bool:
         """发布设备心跳"""
-        from mqtt.messages import LifecycleHeartbeatMessage
+        from modules.mqtt.messages import LifecycleHeartbeatMessage
         
         msg = LifecycleHeartbeatMessage(
             device_id=self.tm.device_id,
@@ -305,7 +305,7 @@ class MQTTPublisher:
     
     def publish_alarm_intrusion(self, alarm_data: dict) -> bool:
         """发布入侵告警（统一告警类型）"""
-        from mqtt.messages.alarm import AlarmIntrusionMessage
+        from modules.mqtt.messages.alarm import AlarmIntrusionMessage
 
         msg = AlarmIntrusionMessage(
             device_id=self.tm.device_id,
@@ -316,7 +316,7 @@ class MQTTPublisher:
 
     def publish_alarm_system(self, alarm_data: dict) -> bool:
         """发布系统级严重告警（强制 QoS=2）"""
-        from mqtt.messages import AlarmSystemMessage
+        from modules.mqtt.messages import AlarmSystemMessage
         
         msg = AlarmSystemMessage(
             device_id=self.tm.device_id,
@@ -352,7 +352,7 @@ class MQTTPublisher:
     
     def publish_health_process(self, process_data: dict) -> bool:
         """发布进程状态变更"""
-        from mqtt.messages import HealthProcessMessage
+        from modules.mqtt.messages import HealthProcessMessage
         
         msg = HealthProcessMessage(
             device_id=self.tm.device_id,
@@ -362,7 +362,7 @@ class MQTTPublisher:
     
     def publish_status_stream(self, stream_data: dict) -> bool:
         """发布推流状态变更"""
-        from mqtt.messages import StatusStreamMessage
+        from modules.mqtt.messages import StatusStreamMessage
         
         msg = StatusStreamMessage(
             device_id=self.tm.device_id,
@@ -372,7 +372,7 @@ class MQTTPublisher:
     
     def publish_status_hardware(self, hardware_data: dict) -> bool:
         """发布硬件状态变更"""
-        from mqtt.messages import StatusHardwareMessage
+        from modules.mqtt.messages import StatusHardwareMessage
         
         msg = StatusHardwareMessage(
             device_id=self.tm.device_id,
@@ -393,7 +393,7 @@ class MQTTPublisher:
             message: 响应消息
             error_code: 错误码（可选）
         """
-        from mqtt.messages import ResponseMessage
+        from modules.mqtt.messages import ResponseMessage
         
         # 根据类型选择响应话题
         topic_map = {

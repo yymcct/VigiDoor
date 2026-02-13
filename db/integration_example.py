@@ -133,7 +133,7 @@ class MQTTProcessExample:
     """
     MQTT 进程示例 - 展示如何处理远程配置更新
     
-    实际集成位置: modules/mqtt_process.py
+    实际集成位置: modules/mqtt/process.py
     """
     
     def __init__(self, ipc_client, shared_state, config):
@@ -188,7 +188,7 @@ INTEGRATION_CHECKLIST = """
        → 在 __init__ 中创建 DBWriterHelper
        → 在检测到音频异常时调用 write_event()
    
-   [ ] modules/mqtt_process.py (可选)
+   [ ] modules/mqtt/process.py (可选)
        → 处理云端配置更新时调用 set_config()
 
 ⏳ Step 4: 读取集成 (按需实现)

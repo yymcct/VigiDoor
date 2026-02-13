@@ -107,7 +107,7 @@ def run_audio_processor(queue, shared_state, config_manager):
 
 def run_mqtt_client(queue, shared_state, config):
     """MQTT 通信进程入口"""
-    from modules.mqtt_process import MQTTClientProcess
+    from modules.mqtt.process import MQTTClientProcess
     mqtt_client = MQTTClientProcess(queue, shared_state, config)
     mqtt_client.run()
 

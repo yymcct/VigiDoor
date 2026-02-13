@@ -7,7 +7,7 @@ MQTT 模块
 - 消息处理和分发
 
 使用示例：
-    from mqtt import TopicManager, MQTTPublisher, MQTTMessageDispatcher
+    from modules.mqtt import TopicManager, MQTTPublisher, MQTTMessageDispatcher
     
     # 初始化话题管理器
     tm = TopicManager(device_id="RPI_001")
@@ -27,6 +27,9 @@ from .publisher import MQTTPublisher
 
 # 导出核心框架
 from .core import MQTTMessageHandler, MQTTMessageDispatcher
+
+# 导出 MQTT 客户端进程
+from .process import MQTTClientProcess
 
 # 导出消息类型（可选，方便外部使用）
 from .messages import (

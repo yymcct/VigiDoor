@@ -2,8 +2,8 @@
 配置更新指令处理器
 """
 
-from mqtt.core.base import MQTTMessageHandler
-from mqtt.messages import CommandMessage
+from modules.mqtt.core.base import MQTTMessageHandler
+from modules.mqtt.messages import CommandMessage
 
 
 class ConfigUpdateHandler(MQTTMessageHandler):

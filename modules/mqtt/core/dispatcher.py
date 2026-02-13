@@ -8,10 +8,10 @@ import logging
 import time
 from collections import deque
 
-from mqtt.core.base import MQTTMessageHandler
-from mqtt.topics import TopicManager
-from mqtt.messages import MessageFactory, CommandMessage
-from mqtt.publisher import MQTTPublisher
+from modules.mqtt.core.base import MQTTMessageHandler
+from modules.mqtt.topics import TopicManager
+from modules.mqtt.messages import MessageFactory, CommandMessage
+from modules.mqtt.publisher import MQTTPublisher
 from core.ipc import IPCClient
 
 
@@ -55,7 +55,7 @@ class MQTTMessageDispatcher:
     
     def _register_default_handlers(self):
         """注册默认的消息处理器"""
-        from mqtt.handlers import (
+        from modules.mqtt.handlers import (
             CommandStreamHandler,
             CommandAudioHandler,
             CommandDeviceHandler,

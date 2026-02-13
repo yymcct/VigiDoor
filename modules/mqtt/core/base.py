@@ -7,8 +7,8 @@ from abc import ABC, abstractmethod
 from typing import Optional
 import logging
 
-from mqtt.messages import CommandMessage
-from mqtt.publisher import MQTTPublisher
+from modules.mqtt.messages import CommandMessage
+from modules.mqtt.publisher import MQTTPublisher
 from core.ipc import IPCClient
 
 
