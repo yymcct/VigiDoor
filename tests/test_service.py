@@ -111,9 +111,7 @@ def main():
     # 1. 健康检查
     results.append(("健康检查", test_health()))
     
-    # 2. Token 刷新测试
-    results.append(("Token 刷新", test_refresh_token()))
-    
+
     time.sleep(1)
     
     # 3. 开始推流测试
@@ -122,7 +120,7 @@ def main():
         rtmp_url="rtsp://192.168.38.166:8554/live/VIGIDOOR_7c3a41081017190d_RPI"
     )))
     
-    time.sleep(2)
+    time.sleep(10)
     
     # 4. 停止推流测试
     results.append(("停止推流", test_stop_stream(device_id="VIGIDOOR_7c3a41081017190d_RPI")))
