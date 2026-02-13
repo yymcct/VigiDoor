@@ -1,0 +1,9 @@
+/* Custom styles for ZLM WebRTC Player */
+
+video {
+  background: #333;
+}
+
+#status {
+  transition: color 0.3s ease;
+}
