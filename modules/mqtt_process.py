@@ -179,13 +179,25 @@ class MQTTClientProcess:
     def _on_message(self, client, userdata, msg):
         """收到消息回调"""
         try:
-            logger.info(f"📥 收到消息: {msg}")
             topic = msg.topic
             payload = msg.payload.decode()
-            logger.info(f"📥 收到消息: {topic}")
+            logger.info(f"📥 收到消息 - Topic: {topic}")
             
-            self.dispatcher.dispatch(topic, payload)
+            # 解析外层消息（华为云 IoT 格式）
+            outer_msg = json.loads(payload)
+            logger.debug(f"外层消息: {outer_msg}")
             
+            # 提取 content 字段（真正的消息内容）
+            content = outer_msg.get('content', '')
+            if not content:
+                logger.warning(f"消息缺少 content 字段: {payload}")
+                return
+            
+            # 将 content 传递给 dispatcher
+            self.dispatcher.dispatch(topic, content)
+            
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON 解析失败: {e}, payload: {payload}")
         except Exception as e:
             logger.error(f"处理 MQTT 消息失败: {e}", exc_info=True)
     
