@@ -29,9 +29,7 @@ from .monitor import PerformanceMonitor
 # 驱动也可以直接导入
 from .drivers import (
     Picamera2Driver,
-    OpenCVDriver,
-    SimulatorDriver
-)
+    OpenCVDriver)
 
 __all__ = [
     # 主要类
@@ -46,7 +44,6 @@ __all__ = [
     # 驱动实现
     'Picamera2Driver',
     'OpenCVDriver',
-    'SimulatorDriver',
 ]
 
 __version__ = '2.0.0'
