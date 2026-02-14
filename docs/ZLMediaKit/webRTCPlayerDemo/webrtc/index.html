@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZLM WebRTC 拉流测试</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="./ZLMRTCClient.js"></script>
+    <script src="./stream_control.js"></script>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+
+  <body class="bg-gradient-to-br from-gray-50 to-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-6xl">
+      <!-- Video Player Card -->
+      <div class="bg-white rounded-2xl shadow-2xl overflow-hidden mb-6">
+        <div class="p-6">
+          <video 
+            id="video" 
+            controls 
+            autoplay 
+            playsinline
+            class="w-full aspect-video rounded-lg shadow-lg object-contain"
+          >
+            Your browser is too old which doesn't support HTML5 video.
+          </video>
+        </div>
+      </div>
+
+      <!-- Control Panel Card -->
+      <div class="bg-white rounded-2xl shadow-xl p-6 mb-6">
+        <h2 class="text-xl font-semibold text-gray-800 mb-4">控制面板</h2>
+        
+        <!-- Stream URL Input -->
+        <div class="mb-4">
+          <label for="streamUrl" class="block text-sm font-medium text-gray-700 mb-2">
+            WebRTC URL
+          </label>
+          <input 
+            id="streamUrl" 
+            type="text"
+            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out"
+            placeholder="输入 WebRTC 流地址..."
+          >
+        </div>
+
+        <!-- Control Buttons -->
+        <div class="flex gap-3">
+          <button 
+            onclick="start()"
+            class="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:shadow-lg transform hover:-translate-y-0.5 transition duration-200 ease-in-out"
+          >
+            <span class="flex items-center justify-center">
+              <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+              开始播放
+            </span>
+          </button>
+          <button 
+            onclick="stop()"
+            class="flex-1 bg-gradient-to-r from-red-500 to-pink-600 hover:from-red-600 hover:to-pink-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:shadow-lg transform hover:-translate-y-0.5 transition duration-200 ease-in-out"
+          >
+            <span class="flex items-center justify-center">
+              <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"></path>
+              </svg>
+              停止播放
+            </span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Status Card -->
+      <div class="bg-white rounded-2xl shadow-xl p-6">
+        <h2 class="text-xl font-semibold text-gray-800 mb-3">状态信息</h2>
+        <div class="flex items-center">
+          <div class="w-3 h-3 bg-gray-400 rounded-full mr-3 animate-pulse" id="statusIndicator"></div>
+          <span id="status" class="text-gray-600 font-medium">未开始</span>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      let player = null;
+
+      const isLocal = document.location.protocol === 'file:';
+      const searchParams = new URL(document.location.href).searchParams;
+      const app = searchParams.get('app') || 'live';
+      const stream = searchParams.get('stream') || 'VIGIDOOR_7c3a41081017190d_RPI';
+      const apiPath = `/index/api/webrtc?app=${app}&stream=${stream}&type=play`;
+      const apiHost =  'https://192.168.2.139:8443' ;
+
+      document.getElementById('streamUrl').value = apiHost + apiPath;
+
+      function setStatus(msg) {
+        const statusElement = document.getElementById('status');
+        const indicator = document.getElementById('statusIndicator');
+        statusElement.textContent = msg;
+        
+        // 根据状态更新指示器颜色
+        if (msg.includes('成功') || msg.includes('已启动')) {
+          indicator.className = 'w-3 h-3 bg-green-500 rounded-full mr-3 animate-pulse';
+        } else if (msg.includes('失败') || msg.includes('错误')) {
+          indicator.className = 'w-3 h-3 bg-red-500 rounded-full mr-3 animate-pulse';
+        } else if (msg.includes('停止')) {
+          indicator.className = 'w-3 h-3 bg-gray-400 rounded-full mr-3';
+        } else {
+          indicator.className = 'w-3 h-3 bg-yellow-500 rounded-full mr-3 animate-pulse';
+        }
+      }
+
+      async function start() {
+        const url = document.getElementById('streamUrl').value.trim();
+        if (!url) {
+          setStatus('URL 不能为空');
+          return;
+        }
+
+        // 发送开始推流指令
+        setStatus('正在启动推流...');
+        const streamResult = await window.streamController.startStream();
+        if (!streamResult.success) {
+          setStatus(`启动推流失败: ${JSON.stringify(streamResult.error)}`);
+          console.error('推流启动失败:', streamResult.error);
+          // 即使推流失败，也继续尝试播放
+        } else {
+          console.log('推流已启动');
+          // 等待推流服务准备就绪
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+
+        player = new ZLMRTCClient.Endpoint({
+          element: document.getElementById('video'),
+          zlmsdpUrl: url,
+          recvOnly: true,
+          audioEnable: true,
+          videoEnable: true,
+          debug: true,
+        });
+
+        player.on(ZLMRTCClient.Events.WEBRTC_ON_REMOTE_STREAMS, function () {
+          setStatus('播放成功');
+        });
+
+        player.on(ZLMRTCClient.Events.WEBRTC_ON_CONNECTION_STATE_CHANGE, function (state) {
+          setStatus(`连接状态：${state}`);
+        });
+      }
+
+      async function stop() {
+        if (player) {
+          player.close();
+          player = null;
+        }
+
+        const video = document.getElementById('video');
+        video.srcObject = null;
+        video.load();
+        
+        // 发送停止推流指令
+        setStatus('正在停止推流...');
+        const streamResult = await window.streamController.stopStream();
+        if (!streamResult.success) {
+          setStatus(`停止推流失败: ${JSON.stringify(streamResult.error)}`);
+          console.error('推流停止失败:', streamResult.error);
+        } else {
+          console.log('推流已停止');
+          setStatus('已停止');
+        }
+      }
+    </script>
+  </body>
+</html>

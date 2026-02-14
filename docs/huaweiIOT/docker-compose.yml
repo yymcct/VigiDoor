@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  huawei-iot-stream:
+    image: huawei-iot-cmd-service:latest
+    container_name: huawei-iot-cmd-service
+    restart: unless-stopped
+    
+    # 端口映射
+    ports:
+      - "5002:5002"
+    
+    # 环境变量（从 .env 文件加载）
+    env_file:
+      - .env
+    
+    # 环境变量（可选：覆盖 .env 中的配置）
+    environment:
+      - PORT=5002
+      - TZ=Asia/Shanghai
+    
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:5002/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    
+    # 资源限制
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    
+    # 日志配置
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+    # 网络配置
+    networks:
+      - iot-network
+
+networks:
+  iot-network:
+    driver: bridge

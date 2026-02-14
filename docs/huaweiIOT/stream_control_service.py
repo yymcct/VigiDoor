@@ -10,6 +10,7 @@ import json
 import uuid
 import time
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 from typing import Optional, Dict, Any
 from dotenv import load_dotenv
 
@@ -23,6 +24,7 @@ from huaweicloudsdkiotda.v5 import *
 load_dotenv()
 
 app = Flask(__name__)
+CORS(app)  # 启用跨域支持
 
 # ==================== 配置区 ====================
 # 华为云认证配置 (使用 AK/SK 方式，更安全)
