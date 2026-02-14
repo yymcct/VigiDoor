@@ -39,10 +39,10 @@ class AVMuxer(EncoderBase):
         height: int,
         fps: int,
         video_bitrate: str,
-        audio_device: str = "plughw:1,0",
-        audio_bitrate: str = "128k",
-        audio_sample_rate: int = 16000,
-        audio_channels: int = 1
+        audio_device: str = "seedsnoop_plug",
+        audio_bitrate: str = "96k",
+        audio_sample_rate: int = 48000,
+        audio_channels: int = 2
     ):
         """
         初始化音视频混流器
@@ -52,10 +52,10 @@ class AVMuxer(EncoderBase):
             height: 视频高度
             fps: 帧率
             video_bitrate: 视频码率（例如："2000k"）
-            audio_device: ALSA 音频设备（例如："plughw:1,0"，使用 plughw 支持多路访问）
-            audio_bitrate: 音频码率（例如："128k"）
-            audio_sample_rate: 音频采样率（Hz）
-            audio_channels: 音频通道数
+            audio_device: ALSA 音频设备（例如："seedsnoop_plug"）
+            audio_bitrate: 音频码率（例如："96k"）
+            audio_sample_rate: 音频采样率（Hz，推荐48000）
+            audio_channels: 音频通道数（推荐2）
         """
         super().__init__(width, height, fps, video_bitrate)
         self.video_bitrate = video_bitrate
@@ -74,7 +74,7 @@ class AVMuxer(EncoderBase):
         
         logger.info(f"音视频混流器初始化")
         logger.info(f"  视频: {width}x{height} @ {fps}fps, {video_bitrate}")
-        logger.info(f"  音频: {audio_device}, {audio_sample_rate}Hz, {audio_bitrate}")
+        logger.info(f"  音频: {audio_device}, {audio_sample_rate}Hz, {audio_channels}ch, {audio_bitrate}")
     
     def initialize(self, stream_url: str) -> bool:
         """
@@ -133,11 +133,15 @@ class AVMuxer(EncoderBase):
         cmd = [
             'ffmpeg',
             '-y',  # 覆盖输出
-            '-loglevel', 'warning',  # 减少日志输出
+            # === 全局低延迟配置 ===
+            '-fflags', 'nobuffer',
+            '-flags', 'low_delay',
+            '-use_wallclock_as_timestamps', '1',
         ]
         
         # === 视频输入配置 ===
         cmd.extend([
+            '-thread_queue_size', '4096',  # 增加视频输入线程队列
             '-f', 'rawvideo',
             '-pixel_format', 'rgb24',
             '-video_size', f'{self.width}x{self.height}',
@@ -147,9 +151,8 @@ class AVMuxer(EncoderBase):
         
         # === 音频输入配置（始终启用）===
         cmd.extend([
+            '-thread_queue_size', '4096',  # 增加音频输入线程队列
             '-f', 'alsa',
-            '-ac', str(self.audio_channels),  # 通道数
-            '-ar', str(self.audio_sample_rate),  # 采样率
             '-i', self.audio_device,  # ALSA 设备
         ])
         
@@ -161,17 +164,21 @@ class AVMuxer(EncoderBase):
             '-b:v', self.video_bitrate,  # 视频码率
             '-maxrate', self.video_bitrate,
             '-bufsize', f'{int(self.video_bitrate[:-1]) * 2}k',
-            '-g', str(self.fps * 2),     # GOP 大小
+            '-g', str(self.fps),         # GOP 大小（关键帧间隔）
+            '-bf', '0',                  # 禁用B帧，降低延迟
             '-keyint_min', str(self.fps),
             '-pix_fmt', 'yuv420p',
             '-profile:v', 'baseline',    # H.264 Baseline
         ])
         
-        # === 音频编码配置（AAC）===
+        # === 音频编码配置（Opus）===
         cmd.extend([
-            '-c:a', 'aac',
-            '-b:a', self.audio_bitrate,
+            '-c:a', 'libopus',           # 使用 Opus 编码器（更适合实时流）
             '-ar', str(self.audio_sample_rate),  # 采样率
+            '-ac', str(self.audio_channels),      # 通道数
+            '-b:a', self.audio_bitrate,
+            # 音频同步过滤器
+            '-af', 'aresample=async=1,asetpts=N/SR/TB',
         ])
         
         # === RTSP 输出配置 ===
