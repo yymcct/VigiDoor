@@ -95,11 +95,15 @@ class OSDRenderer:
         logger.info("✅ OSD 渲染线程已停止")
     
     def _render_loop(self):
-        """主渲染循环（轮询模式）"""
-        logger.info("🎨 OSD 渲染循环启动（轮询模式）")
+        """主渲染循环（轮询模式 + 帧率控制）"""
+        logger.info("🎨 OSD 渲染循环启动（轮询模式 + 帧率控制）")
         
         last_frame_id = -1
-        check_interval = 0.033  # ~30fps的轮询间隔
+        check_interval = 0.01  # ~30fps的轮询间隔
+        
+        # ✨ 帧率控制：确保输出帧时间间隔稳定
+        target_interval = 1.0 / 15  # 15fps = 66.67ms
+        last_output_time = time.time()
         
         try:
             while self.running:
@@ -109,7 +113,7 @@ class OSDRenderer:
                     continue
                 
                 # 直接读取共享内存（轮询）
-                frame_data = self.frame_buffer.read_frame(copy=True)
+                frame_data = self.frame_buffer.read_frame(copy=False)
                 if frame_data is None:
                     time.sleep(check_interval)
                     continue
@@ -124,8 +128,8 @@ class OSDRenderer:
                 last_frame_id = frame_id
                 
                 # 复制帧（避免修改原始数据）
-                frame_osd = frame.copy()
-                
+                #frame_osd = frame.copy()
+                frame_osd = frame
                 # 从 DataStore 获取渲染数据（自动过滤过期数据）
                 render_data = self.data_store.get_render_data()
                 render_data['timestamp'] = timestamp
@@ -133,8 +137,16 @@ class OSDRenderer:
                 # 应用 OSD 渲染
                 frame_osd = self.osd_element.render(frame_osd, **render_data)
                 
+                # ✨ 帧率控制：确保固定间隔输出
+                now = time.time()
+                elapsed = now - last_output_time
+                
+                if elapsed < target_interval:
+                    time.sleep(target_interval - elapsed)
+                
                 # 输出到队列
                 self.output_queue.put((frame_osd, frame_id, timestamp))
+                last_output_time = time.time()
                 
         except Exception as e:
             logger.error(f"OSD 渲染循环异常: {e}", exc_info=True)

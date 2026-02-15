@@ -136,7 +136,8 @@ class AVMuxer(EncoderBase):
             # === 全局低延迟配置 ===
             '-fflags', 'nobuffer',
             '-flags', 'low_delay',
-            '-use_wallclock_as_timestamps', '1',
+            # ❌ 移除 wallclock 参数，使用视频流自带的时间戳
+            # '-use_wallclock_as_timestamps', '1',
         ]
         
         # === 视频输入配置 ===
