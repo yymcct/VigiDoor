@@ -153,23 +153,23 @@ push_image() {
     
     # 为镜像添加仓库前缀
     local remote_tag="$REGISTRY_URL/$IMAGE_NAME:$VERSION"
-    local remote_auto_tag="$REGISTRY_URL/$IMAGE_NAME:$AUTO_VERSION"
+    #local remote_auto_tag="$REGISTRY_URL/$IMAGE_NAME:$AUTO_VERSION"
     local remote_latest_tag="$REGISTRY_URL/$IMAGE_NAME:latest"
     
     print_info "标记镜像: $remote_tag"
     docker tag "$IMAGE_NAME:$VERSION" "$remote_tag"
-    docker tag "$IMAGE_NAME:$AUTO_VERSION" "$remote_auto_tag"
+    #docker tag "$IMAGE_NAME:$AUTO_VERSION" "$remote_auto_tag"
     docker tag "$IMAGE_NAME:latest" "$remote_latest_tag"
     
     print_info "推送镜像到仓库..."
     docker push "$remote_tag"
-    docker push "$remote_auto_tag"
+    #docker push "$remote_auto_tag"
     docker push "$remote_latest_tag"
     
     if [ $? -eq 0 ]; then
         print_success "镜像推送成功"
         print_info "镜像地址: $remote_tag"
-        print_info "镜像地址: $remote_auto_tag"
+        #print_info "镜像地址: $remote_auto_tag"
         print_info "镜像地址: $remote_latest_tag"
     else
         print_error "镜像推送失败"
