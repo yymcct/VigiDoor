@@ -38,7 +38,7 @@ stream:
   video_codec: "h264"
   audio_codec: "aac"
   bitrate: "1000k"
-  fps: 25
+  fps: 15
   resolution: "1280x720"
   audio_device: "plughw:seeed2micvoicec" # ALSA 音频设备（plughw 支持多路访问，默认启用音频推流）
   audio_bitrate: "128k"      # 音频码率
