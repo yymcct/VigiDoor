@@ -6,12 +6,12 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=pi
-Group=pi
-WorkingDirectory=/home/yymcct/ws/VigiDoor
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/VigiDoor
 
 # 启动命令
-ExecStart=/usr/bin/python3 -u /home/yymcct/ws/VigiDoor/supervisor.py
+ExecStart=/home/ubuntu/VigiDoor/.venv/bin/python -u /home/ubuntu/VigiDoor/supervisor.py
 ExecStop=/bin/kill -SIGTERM $MAINPID
 
 # 自动重启策略
@@ -22,12 +22,18 @@ StartLimitBurst=5
 
 # 环境变量
 Environment="PYTHONUNBUFFERED=1"
-Environment="PYTHONPATH=/home/yymcct/ws/VigiDoor"
+Environment="PYTHONPATH=/home/ubuntu/VigiDoor"
+Environment="VIRTUAL_ENV=/home/ubuntu/VigiDoor/.venv"
+Environment="PATH=/home/ubuntu/VigiDoor/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="OPENBLAS_NUM_THREADS=1"
+Environment="OMP_NUM_THREADS=1"
+Environment="MKL_NUM_THREADS=1"
+Environment="NUMEXPR_NUM_THREADS=1"
 
 # 资源限制
-MemoryLimit=512M
+MemoryMax=2048M
 CPUQuota=80%
-TasksMax=50
+TasksMax=512
 
 # 日志配置
 StandardOutput=journal

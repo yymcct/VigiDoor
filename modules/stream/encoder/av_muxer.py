@@ -162,7 +162,7 @@ class AVMuxer(EncoderBase):
         cmd.extend([
             '-thread_queue_size', '4096',  # 增加视频输入线程队列
             '-f', 'rawvideo',
-            '-pixel_format', 'rgb24',
+            '-pixel_format', 'bgr24',
             '-video_size', f'{self.width}x{self.height}',
             '-framerate', str(self.fps),
             '-i', 'pipe:0',  # 从 stdin 读取视频
