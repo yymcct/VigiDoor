@@ -86,15 +86,859 @@
 
     <script>
       let player = null;
+      let statsTimer = null;
+      let lastVideoSnapshot = null;
+      let decodeStallRounds = 0;
+      let localCandidateProtocols = new Set();
 
       const isLocal = document.location.protocol === 'file:';
       const searchParams = new URL(document.location.href).searchParams;
       const app = searchParams.get('app') || 'live';
-      const stream = searchParams.get('stream') || 'VIGIDOOR_7c3a41081017190d_RPI';
+      const stream = searchParams.get('stream') || '123';
+      const syncPushUrl = searchParams.get('syncpush') !== '0';
+      const playWithoutPush = searchParams.get('playWithoutPush') === '1';
+      const rtxMode = searchParams.get('rtx') || 'auto';
+      const iceMode = searchParams.get('ice') || 'auto';
+      const iceForceFilter = searchParams.get('iceforce') === '1';
+      const tcpRelayMode = searchParams.get('tcprelay') || 'auto';
+      const turnHost = searchParams.get('turnhost') || '';
+      const turnPort = searchParams.get('turnport') || '3478';
+      const turnsPort = searchParams.get('turnsport') || '5349';
+      const turnTls = searchParams.get('turntls') === '1';
+      const turnUser = searchParams.get('turnuser') || 'ZLMediaKit';
+      const turnPass = searchParams.get('turnpass') || 'ZLMediaKit';
+      const videoMode = searchParams.get('video') || 'auto';
+      const h264Pt = searchParams.get('h264pt') || '103';
       const apiPath = `/index/api/webrtc?app=${app}&stream=${stream}&type=play`;
-      const apiHost =  'https://192.168.2.139:8443' ;
+      const apiHost =  'https://192.168.1.119' ;
 
       document.getElementById('streamUrl').value = apiHost + apiPath;
+
+      function syncPushStreamUrlIfNeeded() {
+        if (!syncPushUrl || !window.STREAM_CONTROL_CONFIG) {
+          return;
+        }
+        try {
+          const host = new URL(apiHost).hostname;
+          const newPushUrl = `rtsp://${host}:8554/${app}/${stream}`;
+          const oldPushUrl = window.STREAM_CONTROL_CONFIG.rtmpUrl;
+          window.STREAM_CONTROL_CONFIG.rtmpUrl = newPushUrl;
+          logDiag('Push URL Sync', {
+            enabled: true,
+            oldPushUrl,
+            newPushUrl,
+            app,
+            stream
+          });
+        } catch (error) {
+          logDiag('Push URL Sync Error', error);
+        }
+      }
+
+      function logDiag(tag, payload) {
+        const ts = new Date().toISOString();
+        if (payload === undefined) {
+          console.log(`[Diag][${ts}][${tag}]`);
+        } else {
+          console.log(`[Diag][${ts}][${tag}]`, payload);
+        }
+      }
+
+      function clearStatsTimer() {
+        if (statsTimer) {
+          clearInterval(statsTimer);
+          statsTimer = null;
+        }
+        lastVideoSnapshot = null;
+        decodeStallRounds = 0;
+      }
+
+      function mergePcConfig(baseConfig, overrideConfig) {
+        const base = (baseConfig && typeof baseConfig === 'object') ? baseConfig : {};
+        const override = (overrideConfig && typeof overrideConfig === 'object') ? overrideConfig : {};
+        const merged = Object.assign({}, base, override);
+
+        if (Array.isArray(base.iceServers) || Array.isArray(override.iceServers)) {
+          merged.iceServers = [
+            ...(Array.isArray(base.iceServers) ? base.iceServers : []),
+            ...(Array.isArray(override.iceServers) ? override.iceServers : [])
+          ];
+        }
+
+        return merged;
+      }
+
+      function getStreamUrlHost() {
+        const inputEl = document.getElementById('streamUrl');
+        const url = inputEl ? inputEl.value.trim() : '';
+        if (!url) {
+          return '';
+        }
+        try {
+          return new URL(url).hostname || '';
+        } catch (error) {
+          return '';
+        }
+      }
+
+      function parseCandidate(candidateStr) {
+        if (!candidateStr) {
+          return { raw: candidateStr };
+        }
+        const parts = candidateStr.trim().split(/\s+/);
+        return {
+          foundation: parts[0] || '',
+          protocol: parts[2] || '',
+          priority: parts[3] || '',
+          address: parts[4] || '',
+          port: parts[5] || '',
+          type: parts[7] || '',
+          raw: candidateStr
+        };
+      }
+
+      async function dumpSelectedCandidatePair(pc) {
+        if (!pc) {
+          return;
+        }
+        try {
+          const stats = await pc.getStats();
+          let selectedPair = null;
+          let localCandidate = null;
+          let remoteCandidate = null;
+
+          stats.forEach((report) => {
+            if (report.type === 'transport' && report.selectedCandidatePairId && !selectedPair) {
+              selectedPair = stats.get(report.selectedCandidatePairId);
+            }
+          });
+
+          if (!selectedPair) {
+            stats.forEach((report) => {
+              if (
+                report.type === 'candidate-pair' &&
+                (report.selected || report.nominated) &&
+                report.state === 'succeeded' &&
+                !selectedPair
+              ) {
+                selectedPair = report;
+              }
+            });
+          }
+
+          if (!selectedPair) {
+            logDiag('ICE Pair', '未找到已选中的 candidate pair');
+            return;
+          }
+
+          localCandidate = stats.get(selectedPair.localCandidateId);
+          remoteCandidate = stats.get(selectedPair.remoteCandidateId);
+
+          logDiag('ICE Pair', {
+            state: selectedPair.state,
+            nominated: selectedPair.nominated,
+            bytesReceived: selectedPair.bytesReceived,
+            bytesSent: selectedPair.bytesSent,
+            currentRoundTripTime: selectedPair.currentRoundTripTime,
+            local: localCandidate
+              ? {
+                  address: localCandidate.address || localCandidate.ip,
+                  port: localCandidate.port,
+                  protocol: localCandidate.protocol,
+                  candidateType: localCandidate.candidateType
+                }
+              : null,
+            remote: remoteCandidate
+              ? {
+                  address: remoteCandidate.address || remoteCandidate.ip,
+                  port: remoteCandidate.port,
+                  protocol: remoteCandidate.protocol,
+                  candidateType: remoteCandidate.candidateType
+                }
+              : null
+          });
+        } catch (error) {
+          logDiag('ICE Pair Error', error);
+        }
+      }
+
+      function startStatsMonitor(pc, videoEl) {
+        clearStatsTimer();
+        statsTimer = setInterval(async () => {
+          if (!pc || pc.connectionState === 'closed') {
+            clearStatsTimer();
+            return;
+          }
+
+          try {
+            const stats = await pc.getStats();
+            let inboundVideo = null;
+            let inboundAudio = null;
+
+            stats.forEach((report) => {
+              if (report.type === 'inbound-rtp' && report.kind === 'video') {
+                inboundVideo = report;
+              }
+              if (report.type === 'inbound-rtp' && report.kind === 'audio') {
+                inboundAudio = report;
+              }
+            });
+
+            if (inboundVideo) {
+              const codec = inboundVideo.codecId ? stats.get(inboundVideo.codecId) : null;
+              const currentTime = videoEl ? Number(videoEl.currentTime.toFixed(3)) : 0;
+              const currentSnapshot = {
+                bytesReceived: inboundVideo.bytesReceived || 0,
+                framesReceived: inboundVideo.framesReceived || 0,
+                framesDecoded: inboundVideo.framesDecoded || 0,
+                keyFramesDecoded: inboundVideo.keyFramesDecoded || 0,
+                packetsReceived: inboundVideo.packetsReceived || 0,
+                packetsLost: inboundVideo.packetsLost || 0,
+                pliCount: inboundVideo.pliCount || 0,
+                firCount: inboundVideo.firCount || 0,
+                nackCount: inboundVideo.nackCount || 0,
+                freezeCount: inboundVideo.freezeCount || 0,
+                currentTime
+              };
+
+              let deltas = null;
+              if (lastVideoSnapshot) {
+                deltas = {
+                  bytesReceived: currentSnapshot.bytesReceived - lastVideoSnapshot.bytesReceived,
+                  framesReceived: currentSnapshot.framesReceived - lastVideoSnapshot.framesReceived,
+                  framesDecoded: currentSnapshot.framesDecoded - lastVideoSnapshot.framesDecoded,
+                  keyFramesDecoded: currentSnapshot.keyFramesDecoded - lastVideoSnapshot.keyFramesDecoded,
+                  packetsReceived: currentSnapshot.packetsReceived - lastVideoSnapshot.packetsReceived,
+                  packetsLost: currentSnapshot.packetsLost - lastVideoSnapshot.packetsLost,
+                  pliCount: currentSnapshot.pliCount - lastVideoSnapshot.pliCount,
+                  firCount: currentSnapshot.firCount - lastVideoSnapshot.firCount,
+                  nackCount: currentSnapshot.nackCount - lastVideoSnapshot.nackCount,
+                  freezeCount: currentSnapshot.freezeCount - lastVideoSnapshot.freezeCount,
+                  videoCurrentTime: Number((currentSnapshot.currentTime - lastVideoSnapshot.currentTime).toFixed(3))
+                };
+
+                const decodeStalled =
+                  deltas.bytesReceived > 0 &&
+                  deltas.framesDecoded === 0 &&
+                  deltas.videoCurrentTime <= 0.01;
+
+                if (decodeStalled) {
+                  decodeStallRounds += 1;
+                } else {
+                  decodeStallRounds = 0;
+                }
+
+                if (decodeStallRounds >= 2) {
+                  logDiag('Decode Stall Suspect', {
+                    rounds: decodeStallRounds,
+                    hint: '持续收包但未解码新帧，优先排查关键帧间隔/码流完整性/RTX重传兼容性',
+                    deltas,
+                    codec: codec
+                      ? {
+                          mimeType: codec.mimeType,
+                          sdpFmtpLine: codec.sdpFmtpLine,
+                          payloadType: codec.payloadType
+                        }
+                      : null
+                  });
+                }
+              }
+
+              lastVideoSnapshot = currentSnapshot;
+
+              logDiag('Stats Video', {
+                packetsReceived: inboundVideo.packetsReceived,
+                packetsLost: inboundVideo.packetsLost,
+                bytesReceived: inboundVideo.bytesReceived,
+                framesReceived: inboundVideo.framesReceived,
+                framesDecoded: inboundVideo.framesDecoded,
+                keyFramesDecoded: inboundVideo.keyFramesDecoded,
+                frameWidth: inboundVideo.frameWidth,
+                frameHeight: inboundVideo.frameHeight,
+                jitter: inboundVideo.jitter,
+                decoderImplementation: inboundVideo.decoderImplementation,
+                freezeCount: inboundVideo.freezeCount,
+                pliCount: inboundVideo.pliCount,
+                firCount: inboundVideo.firCount,
+                nackCount: inboundVideo.nackCount,
+                codec: codec
+                  ? {
+                      mimeType: codec.mimeType,
+                      sdpFmtpLine: codec.sdpFmtpLine,
+                      payloadType: codec.payloadType
+                    }
+                  : null,
+                deltas,
+                decodeStallRounds
+              });
+            }
+
+            if (inboundAudio) {
+              logDiag('Stats Audio', {
+                packetsReceived: inboundAudio.packetsReceived,
+                packetsLost: inboundAudio.packetsLost,
+                bytesReceived: inboundAudio.bytesReceived,
+                jitter: inboundAudio.jitter
+              });
+            }
+
+            if (videoEl) {
+              logDiag('Video Element', {
+                readyState: videoEl.readyState,
+                paused: videoEl.paused,
+                currentTime: Number(videoEl.currentTime.toFixed(3)),
+                videoWidth: videoEl.videoWidth,
+                videoHeight: videoEl.videoHeight
+              });
+            }
+          } catch (error) {
+            logDiag('Stats Error', error);
+          }
+        }, 3000);
+      }
+
+      function bindVideoDiagnostics(videoEl) {
+        const events = ['loadedmetadata', 'playing', 'pause', 'waiting', 'stalled', 'suspend', 'error', 'ended'];
+        events.forEach((eventName) => {
+          videoEl.addEventListener(eventName, () => {
+            logDiag(`Video Event:${eventName}`, {
+              readyState: videoEl.readyState,
+              networkState: videoEl.networkState,
+              currentTime: Number(videoEl.currentTime.toFixed(3)),
+              videoWidth: videoEl.videoWidth,
+              videoHeight: videoEl.videoHeight,
+              error: videoEl.error ? {
+                code: videoEl.error.code,
+                message: videoEl.error.message
+              } : null
+            });
+          });
+        });
+      }
+
+      function bindPeerDiagnostics(pc) {
+        if (!pc) {
+          return;
+        }
+
+        pc.addEventListener('icegatheringstatechange', () => {
+          logDiag('ICE Gathering', pc.iceGatheringState);
+        });
+
+        pc.addEventListener('iceconnectionstatechange', async () => {
+          logDiag('ICE Connection', pc.iceConnectionState);
+          if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+            await dumpSelectedCandidatePair(pc);
+          }
+        });
+
+        pc.addEventListener('signalingstatechange', () => {
+          logDiag('Signaling State', pc.signalingState);
+        });
+
+        pc.addEventListener('connectionstatechange', async () => {
+          logDiag('Peer Connection State', pc.connectionState);
+          if (pc.connectionState === 'connected') {
+            await dumpSelectedCandidatePair(pc);
+          }
+        });
+
+        pc.addEventListener('icecandidateerror', (event) => {
+          logDiag('ICE Candidate Error', {
+            address: event.address,
+            url: event.url,
+            errorCode: event.errorCode,
+            errorText: event.errorText
+          });
+        });
+
+        pc.addEventListener('icecandidate', (event) => {
+          if (event.candidate) {
+            const parsed = parseCandidate(event.candidate.candidate);
+            if (parsed.protocol) {
+              localCandidateProtocols.add(String(parsed.protocol).toLowerCase());
+            }
+            logDiag('Local Candidate', parsed);
+          } else {
+            logDiag('Local Candidate', {
+              done: true,
+              protocols: Array.from(localCandidateProtocols)
+            });
+
+            if ((iceMode === 'tcp' || iceMode === 'udp') && !localCandidateProtocols.has(iceMode)) {
+              console.warn(`[Diag][ICE Mode Warning] 当前本地未收集到 ${iceMode.toUpperCase()} candidate，强制 ice=${iceMode} 可能导致连接失败`);
+            }
+          }
+        });
+      }
+
+      function logRuntimeEnvironment() {
+        const isWindows = /Win/i.test(navigator.platform || '');
+        const shouldStripRtx = rtxMode === 'off' ? false : (rtxMode === 'on' ? true : isWindows);
+        logDiag('Runtime', {
+          userAgent: navigator.userAgent,
+          platform: navigator.platform,
+          language: navigator.language,
+          online: navigator.onLine,
+          location: document.location.href,
+          app,
+          stream,
+          syncPushUrl,
+          playWithoutPush,
+          rtxMode,
+          shouldStripRtx,
+          iceMode,
+          iceForceFilter,
+          tcpRelayMode,
+          turnHost,
+          turnPort,
+          turnsPort,
+          turnTls,
+          videoMode,
+          h264Pt
+        });
+      }
+
+      function enableOptionalTcpRelayPatch() {
+        const wantTcp = iceMode === 'tcp';
+        const shouldEnableRelay = tcpRelayMode === 'on' || (tcpRelayMode === 'auto' && wantTcp);
+        if (!shouldEnableRelay) {
+          return;
+        }
+
+        const OriginalRTCPeerConnection = window.RTCPeerConnection;
+        if (!OriginalRTCPeerConnection) {
+          logDiag('TCP Relay Patch', '未启用（RTCPeerConnection 不可用）');
+          return;
+        }
+
+        if (window.__vigidoorTcpRelayPatchApplied) {
+          return;
+        }
+
+        const streamHost = getStreamUrlHost() || new URL(apiHost).hostname;
+        if (!streamHost) {
+          logDiag('TCP Relay Patch', '未启用（无法解析 TURN 主机）');
+          return;
+        }
+
+        const relayConfig = {
+          iceTransportPolicy: 'relay',
+          iceServers: [
+            {
+              urls: [`turn:${streamHost}:${turnPort}?transport=tcp`],
+              username: turnUser,
+              credential: turnPass
+            }
+          ]
+        };
+
+        class VigiDoorPatchedRTCPeerConnection extends OriginalRTCPeerConnection {
+          constructor(configuration, constraints) {
+            const mergedConfig = mergePcConfig(configuration, relayConfig);
+            super(mergedConfig, constraints);
+          }
+        }
+
+        Object.setPrototypeOf(VigiDoorPatchedRTCPeerConnection, OriginalRTCPeerConnection);
+        window.RTCPeerConnection = VigiDoorPatchedRTCPeerConnection;
+        window.__vigidoorTcpRelayPatchApplied = true;
+
+        logDiag('TCP Relay Patch', {
+          enabled: true,
+          relayConfig
+        });
+      }
+
+      function buildTcpRelayConfig() {
+        const streamHost = turnHost || getStreamUrlHost() || new URL(apiHost).hostname;
+        if (!streamHost) {
+          return null;
+        }
+        const turnUrls = [`turn:${streamHost}:${turnPort}?transport=tcp`];
+        if (turnTls) {
+          turnUrls.push(`turns:${streamHost}:${turnsPort}?transport=tcp`);
+        }
+        return {
+          iceTransportPolicy: 'relay',
+          iceServers: [
+            {
+              urls: turnUrls,
+              username: turnUser,
+              credential: turnPass
+            }
+          ]
+        };
+      }
+
+      function applyTcpRelayConfigToPc(pc) {
+        if (!pc || iceMode !== 'tcp' || (tcpRelayMode !== 'on' && tcpRelayMode !== 'auto')) {
+          return;
+        }
+        const relayConfig = buildTcpRelayConfig();
+        if (!relayConfig) {
+          logDiag('TCP Relay Config', '跳过（无法构造 relay 配置）');
+          return;
+        }
+        try {
+          const beforeConfig = typeof pc.getConfiguration === 'function' ? pc.getConfiguration() : {};
+          const merged = mergePcConfig(beforeConfig, relayConfig);
+          if (typeof pc.setConfiguration === 'function') {
+            pc.setConfiguration(merged);
+          }
+          const afterConfig = typeof pc.getConfiguration === 'function' ? pc.getConfiguration() : merged;
+          logDiag('TCP Relay Config', {
+            applied: true,
+            before: beforeConfig,
+            after: afterConfig
+          });
+        } catch (error) {
+          logDiag('TCP Relay Config Error', error);
+        }
+      }
+
+      function forceSingleH264InOfferSdp(sdp, targetPayloadType) {
+        if (!sdp || typeof sdp !== 'string') {
+          return sdp;
+        }
+        const targetPt = String(targetPayloadType || '').trim();
+        if (!/^\d+$/.test(targetPt)) {
+          logDiag('Offer Codec Patch', `无效 h264pt=${targetPayloadType}`);
+          return sdp;
+        }
+
+        const lines = sdp.split(/\r?\n/);
+        let inVideoSection = false;
+        let currentVideoRemovedPts = new Set();
+        let beforeVideoLine = null;
+        let afterVideoLine = null;
+        let hasTargetPt = false;
+
+        const rewritten = [];
+        for (const line of lines) {
+          if (line.startsWith('m=')) {
+            inVideoSection = line.startsWith('m=video ');
+            currentVideoRemovedPts = new Set();
+
+            if (inVideoSection) {
+              const parts = line.split(' ');
+              if (parts.length > 3) {
+                const header = parts.slice(0, 3);
+                const payloads = parts.slice(3);
+                hasTargetPt = payloads.includes(targetPt);
+                beforeVideoLine = line;
+                if (hasTargetPt) {
+                  currentVideoRemovedPts = new Set(payloads.filter((pt) => pt !== targetPt));
+                  const rebuilt = [...header, targetPt].join(' ');
+                  afterVideoLine = rebuilt;
+                  rewritten.push(rebuilt);
+                  continue;
+                }
+              }
+            }
+
+            rewritten.push(line);
+            continue;
+          }
+
+          if (inVideoSection && currentVideoRemovedPts.size > 0) {
+            let shouldDrop = false;
+            for (const pt of currentVideoRemovedPts) {
+              if (line.startsWith(`a=rtpmap:${pt} `) || line.startsWith(`a=fmtp:${pt} `) || line.startsWith(`a=rtcp-fb:${pt} `)) {
+                shouldDrop = true;
+                break;
+              }
+            }
+            if (shouldDrop) {
+              continue;
+            }
+          }
+
+          rewritten.push(line);
+        }
+
+        if (!hasTargetPt) {
+          logDiag('Offer Codec Patch', `m=video 未包含 h264pt=${targetPt}，不修改`);
+          return sdp;
+        }
+
+        logDiag('Offer Codec Patch', {
+          mode: videoMode,
+          targetPt,
+          beforeVideoLine,
+          afterVideoLine,
+          removedPts: Array.from(currentVideoRemovedPts)
+        });
+
+        return rewritten.join('\r\n');
+      }
+
+      function enableOptionalOfferCodecPatch() {
+        const shouldPatchCodec = videoMode === 'h264';
+        const shouldPatchTcpRelay = iceMode === 'tcp' && (tcpRelayMode === 'on' || tcpRelayMode === 'auto');
+        if (!shouldPatchCodec && !shouldPatchTcpRelay) {
+          return;
+        }
+        if (!window.RTCPeerConnection || !window.RTCPeerConnection.prototype) {
+          logDiag('Offer Codec Patch', '未启用（RTCPeerConnection 不可用）');
+          return;
+        }
+
+        const proto = window.RTCPeerConnection.prototype;
+        if (proto.__vigidoorOfferCodecPatchApplied) {
+          return;
+        }
+
+        const originalCreateOffer = proto.createOffer;
+        proto.createOffer = function patchedCreateOffer(...args) {
+          applyTcpRelayConfigToPc(this);
+          return originalCreateOffer.apply(this, args).then((offerDesc) => {
+            if (!offerDesc || typeof offerDesc.sdp !== 'string') {
+              return offerDesc;
+            }
+            if (!shouldPatchCodec) {
+              return offerDesc;
+            }
+            const patchedSdp = forceSingleH264InOfferSdp(offerDesc.sdp, h264Pt);
+            if (patchedSdp === offerDesc.sdp) {
+              return offerDesc;
+            }
+            return {
+              type: offerDesc.type,
+              sdp: patchedSdp
+            };
+          });
+        };
+
+        proto.__vigidoorOfferCodecPatchApplied = true;
+        logDiag('Offer Codec Patch', {
+          enabled: true,
+          shouldPatchCodec,
+          shouldPatchTcpRelay,
+          videoMode,
+          h264Pt,
+          iceMode,
+          tcpRelayMode
+        });
+      }
+
+      function filterAnswerCandidatesByProtocol(sdp, protocolMode) {
+        if (!sdp || typeof sdp !== 'string') {
+          return sdp;
+        }
+        if (protocolMode !== 'tcp' && protocolMode !== 'udp') {
+          return sdp;
+        }
+
+        const lines = sdp.split(/\r?\n/);
+        const beforeCandidateLines = lines.filter((line) => line.startsWith('a=candidate:'));
+        const filteredLines = lines.filter((line) => {
+          if (!line.startsWith('a=candidate:')) {
+            return true;
+          }
+          const normalized = line.toLowerCase();
+          if (protocolMode === 'tcp') {
+            return normalized.includes(' tcp ');
+          }
+          return normalized.includes(' udp ');
+        });
+        const afterCandidateLines = filteredLines.filter((line) => line.startsWith('a=candidate:'));
+
+        logDiag('ICE Protocol Patch', {
+          mode: protocolMode,
+          beforeCount: beforeCandidateLines.length,
+          afterCount: afterCandidateLines.length,
+          before: beforeCandidateLines,
+          after: afterCandidateLines
+        });
+
+        return filteredLines.join('\r\n');
+      }
+
+      function analyzeAnswerCandidateHealth(sdp) {
+        if (!sdp || typeof sdp !== 'string') {
+          return;
+        }
+
+        const pageHost = new URL(document.location.href).hostname;
+        const streamHost = getStreamUrlHost();
+        const lines = sdp.split(/\r?\n/);
+        const candidates = lines
+          .filter((line) => line.startsWith('a=candidate:'))
+          .map((line) => {
+            const parts = line.trim().split(/\s+/);
+            return {
+              protocol: (parts[2] || '').toLowerCase(),
+              address: parts[4] || '',
+              port: parts[5] || '',
+              raw: line
+            };
+          });
+
+        if (!candidates.length) {
+          return;
+        }
+
+        const hasLoopback = candidates.some((candidate) => {
+          const address = candidate.address.toLowerCase();
+          return address === 'localhost' || address.startsWith('127.');
+        });
+
+        const compareHost = streamHost || pageHost;
+        const hasCurrentHostCandidate = compareHost
+          ? candidates.some((candidate) => candidate.address === compareHost)
+          : false;
+
+        const uniqueHosts = Array.from(new Set(candidates.map((candidate) => candidate.address)));
+        const nonLoopbackHosts = uniqueHosts.filter((address) => {
+          const val = String(address).toLowerCase();
+          return val !== 'localhost' && !val.startsWith('127.');
+        });
+
+        logDiag('Answer Candidate Hosts', {
+          currentPageHost: pageHost,
+          streamUrlHost: streamHost,
+          compareHost,
+          hosts: uniqueHosts,
+          hasLoopback,
+          hasCurrentHostCandidate,
+          protocolSummary: candidates.map((candidate) => `${candidate.protocol}:${candidate.address}:${candidate.port}`)
+        });
+
+        if (compareHost && !hasCurrentHostCandidate && nonLoopbackHosts.length > 0) {
+          console.error('[Diag][Answer Candidate Warning] SDP candidate 未包含当前访问主机，可能导致不可达', {
+            currentPageHost: pageHost,
+            streamUrlHost: streamHost,
+            compareHost,
+            candidateHosts: nonLoopbackHosts
+          });
+        }
+
+        if (hasLoopback) {
+          console.warn('[Diag][Answer Candidate Warning] SDP candidate 包含回环地址(127.x/localhost)，建议从 externIP 中移除');
+        }
+      }
+
+      function stripRtxFromAnswerSdp(sdp) {
+        if (!sdp || typeof sdp !== 'string') {
+          return sdp;
+        }
+
+        const lines = sdp.split(/\r?\n/);
+        const rtxPts = new Set();
+
+        lines.forEach((line) => {
+          const match = line.match(/^a=rtpmap:(\d+)\s+rtx\/90000/i);
+          if (match) {
+            rtxPts.add(match[1]);
+          }
+        });
+
+        if (rtxPts.size === 0) {
+          return sdp;
+        }
+
+        const filteredLines = lines
+          .map((line) => {
+            if (line.startsWith('m=video ')) {
+              const parts = line.split(' ');
+              if (parts.length > 3) {
+                const header = parts.slice(0, 3);
+                const payloads = parts.slice(3).filter((payload) => !rtxPts.has(payload));
+                return [...header, ...payloads].join(' ');
+              }
+            }
+            return line;
+          })
+          .filter((line) => {
+            for (const pt of rtxPts) {
+              if (line.startsWith(`a=rtpmap:${pt} `)) {
+                return false;
+              }
+              if (line.startsWith(`a=fmtp:${pt} `)) {
+                return false;
+              }
+              if (line.startsWith(`a=rtcp-fb:${pt} `)) {
+                return false;
+              }
+            }
+            return true;
+          });
+
+        logDiag('RTX Patch', {
+          removedPayloadTypes: Array.from(rtxPts),
+          beforeVideoLine: lines.find((line) => line.startsWith('m=video ')) || null,
+          afterVideoLine: filteredLines.find((line) => line.startsWith('m=video ')) || null
+        });
+
+        return filteredLines.join('\r\n');
+      }
+
+      function enableOptionalRtxStripPatch() {
+        const isWindows = /Win/i.test(navigator.platform || '');
+        const shouldStripRtx = rtxMode === 'off' ? false : (rtxMode === 'on' ? true : isWindows);
+        const shouldFilterIceProtocol = iceMode === 'udp' || (iceMode === 'tcp' && iceForceFilter);
+
+        if (!shouldStripRtx && !shouldFilterIceProtocol) {
+          logDiag('Answer SDP Patch', '未启用（RTX/ICE 协议均未要求强制改写）');
+          return;
+        }
+
+        if (!window.RTCPeerConnection || !window.RTCPeerConnection.prototype) {
+          logDiag('RTX Patch', '未启用（RTCPeerConnection 不可用）');
+          return;
+        }
+
+        const proto = window.RTCPeerConnection.prototype;
+        if (proto.__vigidoorRtxPatchApplied) {
+          return;
+        }
+
+        const originalSetRemoteDescription = proto.setRemoteDescription;
+        proto.setRemoteDescription = function patchedSetRemoteDescription(desc, ...args) {
+          try {
+            if (desc && desc.type === 'answer' && typeof desc.sdp === 'string') {
+              let patchedSdp = desc.sdp;
+              analyzeAnswerCandidateHealth(patchedSdp);
+              if (shouldFilterIceProtocol) {
+                const hasLocalRequestedProtocol = localCandidateProtocols.has(iceMode);
+                if (!hasLocalRequestedProtocol) {
+                  console.warn(`[Diag][ICE Mode Warning] 跳过 answer 的 ${iceMode.toUpperCase()} 过滤：本地未收集到同协议 candidate`);
+                } else {
+                  patchedSdp = filterAnswerCandidatesByProtocol(patchedSdp, iceMode);
+                }
+              }
+              if (shouldStripRtx) {
+                patchedSdp = stripRtxFromAnswerSdp(patchedSdp);
+              }
+              if (patchedSdp && patchedSdp !== desc.sdp) {
+                const patchedDesc = {
+                  type: desc.type,
+                  sdp: patchedSdp
+                };
+                return originalSetRemoteDescription.call(this, patchedDesc, ...args);
+              }
+            }
+          } catch (error) {
+            logDiag('RTX Patch Error', error);
+          }
+          return originalSetRemoteDescription.call(this, desc, ...args);
+        };
+
+        proto.__vigidoorRtxPatchApplied = true;
+        logDiag('Answer SDP Patch', {
+          rtxMode,
+          shouldStripRtx,
+          iceMode,
+          shouldFilterIceProtocol
+        });
+      }
+
+      enableOptionalTcpRelayPatch();
+      enableOptionalOfferCodecPatch();
+      enableOptionalRtxStripPatch();
+      bindVideoDiagnostics(document.getElementById('video'));
+      logRuntimeEnvironment();
 
       function setStatus(msg) {
         const statusElement = document.getElementById('status');
@@ -120,13 +964,22 @@
           return;
         }
 
+        localCandidateProtocols = new Set();
+        clearStatsTimer();
+        syncPushStreamUrlIfNeeded();
+        logDiag('Play Start', { url });
+
         // 发送开始推流指令
         setStatus('正在启动推流...');
         const streamResult = await window.streamController.startStream();
         if (!streamResult.success) {
           setStatus(`启动推流失败: ${JSON.stringify(streamResult.error)}`);
           console.error('推流启动失败:', streamResult.error);
-          // 即使推流失败，也继续尝试播放
+          if (!playWithoutPush) {
+            logDiag('Play Abort', '推流启动失败，已中止拉流；如需忽略可加 playWithoutPush=1');
+            return;
+          }
+          logDiag('Play Continue', '推流启动失败但已允许继续拉流 (playWithoutPush=1)');
         } else {
           console.log('推流已启动');
           // 等待推流服务准备就绪
@@ -142,16 +995,39 @@
           debug: true,
         });
 
-        player.on(ZLMRTCClient.Events.WEBRTC_ON_REMOTE_STREAMS, function () {
+        bindPeerDiagnostics(player.pc);
+        startStatsMonitor(player.pc, document.getElementById('video'));
+
+        player.on(ZLMRTCClient.Events.WEBRTC_ON_REMOTE_STREAMS, function (remoteStream) {
+          logDiag('Remote Stream', {
+            id: remoteStream && remoteStream.id,
+            tracks: remoteStream ? remoteStream.getTracks().map((track) => ({
+              kind: track.kind,
+              id: track.id,
+              readyState: track.readyState,
+              muted: track.muted
+            })) : []
+          });
           setStatus('播放成功');
         });
 
         player.on(ZLMRTCClient.Events.WEBRTC_ON_CONNECTION_STATE_CHANGE, function (state) {
+          logDiag('ZLMRTC Connection Event', state);
           setStatus(`连接状态：${state}`);
+        });
+
+        player.on(ZLMRTCClient.Events.WEBRTC_ICE_CANDIDATE_ERROR, function (event) {
+          logDiag('ZLMRTC ICE Error Event', event);
+        });
+
+        player.on(ZLMRTCClient.Events.WEBRTC_OFFER_ANWSER_EXCHANGE_FAILED, function (event) {
+          logDiag('ZLMRTC Offer/Answer Failed', event);
         });
       }
 
       async function stop() {
+        clearStatsTimer();
+
         if (player) {
           player.close();
           player = null;
