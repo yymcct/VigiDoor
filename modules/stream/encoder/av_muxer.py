@@ -1,12 +1,13 @@
 """
-音视频混流器（RTSP 版本）
-将视频流和音频流合并推送到 RTSP 服务器
+音视频混流器（RTSP/RTMP 版本）
+将视频流和音频流合并推送到 RTSP 或 RTMP 服务器
 """
 
 import subprocess
 import threading
 import time
 from typing import Optional
+from urllib.parse import urlparse
 import numpy as np
 from utils.logger import setup_logger
 
@@ -17,20 +18,19 @@ logger = setup_logger('av_muxer')
 
 class AVMuxer(EncoderBase):
     """
-    音视频混流器（RTSP）
+    音视频混流器（RTSP/RTMP）
     
     架构：
     - 视频输入：通过 stdin 接收 RGB24 原始帧
     - 音频输入：FFmpeg 直接从 ALSA 设备采集
-    - 输出：RTSP 流（H.264 + AAC）
+    - 输出：RTSP 或 RTMP 流（H.264 + 音频）
     
     FFmpeg 命令示例：
-    ffmpeg -f rawvideo -pix_fmt rgb24 -s 1920x1080 -r 25 -i pipe:0 \
-           -f alsa -i hw:1,0 -ac 1 \
-           -c:v libx264 -preset ultrafast -tune zerolatency \
-           -c:a aac -b:a 128k -ar 16000 \
-           -f rtsp -rtsp_transport tcp \
-           rtsp://server/live/camera001
+        ffmpeg -f rawvideo -pix_fmt rgb24 -s 1920x1080 -r 25 -i pipe:0 \
+            -f alsa -i hw:1,0 \
+            -c:v libx264 -preset ultrafast -tune zerolatency \
+            -c:a aac -b:a 128k -ar 48000 \
+            -f flv rtmp://server/live/camera001
     """
     
     def __init__(
@@ -68,6 +68,7 @@ class AVMuxer(EncoderBase):
         self.process = None
         self.stderr_thread = None
         self.stream_url = None
+        self.stream_protocol = None
         
         # 状态
         self._is_initialized = False
@@ -91,12 +92,18 @@ class AVMuxer(EncoderBase):
             return True
         
         self.stream_url = stream_url
+        self.stream_protocol = self._detect_protocol(stream_url)
+
+        if not self.stream_protocol:
+            logger.error(f"不支持的推流协议: {stream_url}")
+            return False
         
         try:
             # 构建 FFmpeg 命令（音频始终启用）
             cmd = self._build_ffmpeg_command()
             
             logger.info(f"启动 FFmpeg 混流器（音视频混流）")
+            logger.info(f"  协议: {self.stream_protocol.upper()}")
             logger.info(f"  推流地址: {stream_url}")
             logger.debug(f"  FFmpeg 命令: {' '.join(cmd)}")
             
@@ -128,22 +135,34 @@ class AVMuxer(EncoderBase):
             logger.error(f"混流器初始化失败: {e}", exc_info=True)
             return False
     
+    def _detect_protocol(self, stream_url: str) -> Optional[str]:
+        """检测推流协议，支持 rtsp/rtmp/rtmps"""
+        try:
+            scheme = urlparse(stream_url).scheme.lower()
+        except Exception:
+            return None
+
+        if scheme in ('rtsp', 'rtmp', 'rtmps'):
+            return scheme
+        return None
+
     def _build_ffmpeg_command(self) -> list:
-        """构建 FFmpeg 命令（音频始终启用）"""
+        """构建 FFmpeg 命令（按协议生成输出参数）"""
         cmd = [
             'ffmpeg',
             '-y',  # 覆盖输出
             # === 全局低延迟配置 ===
             '-fflags', 'nobuffer',
             '-flags', 'low_delay',
-            '-use_wallclock_as_timestamps', '1',
+            # ❌ 移除 wallclock 参数，使用视频流自带的时间戳
+            # '-use_wallclock_as_timestamps', '1',
         ]
         
         # === 视频输入配置 ===
         cmd.extend([
             '-thread_queue_size', '4096',  # 增加视频输入线程队列
             '-f', 'rawvideo',
-            '-pixel_format', 'rgb24',
+            '-pixel_format', 'bgr24',
             '-video_size', f'{self.width}x{self.height}',
             '-framerate', str(self.fps),
             '-i', 'pipe:0',  # 从 stdin 读取视频
@@ -172,21 +191,35 @@ class AVMuxer(EncoderBase):
         ])
         
         # === 音频编码配置（Opus）===
+        is_rtsp = self.stream_protocol == 'rtsp'
+        audio_codec = 'libopus' if is_rtsp else 'aac'
+
         cmd.extend([
-            '-c:a', 'libopus',           # 使用 Opus 编码器（更适合实时流）
+            '-c:a', audio_codec,
             '-ar', str(self.audio_sample_rate),  # 采样率
             '-ac', str(self.audio_channels),      # 通道数
             '-b:a', self.audio_bitrate,
             # 音频同步过滤器
             '-af', 'aresample=async=1,asetpts=N/SR/TB',
         ])
+
+        if not is_rtsp:
+            # FLV/RTMP 常用 AAC-LC
+            cmd.extend(['-profile:a', 'aac_low'])
         
-        # === RTSP 输出配置 ===
-        cmd.extend([
-            '-f', 'rtsp',
-            '-rtsp_transport', 'tcp',
-            self.stream_url
-        ])
+        # === 输出配置（RTSP/RTMP）===
+        if is_rtsp:
+            cmd.extend([
+                '-f', 'rtsp',
+                '-rtsp_transport', 'tcp',
+                self.stream_url
+            ])
+        else:
+            cmd.extend([
+                '-f', 'flv',
+                '-flvflags', 'no_duration_filesize',
+                self.stream_url
+            ])
         
         return cmd
     
@@ -264,6 +297,7 @@ class AVMuxer(EncoderBase):
         
         self.process = None
         self._is_initialized = False
+        self.stream_protocol = None
         logger.info("✅ 混流器已释放")
     
     def is_alive(self) -> bool:

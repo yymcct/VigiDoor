@@ -14,7 +14,7 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 # 项目根目录
-PROJECT_DIR="/home/yymcct/ws/VigiDoor"
+PROJECT_DIR="/home/ubuntu/VigiDoor"
 
 echo ""
 echo "[1/5] 安装系统依赖..."
@@ -24,13 +24,13 @@ apt-get install -y python3 python3-pip python3-venv
 echo ""
 echo "[2/5] 创建虚拟环境..."
 cd "$PROJECT_DIR"
-if [ ! -d "venv" ]; then
-    python3 -m venv venv
+if [ ! -d ".venv" ]; then
+    python3 -m venv .venv
 fi
 
 echo ""
 echo "[3/5] 安装 Python 依赖..."
-source venv/bin/activate
+source .venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 
@@ -43,9 +43,9 @@ mkdir -p models
 
 echo ""
 echo "[5/5] 安装 systemd 服务..."
-cp scripts/vigidoor.service /etc/systemd/system/
-systemctl daemon-reload
-systemctl enable vigidoor.service
+sudo cp scripts/vigidoor.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable vigidoor.service
 
 echo ""
 echo "======================================"
