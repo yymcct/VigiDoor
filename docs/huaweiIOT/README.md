@@ -6,6 +6,7 @@
 
 - ✅ 基于华为云 IoTDA SDK 的设备命令下发
 - ✅ 推流开始/停止控制
+- ✅ ZLMediaKit Webhook 按需推流（on_stream_not_found / on_stream_none_reader）
 - ✅ RESTful API 接口
 - ✅ 支持自定义 RTMP 推流地址
 - ✅ Docker 容器化部署
@@ -29,7 +30,7 @@ cp .env.example .env
 
 3. 运行服务：
 ```bash
-python stream_control_service.py
+python main.py
 ```
 
 ### Docker 部署（推荐）
@@ -114,6 +115,54 @@ Content-Type: application/json
 GET /api/v1/config/check
 ```
 
+---
+
+## ZLMediaKit Webhook 接口（按需推流）
+
+> 实现树莓派按需推流：有人观看时才开始推流，无人观看时自动停止推流。
+
+### ZLMediaKit 配置（zlmediakit.ini）
+
+```ini
+on_stream_not_found=http://<本服务地址>:5002/index/hook/on_stream_not_found
+on_stream_none_reader=http://<本服务地址>:5002/index/hook/on_stream_none_reader
+```
+
+> **约定**: ZLMediaKit 的 `stream` 字段即为设备 ID。
+> 例如 stream=`VIGIDOOR_7c3a41081017190d_RPI` 将下发命令至设备 `VIGIDOOR_7c3a41081017190d_RPI`。
+
+### 5. on_stream_not_found
+
+```bash
+POST /index/hook/on_stream_not_found
+```
+
+触发时机: 某个客户端请求拉流，但 ZLM 中尚无对应的推流。
+动作: 向对应的树莓派设备下发 `action=start` 指令，设备收到后开始将视频推至 ZLM。
+
+ZLM 请求体 → 将 `stream` 字段用作 `device_id`，自动构造 RTMP 推流地址:
+`rtmp://<ZLM_SERVER>:<ZLM_RTMP_PORT>/<app>/<stream>`
+
+响应： `{ "code": 0, "msg": "success" }`
+
+### 6. on_stream_none_reader
+
+```bash
+POST /index/hook/on_stream_none_reader
+```
+
+触发时机: 某路流存在但已无任何拉流客户端。
+动作: 向对应设备下发 `action=stop` 指令，设备收到后停止推流；同时返回 `close=true` 通知 ZLM 关闭该路流。
+
+响应： `{ "close": true, "code": 0 }`
+
+---
+
+### 4. 检查配置
+```bash
+GET /api/v1/config/check
+```
+
 响应示例：
 ```json
 {
@@ -141,6 +190,8 @@ GET /api/v1/config/check
 | HUAWEI_REGION | 华为云区域 | 否 | cn-north-4 |
 | IOTDA_ENDPOINT | IoTDA 服务端点 | 是 | - |
 | RTMP_URL_TEMPLATE | RTMP 推流地址模板 | 否 | rtmp://zlm-server:1935/live/{device_id} |
+| ZLM_SERVER | ZLMediaKit 服务主机名/IP | 否 | zlm-server |
+| ZLM_RTMP_PORT | ZLMediaKit RTMP 端口 | 否 | 1935 |
 | PORT | 服务端口 | 否 | 5002 |
 
 ### 获取华为云配置
@@ -187,17 +238,26 @@ GET /api/v1/config/check
 
 ```
 huaweiIOT/
-├── stream_control_service.py  # 主服务文件
-├── config.py                  # 配置文件
-├── requirements.txt           # Python 依赖
-├── .env.example              # 环境变量示例
-├── .env                      # 环境变量配置（需自行创建）
-├── Dockerfile                # Docker 镜像构建文件
-├── .dockerignore             # Docker 忽略文件
-├── docker-compose.yml        # Docker Compose 配置
-├── build_and_deploy.sh       # 构建部署脚本
-├── README.md                 # 项目说明
-└── README_DOCKER.md          # Docker 部署说明
+├── main.py                      # 入口文件
+├── app/
+│   ├── __init__.py              # Flask 工厂函数
+│   ├── config.py                # 全局配置项
+│   ├── routes/
+│   │   ├── health.py            # GET  /health
+│   │   ├── stream.py            # POST /api/v1/stream/start|stop
+│   │   └── zlm_webhook.py       # POST /index/hook/on_stream_not_found|on_stream_none_reader
+│   └── services/
+│       └── iotda.py             # 华为云 IoTDA 客户端 & 消息下发
+├── requirements.txt             # Python 依赖
+├── .env.example                 # 环境变量示例
+├── .env                         # 环境变量配置（需自行创建）
+├── Dockerfile                   # Docker 镜像构建文件
+├── docker-compose.yml           # Docker Compose 配置
+├── nginx.conf                   # Nginx 反向代理配置
+├── Makefile                     # 快据命令
+├── build_and_deploy.sh          # 构建并部署脚本
+├── README.md                    # 项目说明
+└── README_DOCKER.md             # Docker 部署说明
 ```
 
 ### 添加新功能
@@ -293,6 +353,11 @@ CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:5002", "stream_control_service:app"]
 如有问题或建议，请联系项目维护者。
 
 ## 更新日志
+
+### v1.1.0 (2026-03-04)
+- ✅ 项目重构为 app/ 包结构
+- ✅ 实现 ZLMediaKit Webhook 按需推流
+- ✅ 新增 on_stream_not_found / on_stream_none_reader 接口
 
 ### v1.0.0 (2026-02-13)
 - ✅ 初始版本

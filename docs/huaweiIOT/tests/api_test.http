@@ -1,0 +1,172 @@
+### VigiDoor Stream Control Service - API Tests
+### 使用 VS Code REST Client 插件运行 (humao.rest-client)
+
+@baseUrl = http://localhost:5002
+@deviceId = VIGIDOOR_7c3a41081017190d_RPI
+@appName = live
+
+
+# ============================================================
+# 一、健康检查
+# ============================================================
+
+### 健康检查
+GET {{baseUrl}}/health
+Accept: application/json
+
+
+# ============================================================
+# 二、配置检查
+# ============================================================
+
+### 检查 IoTDA 配置是否有效
+GET {{baseUrl}}/api/v1/config/check
+Accept: application/json
+
+
+# ============================================================
+# 三、手动推流控制（REST API）
+# ============================================================
+
+### 开始推流（使用默认 RTMP URL 模板）
+POST {{baseUrl}}/api/v1/stream/start
+Content-Type: application/json
+
+{
+    "device_id": "{{deviceId}}"
+}
+
+###
+
+### 开始推流（自定义 RTMP URL）
+POST {{baseUrl}}/api/v1/stream/start
+Content-Type: application/json
+
+{
+    "device_id": "{{deviceId}}",
+    "rtmp_url": "rtmp://zlm-server:1935/live/{{deviceId}}",
+    "params": {
+        "resolution": "1280x720",
+        "fps": 25
+    }
+}
+
+###
+
+### 停止推流
+POST {{baseUrl}}/api/v1/stream/stop
+Content-Type: application/json
+
+{
+    "device_id": "{{deviceId}}"
+}
+
+
+# ============================================================
+# 四、ZLMediaKit Webhook 模拟测试
+# ============================================================
+
+### [ZLM Webhook] on_stream_not_found
+### 模拟：有拉流请求但流不存在 → 应触发设备开始推流
+POST {{baseUrl}}/index/hook/on_stream_not_found
+Content-Type: application/json
+Tools: ZLMediaKit
+User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/57.0.2987.133 Safari/537.36
+
+{
+    "mediaServerId": "your_server_id",
+    "app": "{{appName}}",
+    "id": "140183261486112",
+    "ip": "10.0.17.132",
+    "params": "",
+    "port": 49614,
+    "schema": "rtsp",
+    "stream": "{{deviceId}}",
+    "vhost": "__defaultVhost__"
+}
+
+###
+
+### [ZLM Webhook] on_stream_not_found（RTMP 协议）
+POST {{baseUrl}}/index/hook/on_stream_not_found
+Content-Type: application/json
+Tools: ZLMediaKit
+
+{
+    "mediaServerId": "your_server_id",
+    "app": "{{appName}}",
+    "id": "140183261486113",
+    "ip": "192.168.1.100",
+    "params": "",
+    "port": 49615,
+    "schema": "rtmp",
+    "stream": "{{deviceId}}",
+    "vhost": "__defaultVhost__"
+}
+
+###
+
+### [ZLM Webhook] on_stream_none_reader
+### 模拟：流无人观看 → 应触发设备停止推流，ZLM 关闭该路流
+POST {{baseUrl}}/index/hook/on_stream_none_reader
+Content-Type: application/json
+Tools: ZLMediaKit
+User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/57.0.2987.133 Safari/537.36
+
+{
+    "mediaServerId": "your_server_id",
+    "app": "{{appName}}",
+    "schema": "rtmp",
+    "stream": "{{deviceId}}",
+    "vhost": "__defaultVhost__"
+}
+
+###
+
+### [ZLM Webhook] on_stream_none_reader（RTSP 协议）
+POST {{baseUrl}}/index/hook/on_stream_none_reader
+Content-Type: application/json
+Tools: ZLMediaKit
+
+{
+    "mediaServerId": "your_server_id",
+    "app": "{{appName}}",
+    "schema": "rtsp",
+    "stream": "{{deviceId}}",
+    "vhost": "__defaultVhost__"
+}
+
+
+# ============================================================
+# 五、异常场景测试
+# ============================================================
+
+### 开始推流 - 缺少 device_id（期望 400）
+POST {{baseUrl}}/api/v1/stream/start
+Content-Type: application/json
+
+{
+    "rtmp_url": "rtmp://zlm-server:1935/live/test"
+}
+
+###
+
+### 停止推流 - 缺少 device_id（期望 400）
+POST {{baseUrl}}/api/v1/stream/stop
+Content-Type: application/json
+
+{}
+
+###
+
+### [ZLM Webhook] on_stream_not_found - 空 stream 字段（期望正常返回 200，但跳过命令下发）
+POST {{baseUrl}}/index/hook/on_stream_not_found
+Content-Type: application/json
+
+{
+    "mediaServerId": "your_server_id",
+    "app": "live",
+    "stream": "",
+    "schema": "rtsp",
+    "vhost": "__defaultVhost__"
+}

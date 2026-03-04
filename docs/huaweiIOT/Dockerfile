@@ -26,7 +26,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/
 
 # 复制应用代码
-COPY stream_control_service.py .
+COPY app/ ./app/
+COPY main.py .
 COPY .env.example .env
 
 # 创建非 root 用户运行应用（增强安全性）
@@ -39,7 +40,7 @@ EXPOSE 5002
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:5002/health', timeout=5)" || exit 1
+    CMD python -c "import requests; r=requests.get('http://localhost:5002/health',timeout=5); exit(0 if r.ok else 1)" || exit 1
 
 # 启动应用
-CMD ["python", "stream_control_service.py"]
+CMD ["python", "main.py"]

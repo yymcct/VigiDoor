@@ -83,14 +83,14 @@ config-check: ## 检查配置是否正确
 	@curl -s http://localhost:5002/api/v1/config/check | python3 -m json.tool || echo "错误: 无法连接到服务，请确认服务是否运行 (make status)"
 
 dev: ## 开发模式运行（本地 Python）
-	@python stream_control_service.py
+	@python main.py
 
 install: ## 安装 Python 依赖
 	@pip install -r requirements.txt
 	@echo "✓ 依赖安装完成"
 
 lint: ## 代码格式检查（需要安装 flake8）
-	@flake8 stream_control_service.py config.py || echo "提示: 安装 flake8 进行代码检查: pip install flake8"
+	@flake8 main.py app/ || echo "提示: 安装 flake8 进行代码检查: pip install flake8"
 
 backup: ## 备份配置文件
 	@mkdir -p backups
