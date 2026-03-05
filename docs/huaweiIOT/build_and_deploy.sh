@@ -15,8 +15,8 @@ NC='\033[0m' # No Color
 
 # 配置区
 IMAGE_NAME="huawei-iot-cmd-service"
-REGISTRY_URL="${DOCKER_REGISTRY:-}"  # 可通过环境变量指定镜像仓库地址
-VERSION="${VERSION:-latest}"         # 可通过环境变量指定版本号
+REGISTRY_URL="${DOCKER_REGISTRY:-yymcct}"  # 可通过环境变量指定镜像仓库地址
+VERSION="${VERSION:-v1.0.0}"         # 可通过环境变量指定版本号
 
 # 自动生成版本号（基于日期和 git commit）
 if [ "$VERSION" = "latest" ]; then
@@ -86,11 +86,9 @@ build_image() {
     local build_tag="$IMAGE_NAME:$VERSION"
     
     print_info "镜像标签: $build_tag"
-    print_info "自动版本: $IMAGE_NAME:$AUTO_VERSION"
     
     # 构建镜像
     docker build -t "$build_tag" \
-        -t "$IMAGE_NAME:$AUTO_VERSION" \
         -t "$IMAGE_NAME:latest" \
         -f Dockerfile .
     
@@ -153,23 +151,19 @@ push_image() {
     
     # 为镜像添加仓库前缀
     local remote_tag="$REGISTRY_URL/$IMAGE_NAME:$VERSION"
-    #local remote_auto_tag="$REGISTRY_URL/$IMAGE_NAME:$AUTO_VERSION"
     local remote_latest_tag="$REGISTRY_URL/$IMAGE_NAME:latest"
     
     print_info "标记镜像: $remote_tag"
     docker tag "$IMAGE_NAME:$VERSION" "$remote_tag"
-    #docker tag "$IMAGE_NAME:$AUTO_VERSION" "$remote_auto_tag"
     docker tag "$IMAGE_NAME:latest" "$remote_latest_tag"
     
     print_info "推送镜像到仓库..."
     docker push "$remote_tag"
-    #docker push "$remote_auto_tag"
     docker push "$remote_latest_tag"
     
     if [ $? -eq 0 ]; then
         print_success "镜像推送成功"
         print_info "镜像地址: $remote_tag"
-        #print_info "镜像地址: $remote_auto_tag"
         print_info "镜像地址: $remote_latest_tag"
     else
         print_error "镜像推送失败"

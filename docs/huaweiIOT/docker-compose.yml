@@ -43,6 +43,9 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    # 挂载 logs 目录
+    volumes:
+      - ./logs:/logs
     
     # 网络配置
     networks:
