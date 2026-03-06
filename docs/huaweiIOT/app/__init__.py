@@ -1,12 +1,12 @@
 """
 Flask 应用工厂
 """
-from flask import Flask
+from flask_api import FlaskAPI
 from flask_cors import CORS
 
 
-def create_app() -> Flask:
-    app = Flask(__name__)
+def create_app() -> FlaskAPI:
+    app = FlaskAPI(__name__)
     CORS(app)
 
     # 注册蓝图
