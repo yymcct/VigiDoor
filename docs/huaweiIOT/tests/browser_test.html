@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket 语音测试 - VigiDoor</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+                'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+        }
+        
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+        }
+        
+        input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        button {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .btn-call {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-call:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-hangup {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+        
+        .btn-hangup:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(245, 87, 108, 0.4);
+        }
+        
+        .status-card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .status-label {
+            color: #666;
+            font-size: 12px;
+            margin-bottom: 5px;
+        }
+        
+        .status-value {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .status-value.connected {
+            color: #28a745;
+        }
+        
+        .status-value.calling {
+            color: #ffc107;
+        }
+        
+        .status-value.disconnected {
+            color: #666;
+        }
+        
+        .log-container {
+            background: #1e1e1e;
+            border-radius: 10px;
+            padding: 15px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        
+        .log-entry {
+            margin-bottom: 5px;
+            color: #d4d4d4;
+        }
+        
+        .log-time {
+            color: #858585;
+        }
+        
+        .log-info {
+            color: #4ec9b0;
+        }
+        
+        .log-warn {
+            color: #dcdcaa;
+        }
+        
+        .log-error {
+            color: #f48771;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-item {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #667eea;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎙️ WebSocket 语音测试</h1>
+        <p class="subtitle">VigiDoor 智慧安防门 - 远程喊话功能测试</p>
+        
+        <div class="form-group">
+            <label for="serverUrl">服务器地址</label>
+            <input type="text" id="serverUrl" value="http://localhost:5002" placeholder="http://localhost:5002">
+        </div>
+        
+        <div class="form-group">
+            <label for="deviceId">设备 ID</label>
+            <input type="text" id="deviceId" value="VIGIDOOR_TEST_RPI" placeholder="VIGIDOOR_xxx_RPI">
+        </div>
+        
+        <div class="button-group">
+            <button class="btn-call" id="callBtn" onclick="startCall()">📞 发起呼叫</button>
+            <button class="btn-hangup" id="hangupBtn" onclick="endCall()" disabled>📴 挂断</button>
+        </div>
+        
+        <div class="status-card">
+            <div class="status-label">当前状态</div>
+            <div class="status-value disconnected" id="status">未连接</div>
+        </div>
+        
+        <div class="stats">
+            <div class="stat-item">
+                <div class="stat-value" id="sentCount">0</div>
+                <div class="stat-label">已发送消息</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="recvCount">0</div>
+                <div class="stat-label">已接收消息</div>
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <label>日志</label>
+            <div class="log-container" id="logContainer"></div>
+        </div>
+    </div>
+
+    <script>
+        let socket = null;
+        let sentCount = 0;
+        let recvCount = 0;
+        
+        function log(message, type = 'info') {
+            const logContainer = document.getElementById('logContainer');
+            const time = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-entry';
+            
+            const typeClass = type === 'error' ? 'log-error' : 
+                             type === 'warn' ? 'log-warn' : 'log-info';
+            
+            logEntry.innerHTML = `<span class="log-time">[${time}]</span> <span class="${typeClass}">${message}</span>`;
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+        
+        function setStatus(status, className = 'disconnected') {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = status;
+            statusEl.className = 'status-value ' + className;
+        }
+        
+        function updateStats() {
+            document.getElementById('sentCount').textContent = sentCount;
+            document.getElementById('recvCount').textContent = recvCount;
+        }
+        
+        async function startCall() {
+            const serverUrl = document.getElementById('serverUrl').value;
+            const deviceId = document.getElementById('deviceId').value;
+            
+            if (!serverUrl || !deviceId) {
+                alert('请填写服务器地址和设备ID');
+                return;
+            }
+            
+            try {
+                // 1. 调用 REST API 发起呼叫
+                log('📡 正在发起呼叫请求...');
+                setStatus('正在呼叫...', 'calling');
+                
+                const response = await fetch(`${serverUrl}/api/v1/voice/call/initiate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ device_id: deviceId })
+                });
+                
+                const result = await response.json();
+                
+                if (!result.success) {
+                    log(`❌ 呼叫失败: ${result.error}`, 'error');
+                    setStatus('呼叫失败', 'disconnected');
+                    alert('发起呼叫失败: ' + result.error);
+                    return;
+                }
+                
+                log(`✅ 呼叫请求成功，会话ID: ${result.session_id}`);
+                log(`📢 设备通知状态: ${result.device_notified ? '已通知' : '未通知'}`, 
+                    result.device_notified ? 'info' : 'warn');
+                
+                // 2. 连接 WebSocket
+                log('🔌 正在连接 WebSocket...');
+                socket = io(serverUrl);
+                
+                socket.on('connect', () => {
+                    log('✅ WebSocket 已连接');
+                    setStatus('已连接 - 等待设备', 'calling');
+                    
+                    // 3. 加入会话
+                    socket.emit('browser_join', {
+                        device_id: deviceId,
+                        session_id: result.session_id
+                    });
+                    
+                    log(`📥 已发送 browser_join 事件`);
+                });
+                
+                socket.on('server_ready', (data) => {
+                    log(`🖥️ 服务器就绪: ${data.message}`);
+                });
+                
+                socket.on('joined', (data) => {
+                    log(`🎯 已加入会话，角色: ${data.role}`);
+                    if (data.waiting_for_device) {
+                        log('⏳ 等待设备连接...', 'warn');
+                    }
+                });
+                
+                socket.on('call_established', (data) => {
+                    log('🎉 通话已建立！');
+                    setStatus('通话中', 'connected');
+                    document.getElementById('callBtn').disabled = true;
+                    document.getElementById('hangupBtn').disabled = false;
+                    
+                    // 模拟发送音频数据（仅测试）
+                    startSendingTestAudio();
+                });
+                
+                socket.on('audio_data', (data) => {
+                    recvCount++;
+                    updateStats();
+                    log(`🔊 收到音频数据 (时间戳: ${data.timestamp})`);
+                });
+                
+                socket.on('peer_hangup', () => {
+                    log('📴 对方已挂断', 'warn');
+                    setStatus('对方已挂断', 'disconnected');
+                    endCall();
+                });
+                
+                socket.on('peer_disconnected', () => {
+                    log('⚠️ 对方已断开连接', 'warn');
+                    setStatus('对方已断开', 'disconnected');
+                });
+                
+                socket.on('call_terminated', (data) => {
+                    log(`🚫 通话已终止: ${data.message}`, 'warn');
+                    setStatus('通话已终止', 'disconnected');
+                    endCall();
+                });
+                
+                socket.on('error', (data) => {
+                    log(`❌ 错误: ${data.message}`, 'error');
+                    setStatus('错误', 'disconnected');
+                });
+                
+                socket.on('disconnect', () => {
+                    log('🔌 WebSocket 已断开');
+                    setStatus('已断开', 'disconnected');
+                    document.getElementById('callBtn').disabled = false;
+                    document.getElementById('hangupBtn').disabled = true;
+                });
+                
+            } catch (error) {
+                log(`❌ 异常: ${error.message}`, 'error');
+                setStatus('异常', 'disconnected');
+                alert('发起呼叫异常: ' + error.message);
+            }
+        }
+        
+        function endCall() {
+            if (socket) {
+                log('📴 正在挂断...');
+                socket.emit('hangup');
+                socket.disconnect();
+                socket = null;
+                setStatus('已挂断', 'disconnected');
+                document.getElementById('callBtn').disabled = false;
+                document.getElementById('hangupBtn').disabled = true;
+            }
+        }
+        
+        let sendInterval = null;
+        function startSendingTestAudio() {
+            // 每2秒发送一次测试音频数据
+            sendInterval = setInterval(() => {
+                if (socket && socket.connected) {
+                    const testData = {
+                        audio: `test_audio_${Date.now()}`,
+                        timestamp: Date.now()
+                    };
+                    socket.emit('audio_data', testData);
+                    sentCount++;
+                    updateStats();
+                    log(`📤 已发送测试音频数据`);
+                } else {
+                    clearInterval(sendInterval);
+                }
+            }, 2000);
+        }
+        
+        // 页面关闭时自动挂断
+        window.addEventListener('beforeunload', () => {
+            endCall();
+        });
+        
+        // 初始化日志
+        log('💡 提示: 请确保服务器已启动，并填写正确的服务器地址和设备ID', 'info');
+        log('💡 测试前请先启动设备端客户端: python tests/test_websocket_client.py device VIGIDOOR_TEST_RPI', 'info');
+    </script>
+</body>
+</html>

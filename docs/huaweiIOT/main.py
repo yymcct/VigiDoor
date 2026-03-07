@@ -56,6 +56,7 @@ if __name__ == "__main__":
     logger.info(f"Project ID     : {Config.HUAWEI_PROJECT_ID}")
     logger.info(f"ZLM Server     : {Config.ZLM_SERVER}:{Config.ZLM_RTMP_PORT}")
     logger.info(f"Listen Port    : {Config.PORT}")
+    logger.info(f"WebSocket      : 已启用（Socket.IO）")
 
     # 预初始化 IoTDA 客户端，验证配置
     client = get_iotda_client()
@@ -67,4 +68,13 @@ if __name__ == "__main__":
             "CLOUD_SDK_AK / CLOUD_SDK_SK / HUAWEI_PROJECT_ID / IOTDA_ENDPOINT"
         )
 
-    app.run(host="0.0.0.0", port=Config.PORT, debug=Config.DEBUG)
+    # 使用 SocketIO 运行应用（而不是 app.run）
+    socketio = app.socketio
+    socketio.run(
+        app,
+        host="0.0.0.0",
+        port=Config.PORT,
+        debug=Config.DEBUG,
+        use_reloader=Config.DEBUG,
+        log_output=False,
+    )

@@ -39,6 +39,19 @@ class Config:
     PORT: int = int(os.getenv("PORT", "5002"))
     DEBUG: bool = os.getenv("FLASK_DEBUG", "false").lower() == "true"
 
+    # ==================== WebSocket 语音中继 ====================
+    # WebSocket 连接超时时间（秒）：等待双方建立连接的最大时间
+    WS_CONNECTION_TIMEOUT: int = int(os.getenv("WS_CONNECTION_TIMEOUT", "30"))
+    
+    # WebSocket 会话超时时间（秒）：单方连接后等待另一方的最大时间
+    WS_SESSION_TIMEOUT: int = int(os.getenv("WS_SESSION_TIMEOUT", "60"))
+    
+    # WebSocket 心跳间隔（秒）
+    WS_HEARTBEAT_INTERVAL: int = int(os.getenv("WS_HEARTBEAT_INTERVAL", "30"))
+    
+    # 允许的最大并发语音会话数
+    MAX_CONCURRENT_SESSIONS: int = int(os.getenv("MAX_CONCURRENT_SESSIONS", "100"))
+
     # ==================== 日志 ====================
     # 日志文件路径，留空则只输出到控制台
     LOG_FILE: str = os.getenv("LOG_FILE", "logs/app.log")

@@ -1,0 +1,36 @@
+# WebSocket 语音中继功能测试
+
+## 1. 发起语音呼叫
+POST http://localhost:5002/api/v1/voice/call/initiate
+Content-Type: application/json
+
+{
+  "device_id": "VIGIDOOR_TEST_RPI"
+}
+
+###
+
+## 2. 查询会话状态
+GET http://localhost:5002/api/v1/voice/call/status/VIGIDOOR_TEST_RPI
+
+###
+
+## 3. 列出所有会话
+GET http://localhost:5002/api/v1/voice/sessions
+
+###
+
+## 4. 终止语音呼叫
+POST http://localhost:5002/api/v1/voice/call/terminate
+Content-Type: application/json
+
+{
+  "session_id": "VIGIDOOR_TEST_RPI"
+}
+
+###
+
+## 5. 健康检查
+GET http://localhost:5002/health
+
+###
