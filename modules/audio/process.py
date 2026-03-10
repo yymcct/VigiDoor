@@ -187,7 +187,7 @@ class AudioProcess:
             self.player = AudioPlayer()
 
             # 6. 初始化远程喊话组件
-            self.stream_player = StreamAudioPlayer(sample_rate=16000, channels=1)
+            self.stream_player = StreamAudioPlayer(sample_rate=16000, channels=1, max_frame_size=320)
             self.remote_call = RemoteCallClient(on_audio_packet=self._handle_call_audio)
             
             # 7. 注册回调
