@@ -2,36 +2,14 @@
 远程喊话 WebSocket 客户端（socket.io）
 负责会话建立和音频数据接收。
 
-`audio_data` 事件兼容两种格式：
-1) 直接二进制: bytes / bytearray / memoryview
-2) 字典结构: {
-       'audio': bytes,
-       'mime_type': 'audio/webm;codecs=opus',
-       'timestamp': 1730000000000,
-       'session_id': 'xxx',
-       'device_id': 'xxx',
-       'source': 'browser',
-   }
+`audio_data` 事件仅接收裸二进制：bytes / bytearray / memoryview。
 """
 
-from dataclasses import dataclass
 from typing import Callable, Optional, Any
 import socketio
 from utils.logger import setup_logger
 
 logger = setup_logger('remote_call')
-
-
-@dataclass
-class AudioPacket:
-    """结构化音频包，便于记录 metadata 和后续扩展。"""
-
-    audio: bytes
-    mime_type: str = "application/octet-stream"
-    timestamp: int = 0
-    session_id: str = ""
-    device_id: str = ""
-    source: str = ""
 
 
 class RemoteCallClient:
@@ -74,23 +52,19 @@ class RemoteCallClient:
         @self._sio.event
         def audio_data(data):
             try:
-                packet = self._parse_audio_packet(data)
-                if not packet:
+                audio = self._parse_audio_bytes(data)
+                if not audio:
                     return
 
                 self._packet_count += 1
                 if self._packet_count == 1 or self._packet_count % 50 == 0:
                     logger.info(
-                        "接收音频包: #%s size=%sB mime=%s session=%s source=%s ts=%s",
+                        "接收音频包: #%s size=%sB",
                         self._packet_count,
-                        len(packet.audio),
-                        packet.mime_type,
-                        packet.session_id or '-',
-                        packet.source or '-',
-                        packet.timestamp,
+                        len(audio),
                     )
 
-                self._on_audio_packet(packet.audio)
+                self._on_audio_packet(audio)
             except Exception as exc:
                 logger.error(f"处理音频数据失败: {exc}")
 
@@ -144,45 +118,13 @@ class RemoteCallClient:
     def is_connected(self) -> bool:
         return self._connected
 
-    def _parse_audio_packet(self, data: Any) -> Optional[AudioPacket]:
+    def _parse_audio_bytes(self, data: Any) -> Optional[bytes]:
         if data is None:
             return None
 
         if isinstance(data, (bytes, bytearray, memoryview)):
             audio = bytes(data)
-            return AudioPacket(audio=audio) if audio else None
-
-        if isinstance(data, dict):
-            audio = self._extract_audio_bytes(data.get('audio'))
-            if not audio:
-                logger.debug(
-                    "audio_data 缺少有效音频字段: keys=%s",
-                    list(data.keys()),
-                )
-                return None
-
-            return AudioPacket(
-                audio=audio,
-                mime_type=str(data.get('mime_type') or 'application/octet-stream'),
-                timestamp=self._safe_int(data.get('timestamp')),
-                session_id=str(data.get('session_id') or ''),
-                device_id=str(data.get('device_id') or ''),
-                source=str(data.get('source') or ''),
-            )
-
-        logger.debug(f"未知音频数据格式: {type(data)}")
-        return None
-
-    @staticmethod
-    def _extract_audio_bytes(audio_field: Any) -> Optional[bytes]:
-        if isinstance(audio_field, (bytes, bytearray, memoryview)):
-            audio = bytes(audio_field)
             return audio if audio else None
-        return None
 
-    @staticmethod
-    def _safe_int(value: Any) -> int:
-        try:
-            return int(value)
-        except (TypeError, ValueError):
-            return 0
+        logger.debug("audio_data 非裸二进制格式: %s", type(data))
+        return None
