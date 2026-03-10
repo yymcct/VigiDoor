@@ -141,3 +141,123 @@ def send_device_command(device_id: str, message_data: Dict[str, Any]) -> Dict[st
         error_msg = f"命令下发异常: {e}"
         logger.exception(error_msg)
         return {"success": False, "error": error_msg}
+
+
+def send_audio_command(
+    device_id: str,
+    action: str,
+    params: Optional[Dict[str, Any]] = None,
+    namespace: str = "vigidoor",
+) -> Dict[str, Any]:
+    """
+    通过华为云 IoTDA 下发远程喊话音频控制命令。
+
+    Topic:
+        {namespace}/down/{device_id}/command/audio
+
+    消息体格式:
+    {
+        "device_id": "device123",
+        "version": "1.0",
+        "msg_id": "uuid",
+        "timestamp": 1719999999999,
+        "data": {
+            "action": "initiate_call | terminate_call",
+            "params": {...}
+        }
+    }
+    """
+    client = get_iotda_client()
+    if not client:
+        return {"success": False, "error": "IoTDA 客户端未初始化"}
+
+    msg_id = str(uuid.uuid4())
+    timestamp = int(time.time() * 1000)
+    topic_full_name = f"{namespace}/down/{device_id}/command/audio"
+
+    full_message = {
+        "device_id": device_id,
+        "version": "1.0",
+        "msg_id": msg_id,
+        "timestamp": timestamp,
+        "data": {
+            "action": action,
+            "params": params or {},
+        },
+    }
+
+    try:
+        logger.info(f"下发音频命令到设备: {device_id}, action={action}")
+        logger.debug(f"Topic: {topic_full_name}")
+        logger.debug(f"Message: {json.dumps(full_message, ensure_ascii=False, indent=2)}")
+
+        req = CreateMessageRequest()
+        req.device_id = device_id
+        req.body = DeviceMessageRequest(
+            topic_full_name=topic_full_name,
+            message=json.dumps(full_message, ensure_ascii=False),
+            name="AudioControl",
+            message_id=msg_id,
+        )
+
+        response = client.create_message(req)
+
+        logger.info(f"音频命令下发成功: message_id={msg_id}, action={action}")
+        return {
+            "success": True,
+            "msg_id": msg_id,
+            "timestamp": timestamp,
+            "topic": topic_full_name,
+            "action": action,
+            "response": {
+                "message_id": getattr(response, "message_id", msg_id),
+                "status": getattr(response, "status", "sent"),
+            },
+        }
+
+    except exceptions.ClientRequestException as e:
+        error_msg = f"IoTDA API 错误: {e.status_code}"
+        logger.error(f"{error_msg} - {e.error_code}: {e.error_msg}")
+        return {
+            "success": False,
+            "error": error_msg,
+            "error_code": e.error_code,
+            "error_msg": e.error_msg,
+            "request_id": e.request_id,
+        }
+
+    except Exception as e:
+        error_msg = f"音频命令下发异常: {e}"
+        logger.exception(error_msg)
+        return {"success": False, "error": error_msg}
+
+
+def start_remote_talk(device_id: str, ws_url: str, namespace: str = "vigidoor") -> Dict[str, Any]:
+    """
+    开始远程喊话。
+
+    data.action 固定为 initiate_call，params.url 为设备需连接的 WebSocket 地址。
+    """
+    if not ws_url:
+        return {"success": False, "error": "ws_url 不能为空"}
+
+    return send_audio_command(
+        device_id=device_id,
+        action="initiate_call",
+        params={"websocket_url": ws_url},
+        namespace=namespace,
+    )
+
+
+def stop_remote_talk(device_id: str, namespace: str = "vigidoor") -> Dict[str, Any]:
+    """
+    结束远程喊话。
+
+    data.action 固定为 terminate_call，params 为空对象。
+    """
+    return send_audio_command(
+        device_id=device_id,
+        action="terminate_call",
+        params={},
+        namespace=namespace,
+    )
