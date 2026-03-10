@@ -4,8 +4,8 @@ python-dotenv==1.0.0
 requests==2.31.0
 
 # WebSocket 支持
-flask-socketio==5.3.6
-python-socketio==5.11.1
+flask-socketio==5.6.1
+python-socketio==5.16.1
 gevent==24.2.1
 gevent-websocket==0.10.1
 

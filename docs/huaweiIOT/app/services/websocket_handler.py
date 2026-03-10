@@ -25,6 +25,8 @@ def init_socketio(app):
         app,
         cors_allowed_origins="*",  # 生产环境建议配置具体域名
         async_mode='gevent',       # 使用 gevent 异步模式
+        # Flask 3.x 下禁用 SocketIO 的会话托管，避免 RequestContext.session 赋值报错
+        manage_session=False,
         logger=False,
         engineio_logger=False,
         ping_timeout=60,
@@ -37,7 +39,7 @@ def init_socketio(app):
     # 启动后台任务
     socketio.start_background_task(cleanup_expired_sessions_task)
     
-    logger.info("SocketIO 初始化完成")
+    logger.info("SocketIO 初始化完成: async_mode=%s", socketio.async_mode)
     return socketio
 
 
@@ -280,11 +282,10 @@ def cleanup_expired_sessions_task():
     """
     后台任务：定期清理超时会话
     """
-    import time
-    
     while True:
         try:
-            time.sleep(30)  # 每30秒检查一次
+            # 在 gevent/eventlet 模式下必须使用 socketio.sleep，避免阻塞事件循环
+            socketio.sleep(30)  # 每30秒检查一次
             
             timeout = Config.WS_SESSION_TIMEOUT
             cleaned = session_manager.cleanup_expired_sessions(timeout)

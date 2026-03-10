@@ -4,8 +4,8 @@
 """
 import logging
 from flask import Blueprint, request, jsonify
-from app.services.voice_session import session_manager, SessionStatus
-from app.services.iotda import send_device_command
+from app.services.voice_session import session_manager
+from app.services.iotda import start_remote_talk, stop_remote_talk
 from app.config import Config
 
 logger = logging.getLogger(__name__)
@@ -20,7 +20,7 @@ def initiate_call():
     
     请求体:
     {
-        "device_id": "VIGIDOOR_xxx_RPI"
+        "device_id": "VIGIDOOR_xxx_RPI",
     }
     
     响应:
@@ -53,21 +53,20 @@ def initiate_call():
         # 创建会话
         session = session_manager.create_session(device_id)
         
-        # 通过 IoTDA 通知设备连接 WebSocket
-        command_data = {
-            "action": "connect_websocket",
-            "session_id": session.session_id,
-            "device_id": device_id,
-        }
+        # 通过 IoTDA 通知设备开始远程喊话（initiate_call）
+        ws_url = Config.WS_URL
+        if not ws_url:
+            ws_scheme = "wss" if request.scheme == "https" else "ws"
+            ws_url = f"{ws_scheme}://{request.host}"
         
         device_notified = False
         iotda_msg_id = None
         
-        result = send_device_command(device_id=device_id, message_data=command_data)
+        result = start_remote_talk(device_id=device_id, ws_url=ws_url)
         if result.get("success"):
             device_notified = True
             iotda_msg_id = result.get("msg_id")
-            logger.info(f"已通过 IoTDA 通知设备 {device_id} 连接 WebSocket")
+            logger.info(f"已通过 IoTDA 通知设备 {device_id} 开始远程喊话")
         else:
             logger.warning(f"通知设备 {device_id} 失败: {result.get('error')}")
         
@@ -75,6 +74,7 @@ def initiate_call():
             "success": True,
             "session_id": session.session_id,
             "message": "语音呼叫已发起，请浏览器端连接 WebSocket",
+            "websocket_url": ws_url,
             "device_notified": device_notified,
             "iotda_msg_id": iotda_msg_id,
         }), 200
@@ -111,7 +111,18 @@ def terminate_call():
                 "error": f"会话 {session_id} 不存在"
             }), 404
         
-        # 通知设备断开（可选）
+        # 通过 IoTDA 通知设备结束远程喊话（terminate_call）
+        iotda_terminated = False
+        iotda_msg_id = None
+        result = stop_remote_talk(device_id=session.device_id)
+        if result.get("success"):
+            iotda_terminated = True
+            iotda_msg_id = result.get("msg_id")
+            logger.info(f"已通过 IoTDA 通知设备 {session.device_id} 结束远程喊话")
+        else:
+            logger.warning(f"通知设备 {session.device_id} 结束远程喊话失败: {result.get('error')}")
+
+        # 通知设备 WebSocket 断开（可选）
         if session.device_sid:
             from app.services.websocket_handler import socketio
             if socketio:
@@ -126,7 +137,9 @@ def terminate_call():
         
         return jsonify({
             "success": True,
-            "message": f"会话 {session_id} 已终止"
+            "message": f"会话 {session_id} 已终止",
+            "device_notified": iotda_terminated,
+            "iotda_msg_id": iotda_msg_id,
         }), 200
     
     except Exception as e:

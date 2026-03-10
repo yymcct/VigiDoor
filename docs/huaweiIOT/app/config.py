@@ -52,6 +52,9 @@ class Config:
     # 允许的最大并发语音会话数
     MAX_CONCURRENT_SESSIONS: int = int(os.getenv("MAX_CONCURRENT_SESSIONS", "100"))
 
+    # WebSocket 服务地址（为空则自动根据请求生成）
+    WS_URL: str = os.getenv("WS_URL", "")
+
     # ==================== 日志 ====================
     # 日志文件路径，留空则只输出到控制台
     LOG_FILE: str = os.getenv("LOG_FILE", "logs/app.log")
