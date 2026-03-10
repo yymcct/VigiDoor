@@ -13,5 +13,6 @@ if [ -d ".venv" ]; then
 fi
 
 # 直接运行 supervisor
+clear
 echo "启动 Supervisor..."
 python3 supervisor.py
