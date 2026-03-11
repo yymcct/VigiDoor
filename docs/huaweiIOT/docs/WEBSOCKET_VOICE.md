@@ -291,7 +291,7 @@ socket.on('error', (data) => {
       
       if (result.success) {
         // 2. 连接 WebSocket
-        socket = io('http://localhost:5002');
+        socket = io('http://localhost:5002', { path: '/ws' });
         
         socket.on('connect', () => {
           console.log('WebSocket 已连接');
@@ -398,7 +398,7 @@ def disconnect():
     print("WebSocket 已断开")
 
 # 连接到服务器
-sio.connect('http://server-ip:5002')
+sio.connect('http://server-ip:5002', socketio_path='ws')
 
 # 发送音频数据
 def send_audio(audio_data):

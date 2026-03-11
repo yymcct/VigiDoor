@@ -134,7 +134,7 @@ class VoiceClient:
             self.sio.disconnect()
     
     def connect(self):
-        self.sio.connect(self.server_url)
+      self.sio.connect(self.server_url, socketio_path='ws')
     
     def start_audio_capture(self):
         # 配置音频参数
@@ -237,7 +237,7 @@ class VoiceCallManager {
     }
     
     // 2. 连接 WebSocket
-    this.socket = io(this.serverUrl);
+    this.socket = io(this.serverUrl, { path: '/ws' });
     
     this.socket.on('connect', () => {
       console.log('WebSocket 已连接');

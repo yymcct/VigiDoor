@@ -21,10 +21,14 @@ socketio = None
 def init_socketio(app):
     """初始化 SocketIO"""
     global socketio
+
+    # Flask-SocketIO 接收不带前导斜杠的 path，客户端使用 /ws 连接
+
     socketio = SocketIO(
         app,
         cors_allowed_origins="*",  # 生产环境建议配置具体域名
         async_mode='gevent',       # 使用 gevent 异步模式
+        path="ws",
         # Flask 3.x 下禁用 SocketIO 的会话托管，避免 RequestContext.session 赋值报错
         manage_session=False,
         logger=False,
@@ -39,7 +43,9 @@ def init_socketio(app):
     # 启动后台任务
     socketio.start_background_task(cleanup_expired_sessions_task)
     
-    logger.info("SocketIO 初始化完成: async_mode=%s", socketio.async_mode)
+    logger.info(
+        "SocketIO 初始化完成"
+    )
     return socketio
 
 

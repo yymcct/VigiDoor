@@ -63,7 +63,7 @@ python main.py
 
 服务启动后，访问：
 - REST API: `http://localhost:5002/vigidoor/api/v1/`
-- WebSocket: `ws://localhost:5002`
+- WebSocket: `ws://localhost:5002/ws`
 - 健康检查: `http://localhost:5002/vigidoor/health`
 
 ### Docker 部署（推荐）

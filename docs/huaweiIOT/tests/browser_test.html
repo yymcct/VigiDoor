@@ -288,7 +288,7 @@
                 log('📡 正在发起呼叫请求...');
                 setStatus('正在呼叫...', 'calling');
                 
-                const response = await fetch(`${serverUrl}/api/v1/voice/call/initiate`, {
+                const response = await fetch(`${serverUrl}/vigidoor/api/v1/voice/call/initiate`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ device_id: deviceId })
@@ -309,7 +309,7 @@
                 
                 // 2. 连接 WebSocket
                 log('🔌 正在连接 WebSocket...');
-                socket = io(serverUrl);
+                socket = io(serverUrl, { path: '/ws' });
                 
                 socket.on('connect', () => {
                     log('✅ WebSocket 已连接');

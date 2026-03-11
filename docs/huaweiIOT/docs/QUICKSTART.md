@@ -305,7 +305,7 @@ curl -X POST http://localhost:5002/vigidoor/api/v1/voice/call/terminate \
         
         // 2. 连接 WebSocket
         log('连接 WebSocket...');
-        socket = io('http://localhost:5002');
+        socket = io('http://localhost:5002', { path: '/ws' });
         
         socket.on('connect', () => {
           log('WebSocket 已连接');
