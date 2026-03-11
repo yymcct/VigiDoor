@@ -18,6 +18,9 @@ numpy<2
 
 # 音频处理
 sounddevice>=0.4.7  # 麦克风/喇叭
+python-socketio>=5.11.2  # 远程喊话 WebSocket
+websocket-client>=1.7.0  # socketio 传输
+opuslib>=3.0.1  # Opus 解码
 
 tflite-runtime==2.14.0 # YamNet 音频异常检测
 scipy>=1.11.0  # 音频分析

@@ -14,6 +14,8 @@ from .baseline_monitor import EnvironmentBaselineMonitor
 from .volume_monitor import VolumeAnomalyDetector, AlarmLevel
 from .detector import AudioAnomalyDetector
 from .player import AudioPlayer
+from .remote_call import RemoteCallClient
+from .stream_player import StreamAudioPlayer
 
 logger = setup_logger('audio_process')
 
@@ -87,6 +89,8 @@ class AudioProcess:
         self.anomaly_detector = None
         self.yamnet_detector = None
         self.player = None
+        self.remote_call = None
+        self.stream_player = None
         
         logger.info(f"音频处理进程初始化完成")
         logger.info(f"  基线学习窗口: {self.learning_window_minutes} 分钟")
@@ -181,8 +185,12 @@ class AudioProcess:
             
             # 5. 初始化音频播放器
             self.player = AudioPlayer()
+
+            # 6. 初始化远程喊话组件
+            self.stream_player = StreamAudioPlayer(sample_rate=16000, channels=1, max_frame_size=320)
+            self.remote_call = RemoteCallClient(on_audio_packet=self._handle_call_audio)
             
-            # 6. 注册回调
+            # 7. 注册回调
             self.capture_manager.register_callback(self._on_audio_chunk)
             
             logger.info("✅ 所有组件初始化完成")
@@ -303,6 +311,14 @@ class AudioProcess:
         if msg_type == MessageType.CMD_PLAY_AUDIO.value:
             logger.info("🔊 收到远程喊话指令")
             self._handle_play_audio(msg_data)
+
+        elif msg_type == MessageType.CMD_INITIATE_CALL.value:
+            logger.info("📞 收到远程喊话建立指令")
+            self._handle_initiate_call(msg_data)
+
+        elif msg_type == MessageType.CMD_TERMINATE_CALL.value:
+            logger.info("📞 收到远程喊话结束指令")
+            self._handle_terminate_call()
         
         elif msg_type == MessageType.SHUTDOWN.value:
             logger.info("收到关闭信号")
@@ -326,6 +342,40 @@ class AudioProcess:
                 
         except Exception as e:
             logger.error(f"播放音频失败: {e}")
+
+    def _handle_initiate_call(self, data: dict):
+        """处理建立远程喊话"""
+        websocket_url = data.get('websocket_url')
+        device_id = self.config_manager.device.id
+
+        if not self.stream_player:
+            logger.error("远程喊话播放器未初始化")
+            return
+
+        if not self.stream_player.start():
+            logger.error("远程喊话播放器启动失败")
+            return
+
+        if not self.remote_call:
+            logger.error("远程喊话客户端未初始化")
+            self.stream_player.stop()
+            return
+
+        if not self.remote_call.connect(websocket_url, device_id=device_id):
+            self.stream_player.stop()
+
+    def _handle_terminate_call(self):
+        """处理结束远程喊话"""
+        if self.remote_call:
+            self.remote_call.disconnect()
+        if self.stream_player:
+            self.stream_player.stop()
+
+    def _handle_call_audio(self, audio_packet: bytes):
+        """处理远程喊话音频包"""
+        if not self.stream_player:
+            return
+        self.stream_player.enqueue_opus(audio_packet)
     
     def _print_statistics(self):
         """打印统计信息"""
@@ -388,6 +438,12 @@ class AudioProcess:
             
             if self.player:
                 self.player.stop()
+
+            if self.remote_call:
+                self.remote_call.disconnect()
+
+            if self.stream_player:
+                self.stream_player.stop()
                 
         except Exception as e:
             logger.error(f"清理资源失败: {e}")

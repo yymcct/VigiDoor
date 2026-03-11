@@ -27,8 +27,8 @@ class MessageType(str, Enum):
     # ========== 音频相关消息 ==========
     AUDIO_ANOMALY = "audio_anomaly"               # 音频异常事件（玻璃破碎、呼救等）
     AUDIO_VOLUME_HIGH = "audio_volume_high"       # 音量过高
-    CMD_START_AUDIO = "cmd_start_audio"           # 开始音频采集
-    CMD_STOP_AUDIO = "cmd_stop_audio"             # 停止音频采集
+    CMD_INITIATE_CALL = "cmd_initiate_call"           # 开始远程喊话
+    CMD_TERMINATE_CALL = "cmd_terminate_call"             # 停止远程喊话
     
     # ========== 帧数据消息 ==========
     FRAME_READY = "frame_ready"             # 新帧就绪通知
