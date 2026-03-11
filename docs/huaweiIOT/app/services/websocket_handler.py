@@ -28,7 +28,7 @@ def init_socketio(app):
         app,
         cors_allowed_origins="*",  # 生产环境建议配置具体域名
         async_mode='gevent',       # 使用 gevent 异步模式
-        path="ws",
+        path="/ws",
         # Flask 3.x 下禁用 SocketIO 的会话托管，避免 RequestContext.session 赋值报错
         manage_session=False,
         logger=False,

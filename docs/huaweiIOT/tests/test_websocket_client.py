@@ -118,7 +118,7 @@ def test_scenario_1():
     """
     print("\n========== 测试场景1：正常通话流程 ==========\n")
     
-    server_url = "http://localhost:5002"
+    server_url = "http://localhost:5002/ws"
     device_id = "VIGIDOOR_TEST_RPI"
     
     # 1. 创建浏览器客户端
@@ -221,7 +221,7 @@ if __name__ == "__main__":
             sys.exit(1)
         
         device_id = sys.argv[2]
-        server_url = "http://localhost:5002"
+        server_url = "http://localhost:5002/ws"
         
         client = TestClient(server_url, command, device_id)
         
