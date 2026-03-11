@@ -41,7 +41,7 @@
 └──────┬───────┘                                        └──────┬───────┘
        │                                                       │
        │ ① HTTP POST                                          │
-       │ /api/v1/voice/call/initiate                          │
+       │ /vigidoor/api/v1/voice/call/initiate                          │
        │                                                       │
        ▼                                                       │
 ┌─────────────────────────────────────────────────────┐       │

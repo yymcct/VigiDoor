@@ -1,6 +1,13 @@
-# huaweiIOT 转发平台
+# 项目简介
 
-华为云 IoT 推流控制服务，提供 RESTful API 接口，通过华为云 IoTDA 服务向设备发送推流控制命令。
+本项目是一个基于华为云 IoTDA 的推流控制与语音中继平台，支持设备远程推流管理、ZLMediaKit Webhook 按需推流、RESTful API、以及浏览器与树莓派的实时语音通话。平台采用分层架构，核心功能包括：
+
+设备推流控制：通过 IoTDA 下发指令，远程控制设备推流的开始与停止。
+Webhook 按需推流：集成 ZLMediaKit，实现无人观看自动停流，节省资源。
+RESTful API：提供标准接口，便于集成与扩展。
+WebSocket 语音中继：支持浏览器与设备间的双向实时音频通信，动态会话管理，智能路由，心跳保活。
+Docker 容器化部署：一键部署，易于运维。
+健康检查与日志：完善的健康检查接口和日志记录，保障服务稳定运行。
 
 ## 功能特性
 
@@ -55,9 +62,9 @@ python main.py
 ```
 
 服务启动后，访问：
-- REST API: `http://localhost:5002/api/v1/`
+- REST API: `http://localhost:5002/vigidoor/api/v1/`
 - WebSocket: `ws://localhost:5002`
-- 健康检查: `http://localhost:5002/health`
+- 健康检查: `http://localhost:5002/vigidoor/health`
 
 ### Docker 部署（推荐）
 

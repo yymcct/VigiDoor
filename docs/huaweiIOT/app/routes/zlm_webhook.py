@@ -5,8 +5,8 @@ ZLMediaKit Webhook 处理器
   - on_stream_none_reader → 流已存在但无任何观看者  → 向设备下发推流停止指令
 
 ZLM 配置 (zlmediakit.ini):
-  on_stream_not_found=http://<本服务地址>/index/hook/on_stream_not_found
-  on_stream_none_reader=http://<本服务地址>/index/hook/on_stream_none_reader
+    on_stream_not_found=http://<本服务地址>/vigidoor/index/hook/on_stream_not_found
+    on_stream_none_reader=http://<本服务地址>/vigidoor/index/hook/on_stream_none_reader
 
 约定:
   ZLM 的 stream 字段即为目标设备的 device_id

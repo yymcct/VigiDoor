@@ -297,17 +297,17 @@ MAX_CONCURRENT_SESSIONS=100
 ## 📝 API 端点汇总
 
 ### 现有 API
-- `GET  /health` - 健康检查
-- `POST /api/v1/stream/start` - 开始推流
-- `POST /api/v1/stream/stop` - 停止推流
-- `POST /index/hook/on_stream_not_found` - ZLM Webhook
-- `POST /index/hook/on_stream_none_reader` - ZLM Webhook
+- `GET  /vigidoor/health` - 健康检查
+- `POST /vigidoor/api/v1/stream/start` - 开始推流
+- `POST /vigidoor/api/v1/stream/stop` - 停止推流
+- `POST /vigidoor/index/hook/on_stream_not_found` - ZLM Webhook
+- `POST /vigidoor/index/hook/on_stream_none_reader` - ZLM Webhook
 
 ### 新增 API ✨
-- `POST /api/v1/voice/call/initiate` - 发起语音呼叫
-- `POST /api/v1/voice/call/terminate` - 终止呼叫
-- `GET  /api/v1/voice/call/status/<id>` - 查询会话状态
-- `GET  /api/v1/voice/sessions` - 列出所有会话
+- `POST /vigidoor/api/v1/voice/call/initiate` - 发起语音呼叫
+- `POST /vigidoor/api/v1/voice/call/terminate` - 终止呼叫
+- `GET  /vigidoor/api/v1/voice/call/status/<id>` - 查询会话状态
+- `GET  /vigidoor/api/v1/voice/sessions` - 列出所有会话
 
 ### WebSocket 端点 ✨
 - `ws://server:5002` - Socket.IO WebSocket 连接

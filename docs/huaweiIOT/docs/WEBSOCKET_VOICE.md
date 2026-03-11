@@ -11,7 +11,7 @@ WebSocket 语音中继器实现了浏览器和树莓派设备之间的实时语�
 ```
 
 1. **发起呼叫**：用户在浏览器端按下呼叫按钮
-2. **REST API**：浏览器调用 `/api/v1/voice/call/initiate` 接口
+2. **REST API**：浏览器调用 `/vigidoor/api/v1/voice/call/initiate` 接口
 3. **通知设备**：服务器通过华为云 IoTDA (MQTT) 通知树莓派
 4. **建立连接**：浏览器和树莓派都连接到 WebSocket
 5. **音频转发**：服务器在双方之间转发音频数据
@@ -47,7 +47,7 @@ WebSocket 语音中继器实现了浏览器和树莓派设备之间的实时语�
 
 **请求**
 ```http
-POST /api/v1/voice/call/initiate
+POST /vigidoor/api/v1/voice/call/initiate
 Content-Type: application/json
 
 {
@@ -70,7 +70,7 @@ Content-Type: application/json
 
 **请求**
 ```http
-GET /api/v1/voice/call/status/{session_id}
+GET /vigidoor/api/v1/voice/call/status/{session_id}
 ```
 
 **响应**
@@ -93,7 +93,7 @@ GET /api/v1/voice/call/status/{session_id}
 
 **请求**
 ```http
-POST /api/v1/voice/call/terminate
+POST /vigidoor/api/v1/voice/call/terminate
 Content-Type: application/json
 
 {
@@ -113,7 +113,7 @@ Content-Type: application/json
 
 **请求**
 ```http
-GET /api/v1/voice/sessions
+GET /vigidoor/api/v1/voice/sessions
 ```
 
 **响应**
@@ -281,7 +281,7 @@ socket.on('error', (data) => {
     // 发起呼叫
     document.getElementById('callBtn').onclick = async () => {
       // 1. 调用 REST API 发起呼叫
-      const response = await fetch('http://localhost:5002/api/v1/voice/call/initiate', {
+      const response = await fetch('http://localhost:5002/vigidoor/api/v1/voice/call/initiate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ device_id: deviceId })

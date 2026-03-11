@@ -224,7 +224,7 @@ class VoiceCallManager {
   
   async initiateCall() {
     // 1. 调用 REST API 发起呼叫
-    const response = await fetch(`${this.serverUrl}/api/v1/voice/call/initiate`, {
+    const response = await fetch(`${this.serverUrl}/vigidoor/api/v1/voice/call/initiate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ device_id: this.deviceId })

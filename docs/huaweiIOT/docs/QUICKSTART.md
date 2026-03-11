@@ -96,7 +96,7 @@ docker-compose up -d
 ### 1. 健康检查
 
 ```bash
-curl http://localhost:5002/health
+curl http://localhost:5002/vigidoor/health
 ```
 
 预期响应：
@@ -110,7 +110,7 @@ curl http://localhost:5002/health
 ### 2. 查看会话列表
 
 ```bash
-curl http://localhost:5002/api/v1/voice/sessions
+curl http://localhost:5002/vigidoor/api/v1/voice/sessions
 ```
 
 预期响应（初始为空）：
@@ -221,18 +221,18 @@ tail -f logs/app.log
 
 ```bash
 # 1. 发起呼叫
-curl -X POST http://localhost:5002/api/v1/voice/call/initiate \
+curl -X POST http://localhost:5002/vigidoor/api/v1/voice/call/initiate \
   -H "Content-Type: application/json" \
   -d '{"device_id": "VIGIDOOR_002_RPI"}'
 
 # 2. 查询会话状态
-curl http://localhost:5002/api/v1/voice/call/status/VIGIDOOR_002_RPI
+curl http://localhost:5002/vigidoor/api/v1/voice/call/status/VIGIDOOR_002_RPI
 
 # 3. 列出所有会话
-curl http://localhost:5002/api/v1/voice/sessions
+curl http://localhost:5002/vigidoor/api/v1/voice/sessions
 
 # 4. 终止呼叫
-curl -X POST http://localhost:5002/api/v1/voice/call/terminate \
+curl -X POST http://localhost:5002/vigidoor/api/v1/voice/call/terminate \
   -H "Content-Type: application/json" \
   -d '{"session_id": "VIGIDOOR_002_RPI"}'
 ```
@@ -289,7 +289,7 @@ curl -X POST http://localhost:5002/api/v1/voice/call/terminate \
       try {
         // 1. 调用 REST API 发起呼叫
         log('发起呼叫请求...');
-        const response = await fetch('http://localhost:5002/api/v1/voice/call/initiate', {
+        const response = await fetch('http://localhost:5002/vigidoor/api/v1/voice/call/initiate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ device_id: deviceId })
@@ -485,7 +485,7 @@ tail -f logs/app.log | grep "ERROR\|WARNING"
 
 ```bash
 # 查看当前活跃会话
-curl http://localhost:5002/api/v1/voice/sessions | python -m json.tool
+curl http://localhost:5002/vigidoor/api/v1/voice/sessions | python -m json.tool
 ```
 
 ---
