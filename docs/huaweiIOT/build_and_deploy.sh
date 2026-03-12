@@ -16,7 +16,7 @@ NC='\033[0m' # No Color
 # 配置区
 IMAGE_NAME="huawei-iot-cmd-service"
 REGISTRY_URL="${DOCKER_REGISTRY:-yymcct}"  # 可通过环境变量指定镜像仓库地址
-VERSION="${VERSION:-v1.1.0}"         # 可通过环境变量指定版本号
+VERSION="${VERSION:-v1.2.0}"         # 可通过环境变量指定版本号
 
 # 自动生成版本号（基于日期和 git commit）
 if [ "$VERSION" = "latest" ]; then

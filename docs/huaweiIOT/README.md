@@ -38,7 +38,7 @@ Docker 容器化部署：一键部署，易于运维。
 ### 本地运行
 
 ```
-python3 -m venv .venv
+python3.12 -m venv .venv
 
 source .venv/bin/activate
 ```
