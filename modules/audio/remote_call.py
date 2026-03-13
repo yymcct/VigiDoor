@@ -21,7 +21,8 @@ class RemoteCallClient:
 
     def __init__(self, on_audio_packet: Callable[[bytes], None]):
         self._on_audio_packet = on_audio_packet
-        self._sio = socketio.Client(logger=False, engineio_logger=False)
+        # TODO ssl_verify
+        self._sio = socketio.Client(logger=False, engineio_logger=False,ssl_verify=False)
         self._connected = False
         self._packet_count = 0
         self._register_events()
