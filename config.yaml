@@ -155,12 +155,12 @@ ai_detector:
   model_path: "models/yolo11n-pose.pt"
   confidence_threshold: 0.5
   target_classes: [0]  # 0=person
-  detect_interval: 8  # 默认检测间隔（帧）
+  detect_interval: 15  # 默认检测间隔（帧）
   
   # 跳帧策略（根据系统状态动态调整）
-  safe_interval: 8     # 安全状态：每8帧检测一次
-  alert_interval: 3    # 警戒状态：每3帧检测一次
-  alarm_interval: 1    # 报警状态：每帧都检测
+  safe_interval: 15     # 安全状态：每8帧检测一次
+  alert_interval: 8    # 警戒状态：每3帧检测一次
+  alarm_interval: 10    # 报警状态：每帧都检测
   
   # 报警配置
   alarm_cooldown: 5.0  # 报警冷却时间（秒）

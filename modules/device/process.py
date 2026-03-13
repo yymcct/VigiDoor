@@ -199,7 +199,7 @@ class DeviceControllerProcess:
             new_mode: 新模式
         """
         logger.info(f"💡 切换模式: {old_mode.value} -> {new_mode.value}")
-        self._apply_mode_effect(new_mode)
+        #self._apply_mode_effect(new_mode)
 
     def _apply_mode_effect(self, mode: DeviceMode):
         """根据模式应用 LED 效果（启动时也可复用）"""
