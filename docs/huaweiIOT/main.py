@@ -3,6 +3,10 @@
 入口文件
 启动 Flask 推流控制服务
 """
+# gevent 猴子补丁必须在所有其他 import 之前执行
+import gevent.monkey
+gevent.monkey.patch_all()
+
 import logging
 import os
 from logging.handlers import RotatingFileHandler

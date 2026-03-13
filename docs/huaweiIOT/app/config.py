@@ -29,7 +29,7 @@ class Config:
     ZLM_SERVER: str = os.getenv("ZLM_SERVER", "zlm-server")
     ZLM_RTMP_PORT: int = int(os.getenv("ZLM_RTMP_PORT", "1935"))
 
-    # 默认 RTMP 推流地址模板（外部调用 /api/v1/stream/start 时使用）
+    # 默认 RTMP 推流地址模板（外部调用 /vigidoor/api/v1/stream/start 时使用）
     DEFAULT_RTMP_URL_TEMPLATE: str = os.getenv(
         "RTMP_URL_TEMPLATE",
         "rtmp://zlm-server:1935/live/{device_id}"

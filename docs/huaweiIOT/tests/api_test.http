@@ -11,7 +11,7 @@
 # ============================================================
 
 ### 健康检查
-GET {{baseUrl}}/health
+GET {{baseUrl}}/vigidoor/health
 Accept: application/json
 
 
@@ -20,7 +20,7 @@ Accept: application/json
 # ============================================================
 
 ### 检查 IoTDA 配置是否有效
-GET {{baseUrl}}/api/v1/config/check
+GET {{baseUrl}}/vigidoor/api/v1/config/check
 Accept: application/json
 
 
@@ -29,7 +29,7 @@ Accept: application/json
 # ============================================================
 
 ### 开始推流（使用默认 RTMP URL 模板）
-POST {{baseUrl}}/api/v1/stream/start
+POST {{baseUrl}}/vigidoor/api/v1/stream/start
 Content-Type: application/json
 
 {
@@ -39,7 +39,7 @@ Content-Type: application/json
 ###
 
 ### 开始推流（自定义 RTMP URL）
-POST {{baseUrl}}/api/v1/stream/start
+POST {{baseUrl}}/vigidoor/api/v1/stream/start
 Content-Type: application/json
 
 {
@@ -54,7 +54,7 @@ Content-Type: application/json
 ###
 
 ### 停止推流
-POST {{baseUrl}}/api/v1/stream/stop
+POST {{baseUrl}}/vigidoor/api/v1/stream/stop
 Content-Type: application/json
 
 {
@@ -68,7 +68,7 @@ Content-Type: application/json
 
 ### [ZLM Webhook] on_stream_not_found
 ### 模拟：有拉流请求但流不存在 → 应触发设备开始推流
-POST {{baseUrl}}/index/hook/on_stream_not_found
+POST {{baseUrl}}/vigidoor/index/hook/on_stream_not_found
 Content-Type: application/json
 Tools: ZLMediaKit
 User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/57.0.2987.133 Safari/537.36
@@ -88,7 +88,7 @@ User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_1) AppleWebKit/537.36 (
 ###
 
 ### [ZLM Webhook] on_stream_not_found（RTMP 协议）
-POST {{baseUrl}}/index/hook/on_stream_not_found
+POST {{baseUrl}}/vigidoor/index/hook/on_stream_not_found
 Content-Type: application/json
 Tools: ZLMediaKit
 
@@ -108,7 +108,7 @@ Tools: ZLMediaKit
 
 ### [ZLM Webhook] on_stream_none_reader
 ### 模拟：流无人观看 → 应触发设备停止推流，ZLM 关闭该路流
-POST {{baseUrl}}/index/hook/on_stream_none_reader
+POST {{baseUrl}}/vigidoor/index/hook/on_stream_none_reader
 Content-Type: application/json
 Tools: ZLMediaKit
 User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/57.0.2987.133 Safari/537.36
@@ -124,7 +124,7 @@ User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_1) AppleWebKit/537.36 (
 ###
 
 ### [ZLM Webhook] on_stream_none_reader（RTSP 协议）
-POST {{baseUrl}}/index/hook/on_stream_none_reader
+POST {{baseUrl}}/vigidoor/index/hook/on_stream_none_reader
 Content-Type: application/json
 Tools: ZLMediaKit
 
@@ -142,7 +142,7 @@ Tools: ZLMediaKit
 # ============================================================
 
 ### 开始推流 - 缺少 device_id（期望 400）
-POST {{baseUrl}}/api/v1/stream/start
+POST {{baseUrl}}/vigidoor/api/v1/stream/start
 Content-Type: application/json
 
 {
@@ -152,7 +152,7 @@ Content-Type: application/json
 ###
 
 ### 停止推流 - 缺少 device_id（期望 400）
-POST {{baseUrl}}/api/v1/stream/stop
+POST {{baseUrl}}/vigidoor/api/v1/stream/stop
 Content-Type: application/json
 
 {}
@@ -160,7 +160,7 @@ Content-Type: application/json
 ###
 
 ### [ZLM Webhook] on_stream_not_found - 空 stream 字段（期望正常返回 200，但跳过命令下发）
-POST {{baseUrl}}/index/hook/on_stream_not_found
+POST {{baseUrl}}/vigidoor/index/hook/on_stream_not_found
 Content-Type: application/json
 
 {

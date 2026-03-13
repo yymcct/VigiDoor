@@ -134,7 +134,7 @@ class VoiceClient:
             self.sio.disconnect()
     
     def connect(self):
-        self.sio.connect(self.server_url)
+      self.sio.connect(self.server_url, socketio_path='ws')
     
     def start_audio_capture(self):
         # 配置音频参数
@@ -224,7 +224,7 @@ class VoiceCallManager {
   
   async initiateCall() {
     // 1. 调用 REST API 发起呼叫
-    const response = await fetch(`${this.serverUrl}/api/v1/voice/call/initiate`, {
+    const response = await fetch(`${this.serverUrl}/vigidoor/api/v1/voice/call/initiate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ device_id: this.deviceId })
@@ -237,7 +237,7 @@ class VoiceCallManager {
     }
     
     // 2. 连接 WebSocket
-    this.socket = io(this.serverUrl);
+    this.socket = io(this.serverUrl, { path: '/ws' });
     
     this.socket.on('connect', () => {
       console.log('WebSocket 已连接');

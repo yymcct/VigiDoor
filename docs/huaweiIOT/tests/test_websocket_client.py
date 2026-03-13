@@ -10,6 +10,8 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+SOCKETIO_PATH = "ws"
+
 
 class TestClient:
     """测试客户端"""
@@ -69,7 +71,7 @@ class TestClient:
     def connect(self):
         """连接到服务器"""
         logger.info(f"[{self.client_type}] 正在连接到 {self.server_url}...")
-        self.sio.connect(self.server_url)
+        self.sio.connect(self.server_url, socketio_path=SOCKETIO_PATH)
         time.sleep(0.5)
         
         # 加入会话
@@ -116,7 +118,7 @@ def test_scenario_1():
     """
     print("\n========== 测试场景1：正常通话流程 ==========\n")
     
-    server_url = "http://localhost:5002"
+    server_url = "http://localhost:5002/ws"
     device_id = "VIGIDOOR_TEST_RPI"
     
     # 1. 创建浏览器客户端
@@ -219,7 +221,7 @@ if __name__ == "__main__":
             sys.exit(1)
         
         device_id = sys.argv[2]
-        server_url = "http://localhost:5002"
+        server_url = "http://localhost:5002/ws"
         
         client = TestClient(server_url, command, device_id)
         

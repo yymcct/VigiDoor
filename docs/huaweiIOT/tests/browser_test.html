@@ -249,19 +249,6 @@
         let sentCount = 0;
         let recvCount = 0;
         
-        function log(message, type = 'info') {
-            const logContainer = document.getElementById('logContainer');
-            const time = new Date().toLocaleTimeString();
-            const logEntry = document.createElement('div');
-            logEntry.className = 'log-entry';
-            
-            const typeClass = type === 'error' ? 'log-error' : 
-                             type === 'warn' ? 'log-warn' : 'log-info';
-            
-            logEntry.innerHTML = `<span class="log-time">[${time}]</span> <span class="${typeClass}">${message}</span>`;
-            logContainer.appendChild(logEntry);
-            logContainer.scrollTop = logContainer.scrollHeight;
-        }
         
         function setStatus(status, className = 'disconnected') {
             const statusEl = document.getElementById('status');
@@ -279,40 +266,40 @@
             const deviceId = document.getElementById('deviceId').value;
             
             if (!serverUrl || !deviceId) {
-                alert('请填写服务器地址和设备ID');
+                console.log('请填写服务器地址和设备ID', 'warn');
+                setStatus('缺少信息', 'disconnected');
                 return;
             }
             
             try {
                 // 1. 调用 REST API 发起呼叫
-                log('📡 正在发起呼叫请求...');
+                console.log('📡 正在发起呼叫请求...');
                 setStatus('正在呼叫...', 'calling');
-                
-                const response = await fetch(`${serverUrl}/api/v1/voice/call/initiate`, {
+                   
+                const response = await fetch(`${serverUrl}/vigidoor/api/v1/voice/call/initiate`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ device_id: deviceId })
                 });
-                
+       
                 const result = await response.json();
                 
                 if (!result.success) {
-                    log(`❌ 呼叫失败: ${result.error}`, 'error');
+                    console.log(`❌ 呼叫失败: ${result.error}`, 'error');
                     setStatus('呼叫失败', 'disconnected');
-                    alert('发起呼叫失败: ' + result.error);
                     return;
                 }
-                
-                log(`✅ 呼叫请求成功，会话ID: ${result.session_id}`);
-                log(`📢 设备通知状态: ${result.device_notified ? '已通知' : '未通知'}`, 
+            
+                console.log(`✅ 呼叫请求成功，会话ID: ${result.session_id}`);
+                console.log(`📢 设备通知状态: ${result.device_notified ? '已通知' : '未通知'}`,
                     result.device_notified ? 'info' : 'warn');
-                
-                // 2. 连接 WebSocket
-                log('🔌 正在连接 WebSocket...');
-                socket = io(serverUrl);
+           
+                2. 连接 WebSocket
+                console.log('🔌 正在连接 WebSocket...');
+                socket = io(serverUrl, { path: websocket_url });
                 
                 socket.on('connect', () => {
-                    log('✅ WebSocket 已连接');
+                    console.log('✅ WebSocket 已连接');
                     setStatus('已连接 - 等待设备', 'calling');
                     
                     // 3. 加入会话
@@ -321,22 +308,22 @@
                         session_id: result.session_id
                     });
                     
-                    log(`📥 已发送 browser_join 事件`);
+                    console.log(`📥 已发送 browser_join 事件`);
                 });
                 
                 socket.on('server_ready', (data) => {
-                    log(`🖥️ 服务器就绪: ${data.message}`);
+                    console.log(`🖥️ 服务器就绪: ${data.message}`);
                 });
                 
                 socket.on('joined', (data) => {
-                    log(`🎯 已加入会话，角色: ${data.role}`);
+                    console.log(`🎯 已加入会话，角色: ${data.role}`);
                     if (data.waiting_for_device) {
-                        log('⏳ 等待设备连接...', 'warn');
+                        console.log('⏳ 等待设备连接...', 'warn');
                     }
                 });
                 
                 socket.on('call_established', (data) => {
-                    log('🎉 通话已建立！');
+                    console.log('🎉 通话已建立！');
                     setStatus('通话中', 'connected');
                     document.getElementById('callBtn').disabled = true;
                     document.getElementById('hangupBtn').disabled = false;
@@ -348,48 +335,47 @@
                 socket.on('audio_data', (data) => {
                     recvCount++;
                     updateStats();
-                    log(`🔊 收到音频数据 (时间戳: ${data.timestamp})`);
+                    console.log(`🔊 收到音频数据 (时间戳: ${data.timestamp})`);
                 });
                 
                 socket.on('peer_hangup', () => {
-                    log('📴 对方已挂断', 'warn');
+                    console.log('📴 对方已挂断', 'warn');
                     setStatus('对方已挂断', 'disconnected');
                     endCall();
                 });
                 
                 socket.on('peer_disconnected', () => {
-                    log('⚠️ 对方已断开连接', 'warn');
+                    console.log('⚠️ 对方已断开连接', 'warn');
                     setStatus('对方已断开', 'disconnected');
                 });
                 
                 socket.on('call_terminated', (data) => {
-                    log(`🚫 通话已终止: ${data.message}`, 'warn');
+                    console.log(`🚫 通话已终止: ${data.message}`, 'warn');
                     setStatus('通话已终止', 'disconnected');
                     endCall();
                 });
                 
                 socket.on('error', (data) => {
-                    log(`❌ 错误: ${data.message}`, 'error');
+                    console.log(`❌ 错误: ${data.message}`, 'error');
                     setStatus('错误', 'disconnected');
                 });
                 
                 socket.on('disconnect', () => {
-                    log('🔌 WebSocket 已断开');
+                    console.log('🔌 WebSocket 已断开');
                     setStatus('已断开', 'disconnected');
                     document.getElementById('callBtn').disabled = false;
                     document.getElementById('hangupBtn').disabled = true;
                 });
                 
             } catch (error) {
-                log(`❌ 异常: ${error.message}`, 'error');
+                console.log(`❌ 异常: ${error.message}`, 'error');
                 setStatus('异常', 'disconnected');
-                alert('发起呼叫异常: ' + error.message);
             }
         }
         
         function endCall() {
             if (socket) {
-                log('📴 正在挂断...');
+                console.log('📴 正在挂断...');
                 socket.emit('hangup');
                 socket.disconnect();
                 socket = null;
@@ -411,21 +397,13 @@
                     socket.emit('audio_data', testData);
                     sentCount++;
                     updateStats();
-                    log(`📤 已发送测试音频数据`);
+                    console.log(`📤 已发送测试音频数据`);
                 } else {
                     clearInterval(sendInterval);
                 }
             }, 2000);
         }
         
-        // 页面关闭时自动挂断
-        window.addEventListener('beforeunload', () => {
-            endCall();
-        });
-        
-        // 初始化日志
-        log('💡 提示: 请确保服务器已启动，并填写正确的服务器地址和设备ID', 'info');
-        log('💡 测试前请先启动设备端客户端: python tests/test_websocket_client.py device VIGIDOOR_TEST_RPI', 'info');
     </script>
 </body>
 </html>

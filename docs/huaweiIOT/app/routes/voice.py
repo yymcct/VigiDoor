@@ -3,6 +3,7 @@
 提供远程语音通话控制 API
 """
 import logging
+from urllib.parse import urlsplit, urlunsplit
 from flask import Blueprint, request, jsonify
 from app.services.voice_session import session_manager
 from app.services.iotda import start_remote_talk, stop_remote_talk
@@ -28,7 +29,7 @@ def initiate_call():
         "success": true,
         "session_id": "VIGIDOOR_xxx_RPI",
         "message": "语音呼叫已发起，等待设备响应",
-        "websocket_url": "ws://server:5002",
+        "websocket_url": "ws://server:5002/ws",
         "device_notified": true
     }
     """
@@ -53,11 +54,7 @@ def initiate_call():
         # 创建会话
         session = session_manager.create_session(device_id)
         
-        # 通过 IoTDA 通知设备开始远程喊话（initiate_call）
         ws_url = Config.WS_URL
-        if not ws_url:
-            ws_scheme = "wss" if request.scheme == "https" else "ws"
-            ws_url = f"{ws_scheme}://{request.host}"
         
         device_notified = False
         iotda_msg_id = None
