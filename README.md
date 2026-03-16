@@ -27,6 +27,8 @@ pip install -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/ --tru
 
 
 nohup python3 supervisor.py
+
+journalctl -u vigidoor -e
 ```
 
 ## 🚀 快速开始

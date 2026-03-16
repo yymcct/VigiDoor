@@ -6,6 +6,10 @@
 import struct
 import time
 from multiprocessing import shared_memory
+try:
+    from multiprocessing import resource_tracker
+except Exception:
+    resource_tracker = None
 import numpy as np
 from utils.logger import setup_logger
 
@@ -50,6 +54,7 @@ class SharedFrameBuffer:
         self.height = height
         self.frame_size = width * height * 3  # RGB
         self.name = name
+        self.is_owner = create
         
         # 计算总大小
         self.total_size = self.HEADER_SIZE + self.frame_size * self.BUFFER_COUNT
@@ -71,6 +76,10 @@ class SharedFrameBuffer:
                 # 读取者：打开已存在的共享内存
                 self.shm = shared_memory.SharedMemory(name=name)
                 logger.info(f"✅ 打开共享内存: {name}")
+
+                # 读取者不应由 resource_tracker 自动 unlink。
+                # 否则读取进程退出时可能把共享内存名称删除，导致新进程无法再连接。
+                self._disable_auto_unlink_tracking()
                 
         except FileExistsError:
             logger.warning(f"共享内存 {name} 已存在，尝试重新打开")
@@ -119,6 +128,25 @@ class SharedFrameBuffer:
             0, 0, 0, 0, 0, 0, 0, 0  # reserved (8个int)
         )
         self.shm.buf[:self.HEADER_SIZE] = header_data
+
+
+
+    # 系统采用 Python 的 multiprocessing.shared_memory 机制，camera 进程负责创建命名共享内存（如 vigidoor_frames），其他进程（如 stream_manager、ai_detector）作为“读取者”连接这个共享内存。
+    # Python 内部有一个 resource_tracker 机制，会自动跟踪所有共享内存对象，并在进程退出时尝试 unlink（删除）它们。
+    # 如果某个“读取者”进程（如 ai_detector 或 stream_manager）退出时，resource_tracker 会把它连接过的共享内存名称也 unlink 掉。这样，虽然 camera 进程还在，但共享内存的名字已经被删除，新的进程无法再通过名字连接。
+    # 这就是 stream_manager 报“连接超时”的根本原因：共享内存名字被 resource_tracker 错误地删除了。
+    def _disable_auto_unlink_tracking(self):
+        """禁用读取者进程的 shared_memory 自动 unlink 跟踪。"""
+        if self.is_owner or resource_tracker is None:
+            return
+
+        try:
+            # 需使用 SharedMemory 内部真实名字（通常带前缀 /）
+            shm_name = getattr(self.shm, '_name', self.name)
+            resource_tracker.unregister(shm_name, 'shared_memory')
+            logger.debug(f"读取者已取消 resource_tracker 跟踪: {shm_name}")
+        except Exception as e:
+            logger.debug(f"取消 resource_tracker 跟踪失败: {e}")
     
     def write_frame(self, frame, frame_id=None, timestamp=None):
         """
