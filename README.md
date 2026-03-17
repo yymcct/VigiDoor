@@ -29,6 +29,13 @@ pip install -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/ --tru
 nohup python3 supervisor.py
 ```
 
+额外配置
+防止systemd-logind 的资源清理机制 清除了SharedMemory
+```
+sudo loginctl enable-linger ubuntu
+```
+
+
 ## 🚀 快速开始
 
 ```bash
