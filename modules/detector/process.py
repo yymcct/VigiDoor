@@ -175,7 +175,7 @@ class AIDetectorProcess:
                     'model_path': detector.model_path,
                     'confidence_threshold': detector.confidence_threshold,
                     'target_classes': detector.target_classes,
-                    'input_size': 640
+                    'input_size': 320
                 }
             },
             {

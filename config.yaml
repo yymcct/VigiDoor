@@ -152,7 +152,7 @@ osd:
 
 ai_detector:
   # 基础配置
-  model_path: "models/yolo11n-pose.pt"
+  model_path: "models/yolo11n-pose.onnx"  # 使用 ONNX 格式，推理速度比 .pt 快 3~5x
   confidence_threshold: 0.5
   target_classes: [0]  # 0=person
   detect_interval: 15  # 默认检测间隔（帧）
@@ -180,10 +180,10 @@ ai_detector:
     - type: yolo
       enabled: true
       config:
-        model_path: "models/yolo11n-pose.pt"
+        model_path: "models/yolo11n-pose.onnx"  # ONNX 格式，比 .pt 快 3~5x
         confidence_threshold: 0.5
         target_classes: [0]        # 0=person
-        input_size: 640
+        input_size: 320            # 从 640 降至 320，速度提升 ~4x，人形检测精度够用
     
     # 第3级：区域入侵检测
     - type: region
