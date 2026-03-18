@@ -25,10 +25,10 @@ class MQTTClientProcess:
     4. 处理平台下发的控制指令
     """
     
-    def __init__(self, ipc_client: IPCClient, shared_state, config):
-        self.ipc = ipc_client
-        self.state = shared_state
-        self.config = config
+    def __init__(self, ctx: 'ProcessContext'):
+        self.ipc = ctx.ipc
+        self.state = ctx.shared_state
+        self.config = ctx.config.get_raw_dict()
         self.running = True
         
         # TODO 重构为强类型 MQTT 配置

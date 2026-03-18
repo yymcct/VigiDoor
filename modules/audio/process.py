@@ -57,10 +57,10 @@ class AudioProcess:
     6. （可选）YamNet辅助记录
     """
     
-    def __init__(self, ipc_client: IPCClient, shared_state, config_manager: ConfigManager):
-        self.ipc = ipc_client
-        self.state = shared_state
-        self.config_manager = config_manager
+    def __init__(self, ctx: 'ProcessContext'):
+        self.ipc = ctx.ipc
+        self.state = ctx.shared_state
+        self.config_manager = ctx.config
         self.running = True
         
         # 音频配置 - 使用强类型访问

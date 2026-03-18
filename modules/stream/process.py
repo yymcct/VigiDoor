@@ -21,6 +21,11 @@ from .pipeline import StreamPipeline
 
 from core.ipc.message import CommandMessage as IPCCommandMessage, MessageType
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from core.process_context import ProcessContext
+    
 logger = setup_logger('stream_manager')
 
 
@@ -48,18 +53,16 @@ class StreamManagerProcess:
     4. RTSP/RTMP 推流
     """
     
-    def __init__(self, ipc_client: IPCClient, shared_state, config):
+    def __init__(self, ctx: 'ProcessContext'):
         """
         初始化流媒体管理进程
-        
+
         Args:
-            ipc_client: IPC 客户端
-            shared_state: 共享状态
-            config: 配置字典
+            ctx: 进程上下文（包含 ipc、shared_state、config、process_name）
         """
-        self.ipc = ipc_client
-        self.state = shared_state
-        self.config = config
+        self.ipc = ctx.ipc
+        self.state = ctx.shared_state
+        self.config = ctx.config.get_raw_dict()
         self.running = True
         
         # 推流配置

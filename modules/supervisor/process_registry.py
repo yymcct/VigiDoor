@@ -13,6 +13,8 @@ from typing import Callable, List, TYPE_CHECKING
 import os
 import sys
 
+from core.process_context import ProcessContext
+
 if TYPE_CHECKING:
     from utils.config import ConfigManager
 
@@ -33,7 +35,9 @@ def process_wrapper(target_func: Callable, process_name: str, ipc_queue_or_clien
     """
     进程包装器 - 捕获所有异常并记录
     这是每个子进程的入口点（模块级别函数，避免 pickle 错误）
-    
+
+    构建 ProcessContext 后统一传入目标函数，消除各进程签名差异。
+
     Args:
         target_func: 目标进程函数
         process_name: 进程名称
@@ -43,14 +47,14 @@ def process_wrapper(target_func: Callable, process_name: str, ipc_queue_or_clien
     """
     # 添加项目根目录到 Python 路径（子进程需要）
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-    
+
     from utils.logger import setup_logger
-    
+
     try:
         # 重新配置日志（子进程需要独立配置）
         logger = setup_logger(process_name)
         logger.info(f"🔧 {process_name} 进程启动")
-        
+
         # 初始化 ConfigManager（子进程需要独立初始化）
         try:
             from utils.config import ConfigManager
@@ -59,21 +63,18 @@ def process_wrapper(target_func: Callable, process_name: str, ipc_queue_or_clien
             logger.info("✓ ConfigManager 已初始化")
         except Exception as e:
             logger.warning(f"ConfigManager 初始化失败: {e}")
-        
-        # 获取 ConfigManager 实例
+
         config_manager = ConfigManager.get_instance()
-        
-        # 向后兼容：某些进程可能仍需要原始字典
-        config = config_manager.get_raw_dict()
-        config['_config_path'] = config_path
-        
-        # 根据进程名称传递不同的参数
-        # AudioProcess 使用 ConfigManager，其他进程暂时使用原始字典
-        if process_name == 'audio_processor':
-            target_func(ipc_queue_or_client, shared_state, config_manager)
-        else:
-            target_func(ipc_queue_or_client, shared_state, config)
-        
+
+        ctx = ProcessContext(
+            ipc=ipc_queue_or_client,
+            shared_state=shared_state,
+            config=config_manager,
+            process_name=process_name,
+        )
+
+        target_func(ctx)
+
     except KeyboardInterrupt:
         logger.info(f"⚠️ {process_name} 收到中断信号")
     except Exception as e:
@@ -84,45 +85,45 @@ def process_wrapper(target_func: Callable, process_name: str, ipc_queue_or_clien
 
 # ==================== 进程入口函数 ====================
 
-def run_camera(queue, shared_state, config):
+def run_camera(ctx: ProcessContext):
     """视频采集进程入口"""
     from modules.camera import CameraProcess
-    camera = CameraProcess(queue, shared_state, config)
+    camera = CameraProcess(ctx)
     camera.run()
 
 
-def run_ai_detector(queue, shared_state, config):
+def run_ai_detector(ctx: ProcessContext):
     """AI 检测进程入口"""
     from modules.detector import AIDetectorProcess
-    detector = AIDetectorProcess(queue, shared_state, config)
+    detector = AIDetectorProcess(ctx)
     detector.run()
 
 
-def run_audio_processor(queue, shared_state, config_manager):
-    """音频处理进程入口（使用 ConfigManager）"""
+def run_audio_processor(ctx: ProcessContext):
+    """音频处理进程入口"""
     from modules.audio import AudioProcess
-    audio = AudioProcess(queue, shared_state, config_manager)
+    audio = AudioProcess(ctx)
     audio.run()
 
 
-def run_mqtt_client(queue, shared_state, config):
+def run_mqtt_client(ctx: ProcessContext):
     """MQTT 通信进程入口"""
     from modules.mqtt.process import MQTTClientProcess
-    mqtt_client = MQTTClientProcess(queue, shared_state, config)
+    mqtt_client = MQTTClientProcess(ctx)
     mqtt_client.run()
 
 
-def run_stream_manager(queue, shared_state, config):
+def run_stream_manager(ctx: ProcessContext):
     """流媒体进程入口"""
     from modules.stream import StreamManagerProcess
-    stream = StreamManagerProcess(queue, shared_state, config)
+    stream = StreamManagerProcess(ctx)
     stream.run()
 
 
-def run_device_controller(queue, shared_state, config):
+def run_device_controller(ctx: ProcessContext):
     """硬件控制进程入口"""
     from modules.device import DeviceControllerProcess
-    device = DeviceControllerProcess(queue, shared_state, config)
+    device = DeviceControllerProcess(ctx)
     device.run()
 
 

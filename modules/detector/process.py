@@ -8,6 +8,7 @@ from utils.logger import setup_logger
 from core.ipc import IPCClient, MessageType
 from core.ipc.message import create_message
 from core.ipc.registry import ProcessName
+from core.process_context import ProcessContext
 
 from .frame_reader import FrameReader
 from .strategy import DetectionStrategy
@@ -31,10 +32,10 @@ class AIDetectorProcess:
         3. 区域检测（判断是否入侵）
     """
     
-    def __init__(self, ipc_client: IPCClient, shared_state: dict, config: dict):
-        self.ipc = ipc_client
-        self.state = shared_state
-        self.config = config
+    def __init__(self, ctx: ProcessContext):
+        self.ipc = ctx.ipc
+        self.state = ctx.shared_state
+        self.config = ctx.config.get_raw_dict()
         self.running = True
         
         # 初始化各模块
