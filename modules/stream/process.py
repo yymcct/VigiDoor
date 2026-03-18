@@ -62,13 +62,13 @@ class StreamManagerProcess:
         """
         self.ipc = ctx.ipc
         self.state = ctx.shared_state
-        self.config = ctx.config.get_raw_dict()
+        self.config = ctx.config
         self.running = True
         
         # 推流配置
-        self.zlm_server = config['stream']['zlm_server']
-        self.stream_key = config['stream']['stream_key'].format(
-            device_id=config['device']['id']
+        self.zlm_server = self.config.stream.zlm_server
+        self.stream_key = self.config.stream.stream_key.format(
+            device_id=self.config.device.id
         )
         self.stream_url = f"{self.zlm_server}/{self.stream_key}"
         
@@ -86,7 +86,7 @@ class StreamManagerProcess:
         self.pipeline = None
         
         logger.info(f"流媒体管理进程初始化完成")
-        logger.info(f"   设备 ID: {config['device']['id']}")
+        logger.info(f"   设备 ID: {self.config.device.id}")
         logger.info(f"   推流地址: {self.stream_url}")
         
         
@@ -214,9 +214,9 @@ class StreamManagerProcess:
             while time.time() - start_time < max_wait:
                 try:
                     self.frame_buffer = SharedFrameBuffer(
-                        width=self.config['camera']['width'],
-                        height=self.config['camera']['height'],
-                        name=self.config['camera']['shared_memory_name'],
+                        width=self.config.camera.width,
+                        height=self.config.camera.height,
+                        name=self.config.camera.shared_memory_name,
                         create=False
                     )
                     logger.info("✅ 共享内存连接成功")
@@ -250,10 +250,10 @@ class StreamManagerProcess:
         
         # 4. 创建音视频混流器（音视频推流）
         self.encoder = AVMuxer(
-            width=self.config['camera']['width'],
-            height=self.config['camera']['height'],
-            fps=self.config['stream']['fps'],
-            video_bitrate=self.config['stream']['bitrate'],
+            width=self.config.camera.width,
+            height=self.config.camera.height,
+            fps=self.config.stream.fps,
+            video_bitrate=self.config.stream.bitrate,
             # audio_device=self.config['audio'].get('device', 'seedsnoop_plug'),
             # audio_bitrate=self.config['audio'].get('bitrate', '96k'),
             # audio_sample_rate=self.config['audio'].get('sample_rate', 48000),

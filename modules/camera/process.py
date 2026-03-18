@@ -47,15 +47,15 @@ class CameraProcess:
         """
         self.ipc = ctx.ipc
         self.state = ctx.shared_state
-        self.config = ctx.config.get_raw_dict()
+        self.config = ctx.config
         self.running = True
         
         # 从配置读取参数
-        self.width = config['camera']['width']
-        self.height = config['camera']['height']
-        self.target_fps = config['camera']['target_fps']
-        self.format = config['camera']['format']
-        self.shared_memory_name = config['camera']['shared_memory_name']
+        self.width = self.config.camera.width
+        self.height = self.config.camera.height
+        self.target_fps = self.config.camera.target_fps
+        self.format = self.config.camera.format
+        self.shared_memory_name = self.config.camera.shared_memory_name
         
         # 组件（延迟初始化）
         self.frame_buffer = None

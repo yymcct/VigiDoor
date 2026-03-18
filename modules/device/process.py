@@ -42,7 +42,7 @@ class DeviceControllerProcess:
         """
         self.ipc = ctx.ipc
         self.state = ctx.shared_state
-        self.config = ctx.config.get_raw_dict()
+        self.config = ctx.config
         self.running = True
         
         # 初始化子模块
@@ -53,7 +53,7 @@ class DeviceControllerProcess:
         self.mode_manager.add_callback(self._on_mode_changed)
         
         # LED 配置
-        self.led_config = config['hardware']['led_strip']
+        self.led_config = self.config.hardware.led_strip
         self.colors = self.led_config['colors']
         
         # LED 设备引用

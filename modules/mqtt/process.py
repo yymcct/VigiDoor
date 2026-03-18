@@ -28,14 +28,13 @@ class MQTTClientProcess:
     def __init__(self, ctx: 'ProcessContext'):
         self.ipc = ctx.ipc
         self.state = ctx.shared_state
-        self.config = ctx.config.get_raw_dict()
+        self.config = ctx.config
         self.running = True
         
-        # TODO 重构为强类型 MQTT 配置
-        self.broker_host = config['mqtt']['broker_host']
-        self.broker_port = config['mqtt']['broker_port']
-        self.client_id = config['mqtt']['client_id'] 
-        self.device_id = config['device']['id'] 
+        self.broker_host = self.config.mqtt.broker_host
+        self.broker_port = self.config.mqtt.broker_port
+        self.client_id = self.config.mqtt.client_id
+        self.device_id = self.config.device.id
         
         self.client = None
         self.is_connected = False
@@ -98,19 +97,19 @@ class MQTTClientProcess:
             )
             
             # 设置认证（如果需要）
-            username = self.config['mqtt'].get('username')
-            password = self.config['mqtt'].get('password')
+            username = self.config.mqtt.username
+            password = self.config.mqtt.password
             if username and password:
                 self.client.username_pw_set(username, password)
 
             # TLS 证书（如果提供）
-            ca_path = self.config['mqtt'].get('tls_ca')
+            ca_path = self.config.mqtt.tls_ca
             if ca_path:
                 ca_path = os.path.abspath(ca_path)
                 if not os.path.isfile(ca_path):
                     raise FileNotFoundError(f"TLS CA 证书不存在: {ca_path}")
                 self.client.tls_set(ca_certs=ca_path)
-                if self.config['mqtt'].get('tls_insecure', False):
+                if self.config.mqtt.tls_insecure:
                     self.client.tls_insecure_set(True)
             
             # 初始化发布器和分发器
@@ -137,7 +136,7 @@ class MQTTClientProcess:
             self.client.connect(
                 host=self.broker_host,
                 port=self.broker_port,
-                keepalive=self.config['mqtt']['keepalive']
+                keepalive=self.config.mqtt.keepalive
             )
             
             # 启动网络循环
@@ -204,9 +203,9 @@ class MQTTClientProcess:
     def _publish_online_status(self):
         """发布上线消息"""
         try:
-            device_name = self.config['device']['name']
-            location = self.config['device'].get('location', '')
-            firmware_version = self.config['device'].get('firmware_version', '1.0.0')
+            device_name = self.config.device.name
+            location = self.config.device.location
+            firmware_version = self.config.get_raw('device.firmware_version', '1.0.0')
             # ip_address = self.config['device'].get('ip_address', '')
             # mac_address = self.config['device'].get('mac_address', '')
             

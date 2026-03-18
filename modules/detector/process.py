@@ -3,6 +3,7 @@ AI 检测进程
 负责视频分析和异常检测
 """
 
+import dataclasses
 import time
 from utils.logger import setup_logger
 from core.ipc import IPCClient, MessageType
@@ -35,13 +36,13 @@ class AIDetectorProcess:
     def __init__(self, ctx: ProcessContext):
         self.ipc = ctx.ipc
         self.state = ctx.shared_state
-        self.config = ctx.config.get_raw_dict()
+        self.config = ctx.config  # ConfigManager 实例
         self.running = True
         
         # 初始化各模块
-        self.frame_reader = FrameReader(config['camera'])
-        self.strategy = DetectionStrategy(config['ai_detector'], shared_state)
-        self.analyzer = ResultAnalyzer(config)
+        self.frame_reader = FrameReader(dataclasses.asdict(self.config.camera))
+        self.strategy = DetectionStrategy(dataclasses.asdict(self.config.detector), self.state)
+        self.analyzer = ResultAnalyzer(self.config.get_raw_dict())
         self.pipeline = None  # 稍后初始化
         
         # 统计
@@ -138,7 +139,7 @@ class AIDetectorProcess:
     def _create_pipeline(self) -> DetectionPipeline:
         """创建检测Pipeline"""
         # 从配置文件读取Pipeline配置
-        pipeline_config = self.config['ai_detector'].get('pipeline', [])
+        pipeline_config = self.config.get_raw('ai_detector.pipeline', [])
         
         # 如果配置为空，使用默认Pipeline
         if not pipeline_config:
@@ -155,6 +156,8 @@ class AIDetectorProcess:
     
     def _get_default_pipeline_config(self) -> list:
         """获取默认Pipeline配置"""
+        detector = self.config.detector
+        region_detector = detector.region_detector
         return [
             {
                 'type': 'motion',
@@ -169,18 +172,18 @@ class AIDetectorProcess:
                 'type': 'yolo',
                 'enabled': True,
                 'config': {
-                    'model_path': self.config['ai_detector']['model_path'],
-                    'confidence_threshold': self.config['ai_detector']['confidence_threshold'],
-                    'target_classes': self.config['ai_detector']['target_classes'],
+                    'model_path': detector.model_path,
+                    'confidence_threshold': detector.confidence_threshold,
+                    'target_classes': detector.target_classes,
                     'input_size': 640
                 }
             },
             {
                 'type': 'region',
-                'enabled': self.config['ai_detector'].get('enable_region_detection', False),
+                'enabled': region_detector is not None,
                 'config': {
-                    'regions': self.config['ai_detector'].get('regions', []),
-                    'overlap_threshold': 0.1
+                    'regions': [r.to_dict() for r in region_detector.regions] if region_detector else [],
+                    'overlap_threshold': region_detector.overlap_threshold if region_detector else 0.1
                 }
             }
         ]

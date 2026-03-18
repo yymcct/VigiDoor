@@ -64,7 +64,7 @@ class AudioProcess:
         self.running = True
         
         # 音频配置 - 使用强类型访问
-        audio_config = config_manager.audio
+        audio_config = self.config_manager.audio
         
         # 基线学习配置
         self.learning_window_minutes = audio_config.baseline_learning_window_minutes
