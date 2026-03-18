@@ -94,19 +94,28 @@ class CameraProcess:
             logger.info("视频采集进程退出")
     
     def _init_shared_memory(self):
-        """初始化共享内存帧缓冲"""
-        try:
-            self.frame_buffer = SharedFrameBuffer(
-                width=self.width,
-                height=self.height,
-                name=self.shared_memory_name,
-                create=True
-            )
-            logger.info("✅ 共享内存帧缓冲初始化成功")
-            
-        except Exception as e:
-            logger.error(f"❌ 共享内存初始化失败: {e}")
-            raise
+        """连接到由 Supervisor 创建的共享内存帧缓冲（只读/写，不持有所有权）"""
+        max_wait = 15
+        start_time = time.time()
+
+        while time.time() - start_time < max_wait:
+            try:
+                self.frame_buffer = SharedFrameBuffer(
+                    width=self.width,
+                    height=self.height,
+                    name=self.shared_memory_name,
+                    create=False
+                )
+                logger.info("✅ 共享内存帧缓冲连接成功")
+                return
+            except FileNotFoundError:
+                logger.warning("等待 Supervisor 创建共享内存...")
+                time.sleep(1)
+            except Exception as e:
+                logger.error(f"❌ 共享内存连接失败: {e}")
+                raise
+
+        raise RuntimeError(f"共享内存连接超时（{max_wait}秒），Supervisor 可能未就绪")
     
     def _init_driver(self) -> CameraDriverBase:
         """根据系统类型自动选择驱动"""
@@ -175,9 +184,9 @@ class CameraProcess:
         
         if self.frame_buffer:
             try:
-                self.frame_buffer.cleanup()
-                logger.info("已清理共享内存")
+                self.frame_buffer.close()  # 非所有者只 close，不 unlink
+                logger.info("已关闭共享内存连接")
             except Exception as e:
-                logger.error(f"清理共享内存失败: {e}")
+                logger.error(f"关闭共享内存失败: {e}")
         
         logger.info("✅ 资源清理完成")

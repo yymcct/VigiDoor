@@ -50,6 +50,7 @@ class SharedFrameBuffer:
         self.height = height
         self.frame_size = width * height * 3  # RGB
         self.name = name
+        self.is_owner = create  # 只有创建者（create=True）才能调用 cleanup()/unlink()
         
         # 计算总大小
         self.total_size = self.HEADER_SIZE + self.frame_size * self.BUFFER_COUNT
@@ -220,7 +221,11 @@ class SharedFrameBuffer:
         self.header_bytes[:] = header_data
     
     def cleanup(self):
-        """清理共享内存（仅写入者调用）"""
+        """清理共享内存（仅所有者/创建者调用，会 unlink）"""
+        if not self.is_owner:
+            logger.warning(f"非所有者不得调用 cleanup()，已自动降级为 close(): {self.name}")
+            self.close()
+            return
         try:
             logger.info(f"🧹 清理共享内存: {self.name}")
             self._release_views()

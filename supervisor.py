@@ -11,7 +11,6 @@ VigiDoor Supervisor - 智慧安防门主进程管理器
 """
 
 import multiprocessing as mp
-from multiprocessing import shared_memory
 import signal
 import time
 import threading
@@ -23,6 +22,7 @@ import queue
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from utils.logger import setup_logger
+from utils.frame_buffer import SharedFrameBuffer
 from core.ipc import MessageBus
 from core.ipc.message import MessageType, IPCMessage
 from core.ipc.registry import ProcessName
@@ -100,6 +100,9 @@ class ProcessSupervisor:
         self.db_write_queue = queue.Queue(maxsize=1000)
         self.db_manager = DBManager(self.db_write_queue)
         
+        # 共享内存帧缓冲（Supervisor 作为唯一所有者）
+        self.frame_buffer = None
+
         # 控制标志
         self.running = True
         self.shutdown_event = threading.Event()
@@ -135,6 +138,9 @@ class ProcessSupervisor:
         
         # 创建必要目录
         self._create_directories()
+
+        # 创建共享内存帧缓冲（必须在子进程启动前创建）
+        self._create_shared_memory()
         
         # 启动数据库管理器
         logger.info("📊 启动 DBManager...")
@@ -162,6 +168,21 @@ class ProcessSupervisor:
         ]
         for d in dirs:
             os.makedirs(d, exist_ok=True)
+
+    def _create_shared_memory(self):
+        """由 Supervisor 统一创建并持有共享内存帧缓冲（唯一所有者）"""
+        cam = self.config_manager.camera
+        try:
+            self.frame_buffer = SharedFrameBuffer(
+                width=cam.width,
+                height=cam.height,
+                name=cam.shared_memory_name,
+                create=True
+            )
+            logger.info(f"✅ Supervisor 已创建共享内存帧缓冲: {cam.shared_memory_name}")
+        except Exception as e:
+            logger.error(f"❌ 创建共享内存帧缓冲失败: {e}")
+            raise
     
     def _start_message_consumer(self):
         """启动消息处理线程"""
@@ -254,26 +275,12 @@ class ProcessSupervisor:
         self.db_manager.stop()
         logger.info("✅ DBManager 已停止")
 
-        # 清理共享内存
-        self._cleanup_shared_memory()
+        # 清理共享内存（Supervisor 作为所有者负责 unlink）
+        if self.frame_buffer:
+            self.frame_buffer.cleanup()
+            self.frame_buffer = None
         
         logger.info("✅ 所有服务已停止，Supervisor 退出")
-
-    def _cleanup_shared_memory(self):
-        """清理共享内存残留（仅在退出时调用）"""
-        shm_name = self.config_manager.camera.shared_memory_name
-        if not shm_name:
-            return
-
-        try:
-            shm = shared_memory.SharedMemory(name=shm_name)
-            shm.close()
-            shm.unlink()
-            logger.info(f"🧹 已清理共享内存: {shm_name}")
-        except FileNotFoundError:
-            pass
-        except Exception as e:
-            logger.warning(f"清理共享内存失败: {e}")
 
 
 if __name__ == '__main__':
