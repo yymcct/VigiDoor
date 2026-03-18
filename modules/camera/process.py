@@ -4,6 +4,7 @@
 
 import os
 import platform
+import time
 
 from core.ipc import IPCClient
 from modules.camera.base import CameraDriverBase
