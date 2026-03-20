@@ -1,0 +1,32 @@
+### VigiDoor Devices API Tests
+### 使用 VS Code REST Client 插件运行 (humao.rest-client)
+
+@baseUrl = http://192.168.38.166:5002
+@deviceId = VIGIDOOR_7c3a41081017190d_RPI
+# ============================================================
+# 一、查询设备列表
+# ============================================================
+
+### 查询所有设备
+GET {{baseUrl}}/vigidoor/api/v1/devices
+
+### 按产品ID过滤
+GET {{baseUrl}}/vigidoor/api/v1/devices?product_id=YOUR_PRODUCT_ID
+
+### 按设备名称模糊匹配
+GET {{baseUrl}}/vigidoor/api/v1/devices?device_name=PI5
+
+### 分页查询
+GET {{baseUrl}}/vigidoor/api/v1/devices?limit=2&marker=YOUR_MARKER
+
+
+# ============================================================
+# 二、查询设备状态
+# ============================================================
+
+### 查询指定设备状态
+GET {{baseUrl}}/vigidoor/api/v1/devices/{{deviceId}}/status
+
+### 查询不存在设备状态（应返回500或错误信息）
+GET {{baseUrl}}/vigidoor/api/v1/devices/INVALID_DEVICE_ID/status
+
