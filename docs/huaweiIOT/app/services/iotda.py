@@ -261,3 +261,98 @@ def stop_remote_talk(device_id: str, namespace: str = "vigidoor") -> Dict[str, A
         params={},
         namespace=namespace,
     )
+
+
+def send_security_command(
+    device_id: str,
+    action: str,
+    namespace: str = "vigidoor",
+) -> Dict[str, Any]:
+    """
+    通过华为云 IoTDA 下发布防/撤防指令。
+
+    Topic:
+        {namespace}/down/{device_id}/command/security
+
+    消息体格式:
+    {
+        "device_id": "VIGIDOOR_xxx",
+        "msg_id": "<uuid>",
+        "timestamp": 1770905346017,
+        "version": "1.0",
+        "data": {
+            "action": "arm"  // 或 "disarm"
+        }
+    }
+
+    参数:
+        device_id: 设备 ID
+        action:    "arm"（布防）或 "disarm"（撤防）
+        namespace: Topic 命名空间，默认 "vigidoor"
+    """
+    if action not in ("arm", "disarm"):
+        return {"success": False, "error": f"无效的 action: {action}，应为 'arm' 或 'disarm'"}
+
+    client = get_iotda_client()
+    if not client:
+        return {"success": False, "error": "IoTDA 客户端未初始化"}
+
+    msg_id = str(uuid.uuid4())
+    timestamp = int(time.time() * 1000)
+    topic_full_name = f"{namespace}/down/{device_id}/command/security"
+
+    full_message = {
+        "device_id": device_id,
+        "msg_id": msg_id,
+        "timestamp": timestamp,
+        "version": "1.0",
+        "data": {
+            "action": action,
+        },
+    }
+
+    try:
+        action_label = "布防" if action == "arm" else "撤防"
+        logger.info(f"下发{action_label}指令到设备: {device_id}")
+        logger.debug(f"Topic: {topic_full_name}")
+        logger.debug(f"Message: {json.dumps(full_message, ensure_ascii=False, indent=2)}")
+
+        req = CreateMessageRequest()
+        req.device_id = device_id
+        req.body = DeviceMessageRequest(
+            topic_full_name=topic_full_name,
+            message=json.dumps(full_message, ensure_ascii=False),
+            name="SecurityControl",
+            message_id=msg_id,
+        )
+
+        response = client.create_message(req)
+
+        logger.info(f"{action_label}指令下发成功: message_id={msg_id}")
+        return {
+            "success": True,
+            "msg_id": msg_id,
+            "timestamp": timestamp,
+            "topic": topic_full_name,
+            "action": action,
+            "response": {
+                "message_id": getattr(response, "message_id", msg_id),
+                "status": getattr(response, "status", "sent"),
+            },
+        }
+
+    except exceptions.ClientRequestException as e:
+        error_msg = f"IoTDA API 错误: {e.status_code}"
+        logger.error(f"{error_msg} - {e.error_code}: {e.error_msg}")
+        return {
+            "success": False,
+            "error": error_msg,
+            "error_code": e.error_code,
+            "error_msg": e.error_msg,
+            "request_id": e.request_id,
+        }
+
+    except Exception as e:
+        error_msg = f"安防指令下发异常: {e}"
+        logger.exception(error_msg)
+        return {"success": False, "error": error_msg}

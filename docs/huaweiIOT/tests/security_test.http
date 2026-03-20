@@ -1,0 +1,50 @@
+### VigiDoor Security Control API Tests
+### 使用 VS Code REST Client 插件运行 (humao.rest-client)
+
+@baseUrl = http://192.168.38.166:5002
+@deviceId = VIGIDOOR_7c3a41081017190d_RPI
+
+
+# ============================================================
+# 一、布防
+# ============================================================
+
+### 布防 - 向设备下发 arm 指令
+### topic: vigidoor/down/{{deviceId}}/command/security
+POST {{baseUrl}}/vigidoor/api/v1/security/arm
+Content-Type: application/json
+
+{
+    "device_id": "{{deviceId}}"
+}
+
+###
+
+
+# ============================================================
+# 二、撤防
+# ============================================================
+
+### 撤防 - 向设备下发 disarm 指令
+### topic: vigidoor/down/{{deviceId}}/command/security
+POST {{baseUrl}}/vigidoor/api/v1/security/disarm
+Content-Type: application/json
+
+{
+    "device_id": "{{deviceId}}"
+}
+
+###
+
+
+# ============================================================
+# 三、异常场景
+# ============================================================
+
+### 缺少 device_id - 应返回 400
+POST {{baseUrl}}/vigidoor/api/v1/security/arm
+Content-Type: application/json
+
+{}
+
+###
