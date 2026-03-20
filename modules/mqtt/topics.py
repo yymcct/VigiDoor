@@ -48,6 +48,12 @@ class TopicManager:
     # 2.6 配置响应
     CONFIG_RESPONSE = "{ns}/up/{device_id}/config/response"
     
+    # ==================== 华为云 IoT OC 命令协议 ====================
+    # 设备命令接收（下行，平台下发）
+    OC_COMMAND_SUBSCRIBE = "$oc/devices/{device_id}/sys/commands/#"
+    # 设备命令响应（上行，设备回复）
+    OC_COMMAND_RESPONSE = "$oc/devices/{device_id}/sys/commands/response/request_id={request_id}"
+    
     # 2.7 指令响应
     RESPONSE_STREAM = "{ns}/up/{device_id}/response/stream"
     RESPONSE_AUDIO = "{ns}/up/{device_id}/response/audio"
@@ -163,6 +169,7 @@ class TopicManager:
             (self.build(self.SUBSCRIBE_ALL_COMMANDS), qos_map.get('command', 1)),
             (self.build(self.SUBSCRIBE_ALL_CONFIG), qos_map.get('config', 2)),
             (self.build(self.SUBSCRIBE_ALL_OTA), qos_map.get('ota', 2)),
+            (self.build(self.OC_COMMAND_SUBSCRIBE), qos_map.get('command', 1)),
         ]
     
     def parse_topic(self, topic: str) -> dict:

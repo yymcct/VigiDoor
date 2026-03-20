@@ -8,6 +8,7 @@ from .audio import CommandAudioHandler
 from .device import CommandDeviceHandler
 from .config import ConfigUpdateHandler
 from .security import CommandSecurityHandler
+from .oc_command import OcCommandHandler
 
 __all__ = [
     'CommandStreamHandler',
@@ -15,4 +16,5 @@ __all__ = [
     'CommandDeviceHandler',
     'ConfigUpdateHandler',
     'CommandSecurityHandler',
+    'OcCommandHandler',
 ]

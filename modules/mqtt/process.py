@@ -10,6 +10,7 @@ from utils.logger import setup_logger
 from core.ipc import IPCClient, MessageType
 from core.ipc.registry import ProcessName
 from modules.mqtt import TopicManager, MQTTPublisher, MQTTMessageDispatcher
+from modules.mqtt.handlers import OcCommandHandler
 
 logger = setup_logger('mqtt_client')
 
@@ -42,6 +43,7 @@ class MQTTClientProcess:
         self.topic_manager = TopicManager(self.device_id)  # 使用 device_id 作为前缀  
         self.publisher = None  # 延迟初始化（需要 MQTT client）
         self.dispatcher = None  # 延迟初始化
+        self.oc_handler = None  # 延迟初始化
         
         logger.info(f"MQTT 通信进程初始化完成")
         logger.info(f"  Broker: {self.broker_host}:{self.broker_port}")
@@ -117,6 +119,7 @@ class MQTTClientProcess:
             self.dispatcher = MQTTMessageDispatcher(
                 self.ipc, self.topic_manager, self.publisher, logger
             )
+            self.oc_handler = OcCommandHandler(self.state, self.publisher, logger)
             
             logger.info("✅ MQTT 客户端初始化成功")
             
@@ -181,8 +184,14 @@ class MQTTClientProcess:
             topic = msg.topic
             payload = msg.payload.decode()
             logger.info(f"📥 收到消息 - Topic: {topic}")
+
+            # 华为云 OC 命令协议（$oc/devices/.../sys/commands/request_id=xxx）
+            if '/sys/commands/request_id=' in topic:
+                body = json.loads(payload)
+                self.oc_handler.handle(topic, body)
+                return
             
-            # 解析外层消息（华为云 IoT 格式）
+            # 解析外层消息（vigidoor 内部协议，外层包含 content 字段）
             outer_msg = json.loads(payload)
             logger.debug(f"外层消息: {outer_msg}")
             
@@ -199,7 +208,7 @@ class MQTTClientProcess:
             logger.error(f"JSON 解析失败: {e}, payload: {payload}")
         except Exception as e:
             logger.error(f"处理 MQTT 消息失败: {e}", exc_info=True)
-    
+
     def _publish_online_status(self):
         """发布上线消息"""
         try:

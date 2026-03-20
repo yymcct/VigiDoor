@@ -390,6 +390,21 @@ class MQTTPublisher:
         )
         return self.publish(TopicManager.STATUS_SECURITY, msg)
     
+    def publish_oc_command_response(self, request_id: str, result_code: int,
+                                    response_name: str, paras: dict) -> bool:
+        """
+        发布华为云 IoT 命令执行结果
+
+        Topic: $oc/devices/{device_id}/sys/commands/response/request_id={request_id}
+        """
+        topic = self.tm.build(TopicManager.OC_COMMAND_RESPONSE, request_id=request_id)
+        payload = json.dumps({
+            "result_code": result_code,
+            "response_name": response_name,
+            "paras": paras
+        })
+        return self._publish_raw(topic, payload, qos=1, retain=False)
+
     def publish_response(self, command_type: str, request_msg_id: str,
                         status: str, message: str = "", 
                         error_code: Optional[int] = None) -> bool:
