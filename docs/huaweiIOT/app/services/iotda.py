@@ -15,6 +15,7 @@ from huaweicloudsdkiotda.v5 import (
     IoTDAClient,
     CreateMessageRequest,
     DeviceMessageRequest,
+    ListDevicesRequest,
 )
 
 logger = logging.getLogger(__name__)
@@ -356,3 +357,100 @@ def send_security_command(
         error_msg = f"安防指令下发异常: {e}"
         logger.exception(error_msg)
         return {"success": False, "error": error_msg}
+
+
+def list_devices(
+    product_id: Optional[str] = None,
+    device_name: Optional[str] = None,
+    limit: int = 50,
+    marker: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    查询华为云 IoTDA 设备列表。
+
+    参数:
+        product_id:  按产品 ID 过滤（可选）
+        device_name: 按设备名称模糊匹配（可选）
+        limit:       每页最大返回条数（默认 50，最大 50）
+        marker:      分页游标，首次查询传 None
+
+    返回:
+    {
+        "success": True,
+        "count": 4,
+        "devices": [ { device fields ... }, ... ],
+        "marker": null | "<next_marker>"
+    }
+    """
+    client = get_iotda_client()
+    if not client:
+        return {"success": False, "error": "IoTDA 客户端未初始化", "devices": [], "count": 0}
+
+    try:
+        request = ListDevicesRequest()
+        request.limit = limit
+        if product_id:
+            request.product_id = product_id
+        if device_name:
+            request.device_name = device_name
+        if marker:
+            request.marker = marker
+
+        response = client.list_devices(request)
+
+        # SDK 的 DeviceInfo 对象支持 to_dict()，字段名与 API 文档一致
+        raw_devices = getattr(response, "devices", []) or []
+        devices = []
+        for dev in raw_devices:
+            if hasattr(dev, "to_dict"):
+                devices.append(dev.to_dict())
+            else:
+                # 兜底：手动摘取关键字段
+                devices.append({
+                    "app_id": getattr(dev, "app_id", None),
+                    "app_name": getattr(dev, "app_name", None),
+                    "description": getattr(dev, "description", None),
+                    "device_id": getattr(dev, "device_id", None),
+                    "device_name": getattr(dev, "device_name", None),
+                    "device_sdk_version": getattr(dev, "device_sdk_version", None),
+                    "fw_version": getattr(dev, "fw_version", None),
+                    "gateway_id": getattr(dev, "gateway_id", None),
+                    "node_id": getattr(dev, "node_id", None),
+                    "node_type": getattr(dev, "node_type", None),
+                    "product_id": getattr(dev, "product_id", None),
+                    "product_name": getattr(dev, "product_name", None),
+                    "status": getattr(dev, "status", None),
+                    "sw_version": getattr(dev, "sw_version", None),
+                    "tags": getattr(dev, "tags", []),
+                })
+
+        next_marker = getattr(response, "marker", None)
+        if hasattr(next_marker, "marker"):
+            # 部分版本 SDK 将 marker 包在 page 对象中
+            next_marker = getattr(next_marker, "marker", None)
+
+        logger.info(f"查询设备列表成功，共 {len(devices)} 台设备")
+        return {
+            "success": True,
+            "count": len(devices),
+            "devices": devices,
+            "marker": next_marker,
+        }
+
+    except exceptions.ClientRequestException as e:
+        error_msg = f"IoTDA API 错误: {e.status_code}"
+        logger.error(f"{error_msg} - {e.error_code}: {e.error_msg}")
+        return {
+            "success": False,
+            "error": error_msg,
+            "error_code": e.error_code,
+            "error_msg": e.error_msg,
+            "request_id": e.request_id,
+            "devices": [],
+            "count": 0,
+        }
+
+    except Exception as e:
+        error_msg = f"查询设备列表异常: {e}"
+        logger.exception(error_msg)
+        return {"success": False, "error": error_msg, "devices": [], "count": 0}
