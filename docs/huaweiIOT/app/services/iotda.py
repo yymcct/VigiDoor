@@ -431,8 +431,7 @@ def query_device_status(device_id: str) -> dict:
             raw_response = raw_response.to_dict()
         paras = raw_response.get("paras", {}) if isinstance(raw_response, dict) else {}
 
-        security_mode = paras.get("security_mode", "unknown")
-        is_armed = True if security_mode == "armed" else False
+        is_armed = paras.get("is_armed", None)
         status = DeviceStatus(is_armed=is_armed)
 
         logger.info(f"查询设备状态成功: {device_id}, is_armed={is_armed}")
