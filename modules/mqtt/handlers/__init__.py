@@ -7,10 +7,12 @@ from .stream import CommandStreamHandler
 from .audio import CommandAudioHandler
 from .device import CommandDeviceHandler
 from .config import ConfigUpdateHandler
+from .security import CommandSecurityHandler
 
 __all__ = [
     'CommandStreamHandler',
     'CommandAudioHandler',
     'CommandDeviceHandler',
     'ConfigUpdateHandler',
+    'CommandSecurityHandler',
 ]

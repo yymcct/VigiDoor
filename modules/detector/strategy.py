@@ -49,6 +49,10 @@ class DetectionStrategy:
         Returns:
             bool: 是否应该检测
         """
+        # 撤防状态：禁止所有 AI 检测
+        if not self.state.get('is_armed', True):
+            return False
+
         # 根据系统状态获取检测间隔
         interval = self._get_current_interval()
         

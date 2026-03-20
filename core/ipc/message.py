@@ -39,6 +39,8 @@ class MessageType(str, Enum):
     CMD_SET_LIGHT = "cmd_set_light"
     CMD_PLAY_AUDIO = "cmd_play_audio"
     CMD_TAKE_SNAPSHOT = "cmd_take_snapshot"
+    CMD_ARM = "cmd_arm"                   # 布防指令
+    CMD_DISARM = "cmd_disarm"             # 撤防指令
     
     # ========== 状态上报 ==========
     STATUS_STREAM = "status_stream"
@@ -58,7 +60,7 @@ class MessageType(str, Enum):
     REQUEST = "request"
     RESPONSE = "response"
     
-    # ========== 兼容旧代码 ==========
+    # ==========TODO重构掉 兼容旧代码 ==========
     SET_LIGHT = "set_light"
     PLAY_AUDIO = "play_audio"
     STREAM_STATUS_CHANGED = "stream_status_changed"

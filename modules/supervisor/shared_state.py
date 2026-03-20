@@ -42,6 +42,7 @@ class SharedStateManager:
             'start_time': time.time(),  # 启动时间，用于计算 uptime
             'alarm_until': 0.0,
             'alarm_auto_reset_seconds': alarm_auto_reset_seconds,
+            'is_armed': True,           #TODO 默认布防应当是从数据库中读取，而不是写死在代码里
         })
     
     @property
@@ -162,7 +163,17 @@ class SharedStateManager:
     def is_streaming(self) -> bool:
         """检查是否正在推流"""
         return self._state.get('is_streaming', False)
-    
+
+    # ==================== 布防/撤防管理 ====================
+
+    def set_armed(self, armed: bool) -> None:
+        """设置布防/撤防状态（仅 Supervisor 调用）"""
+        self._state['is_armed'] = armed
+
+    def get_armed(self) -> bool:
+        """读取布防/撤防状态"""
+        return bool(self._state.get('is_armed', True))
+
     # ==================== 通用访问 ====================
     
     def get(self, key: str, default=None):

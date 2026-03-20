@@ -4,6 +4,7 @@ from .context import SupervisorHandlerContext
 from .heartbeat import handle_heartbeat
 from .alarm_intrusion import handle_alarm_intrusion, handle_audio_anomaly
 from .mqtt_command import handle_mqtt_command
+from .arm_disarm import handle_arm, handle_disarm
 
 __all__ = [
     "SupervisorHandlerContext",
@@ -11,4 +12,6 @@ __all__ = [
     "handle_alarm_intrusion",
     "handle_audio_anomaly",
     "handle_mqtt_command",
+    "handle_arm",
+    "handle_disarm",
 ]

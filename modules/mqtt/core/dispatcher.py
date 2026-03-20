@@ -59,7 +59,8 @@ class MQTTMessageDispatcher:
             CommandStreamHandler,
             CommandAudioHandler,
             CommandDeviceHandler,
-            ConfigUpdateHandler
+            ConfigUpdateHandler,
+            CommandSecurityHandler,
         )
         
         default_handlers = [
@@ -67,6 +68,7 @@ class MQTTMessageDispatcher:
             CommandAudioHandler(self.ipc, self.publisher, self.logger),
             CommandDeviceHandler(self.ipc, self.publisher, self.logger),
             ConfigUpdateHandler(self.ipc, self.publisher, self.logger),
+            CommandSecurityHandler(self.ipc, self.publisher, self.logger),
         ]
         
         for handler in default_handlers:
