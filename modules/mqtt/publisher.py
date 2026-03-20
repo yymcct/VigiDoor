@@ -379,6 +379,16 @@ class MQTTPublisher:
             data=hardware_data
         )
         return self.publish(TopicManager.STATUS_HARDWARE, msg)
+
+    def publish_status_security(self, security_data: dict) -> bool:
+        """发布布撤防状态变更"""
+        from modules.mqtt.messages import StatusSecurityMessage
+
+        msg = StatusSecurityMessage(
+            device_id=self.tm.device_id,
+            data=security_data
+        )
+        return self.publish(TopicManager.STATUS_SECURITY, msg)
     
     def publish_response(self, command_type: str, request_msg_id: str,
                         status: str, message: str = "", 

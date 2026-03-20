@@ -40,6 +40,7 @@ class TopicManager:
     # 2.4 业务状态上报
     STATUS_STREAM = "{ns}/up/{device_id}/status/stream"
     STATUS_HARDWARE = "{ns}/up/{device_id}/status/hardware"
+    STATUS_SECURITY = "{ns}/up/{device_id}/status/security"  # 布撤防状态
     
     # 2.5 日志上报（可选）
     LOG_ERROR = "{ns}/up/{device_id}/log/error"
