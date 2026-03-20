@@ -18,12 +18,14 @@ def create_app() -> Flask:
     from app.routes.zlm_webhook import zlm_bp
     from app.routes.voice import voice_bp
     from app.routes.security import security_bp
+    from app.routes.devices import devices_bp
 
     app.register_blueprint(health_bp, url_prefix=base_prefix)                              # GET  /vigidoor/health
     app.register_blueprint(stream_bp, url_prefix=f"{base_prefix}/api/v1")                # POST /vigidoor/api/v1/stream/start|stop
     app.register_blueprint(zlm_bp, url_prefix=f"{base_prefix}/index/hook")               # POST /vigidoor/index/hook/on_stream_not_found|on_stream_none_reader
     app.register_blueprint(voice_bp, url_prefix=f"{base_prefix}/api/v1/voice")           # POST /vigidoor/api/v1/voice/call/*
     app.register_blueprint(security_bp, url_prefix=f"{base_prefix}/api/v1")             # POST /vigidoor/api/v1/security/arm|disarm
+    app.register_blueprint(devices_bp, url_prefix=f"{base_prefix}/api/v1")              # GET  /vigidoor/api/v1/devices
 
     # 初始化 WebSocket（必须在蓝图注册之后）
     from app.services.websocket_handler import init_socketio
