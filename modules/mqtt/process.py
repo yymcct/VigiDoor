@@ -283,6 +283,11 @@ class MQTTClientProcess:
             self.publisher.publish_status_hardware(data)
             logger.info("📤 硬件状态已上报")
         
+        elif msg_type == MessageType.STATUS_SECURITY.value:
+            # 布撤防状态变更
+            self.publisher.publish_status_security(data)
+            logger.info("📤 布撤防状态已上报")
+        
         elif msg_type == 'process_status_changed':
             # 进程状态变更
             self.publisher.publish_health_process(data)

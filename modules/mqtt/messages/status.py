@@ -41,3 +41,16 @@ class StatusHardwareMessage(MQTTMessageBase):
             "speaker": {}
         }
         self.data = {**defaults, **self.data}
+
+
+@dataclass
+class StatusSecurityMessage(MQTTMessageBase):
+    """布撤防状态变更消息"""
+    data: Dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self):
+        super().__post_init__()
+        defaults = {
+            "status": "disarmed",  # armed / disarmed
+        }
+        self.data = {**defaults, **self.data}

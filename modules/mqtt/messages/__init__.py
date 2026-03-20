@@ -40,7 +40,8 @@ from .health import (
 # 导出业务状态消息
 from .status import (
     StatusStreamMessage,
-    StatusHardwareMessage
+    StatusHardwareMessage,
+    StatusSecurityMessage
 )
 
 # 导出响应和日志消息

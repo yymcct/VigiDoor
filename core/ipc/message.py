@@ -47,6 +47,7 @@ class MessageType(str, Enum):
     STATUS_HARDWARE = "status_hardware"
     STATUS_HEALTH = "status_health"
     STATUS_PROCESS = "status_process"
+    STATUS_SECURITY = "status_security"  # 布撤防状态
     
     # ========== MQTT相关 ==========
     MQTT_COMMAND = "mqtt_command"           # 来自平台的指令
