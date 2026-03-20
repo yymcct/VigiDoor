@@ -16,6 +16,8 @@ from huaweicloudsdkiotda.v5 import (
     CreateMessageRequest,
     DeviceMessageRequest,
     ListDevicesRequest,
+    CreateCommandRequest,
+    DeviceCommandRequest,
 )
 
 logger = logging.getLogger(__name__)
@@ -355,6 +357,104 @@ def send_security_command(
 
     except Exception as e:
         error_msg = f"安防指令下发异常: {e}"
+        logger.exception(error_msg)
+        return {"success": False, "error": error_msg}
+
+
+# ---------------------------------------------------------------------------
+# 设备状态响应结构体
+# ---------------------------------------------------------------------------
+
+class DeviceStatus:
+    """
+    设备状态结构体。
+
+    当前字段:
+        is_armed (bool): 布防状态，True=布防，False=撤防
+
+    后期可在此扩展更多属性（如在线状态、固件版本等）。
+    """
+
+    def __init__(self, is_armed: bool = False):
+        self.is_armed = is_armed
+
+    def to_dict(self) -> dict:
+        return {
+            "is_armed": self.is_armed,
+        }
+
+
+def query_device_status(device_id: str) -> dict:
+    """
+    通过华为云 IoTDA 同步命令接口查询设备当前状态。
+
+    平台以同步方式将 GET_STATUS 命令下发给设备，等待设备执行并返回结果。
+    平台侧超时时间为 20 秒；超时时设备未响应则返回错误。
+
+    命令参数:
+        command_name = "GET_STATUS"
+        service_id   = "vigidoor"
+        paras        = {}  （查询命令无需额外参数）
+
+    设备应答格式（response.paras）:
+        { "is_armed": true | false }
+
+    返回:
+    {
+        "success": True,
+        "device_id": "VIGIDOOR_xxx_RPI",
+        "status": {
+            "is_armed": true   # 布防:true 撤防:false
+        }
+    }
+    """
+    client = get_iotda_client()
+    if not client:
+        return {"success": False, "error": "IoTDA 客户端未初始化"}
+
+    try:
+        logger.info(f"查询设备状态: {device_id}")
+
+        req = CreateCommandRequest()
+        req.device_id = device_id
+        req.body = DeviceCommandRequest(
+            service_id="vigidoor",
+            command_name="GET_STATUS",
+            paras={},
+        )
+
+        response = client.create_command(req)
+
+        # 从设备应答中提取 paras
+        raw_response = getattr(response, "response", None) or {}
+        if hasattr(raw_response, "to_dict"):
+            raw_response = raw_response.to_dict()
+        paras = raw_response.get("paras", {}) if isinstance(raw_response, dict) else {}
+
+        security_mode = paras.get("security_mode", "unknown")
+        is_armed = True if security_mode == "armed" else False
+        status = DeviceStatus(is_armed=is_armed)
+
+        logger.info(f"查询设备状态成功: {device_id}, is_armed={is_armed}")
+        return {
+            "success": True,
+            "device_id": device_id,
+            "status": status.to_dict(),
+        }
+
+    except exceptions.ClientRequestException as e:
+        error_msg = f"IoTDA API 错误: {e.status_code}"
+        logger.error(f"{error_msg} - {e.error_code}: {e.error_msg}")
+        return {
+            "success": False,
+            "error": error_msg,
+            "error_code": e.error_code,
+            "error_msg": e.error_msg,
+            "request_id": e.request_id,
+        }
+
+    except Exception as e:
+        error_msg = f"查询设备状态异常: {e}"
         logger.exception(error_msg)
         return {"success": False, "error": error_msg}
 

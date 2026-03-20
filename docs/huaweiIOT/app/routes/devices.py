@@ -4,7 +4,7 @@
 """
 import logging
 from flask import Blueprint, request, jsonify
-from app.services.iotda import list_devices
+from app.services.iotda import list_devices, query_device_status
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +54,31 @@ def get_devices():
         limit=limit,
         marker=marker,
     )
+
+    if result.get("success"):
+        return jsonify(result), 200
+    else:
+        return jsonify(result), 500
+
+
+@devices_bp.route("/devices/<string:device_id>/status", methods=["GET"])
+def get_device_status(device_id: str):
+    """
+    查询设备当前状态
+
+    路径参数:
+        device_id - 设备 ID
+
+    响应示例:
+    {
+        "success": true,
+        "device_id": "VIGIDOOR_xxx_RPI",
+        "status": {
+                "is_armed": true   // 布防:true 撤防:false
+        }
+    }
+    """
+    result = query_device_status(device_id)
 
     if result.get("success"):
         return jsonify(result), 200
