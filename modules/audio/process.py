@@ -245,7 +245,11 @@ class AudioProcess:
             if baseline_db is None:
                 #logger.debug(f"基线学习中... 当前音量: {current_db:.1f}dB")
                 return
-            
+
+            # 撤防状态：继续更新基线，但不触发报警
+            if not self.state.get('is_armed', True):
+                return
+
             # 4. 音量突变检测
             result = self.anomaly_detector.analyze(audio_chunk, baseline_db)
             if result is None:

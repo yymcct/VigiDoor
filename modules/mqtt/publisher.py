@@ -397,9 +397,10 @@ class MQTTPublisher:
         
         # 根据类型选择响应话题
         topic_map = {
-            'stream': TopicManager.RESPONSE_STREAM,
-            'audio': TopicManager.RESPONSE_AUDIO,
-            'device': TopicManager.RESPONSE_DEVICE,
+            'stream':   TopicManager.RESPONSE_STREAM,
+            'audio':    TopicManager.RESPONSE_AUDIO,
+            'device':   TopicManager.RESPONSE_DEVICE,
+            'security': TopicManager.RESPONSE_SECURITY,
         }
         
         topic_template = topic_map.get(command_type, TopicManager.RESPONSE_DEVICE)

@@ -51,6 +51,7 @@ class TopicManager:
     RESPONSE_STREAM = "{ns}/up/{device_id}/response/stream"
     RESPONSE_AUDIO = "{ns}/up/{device_id}/response/audio"
     RESPONSE_DEVICE = "{ns}/up/{device_id}/response/device"
+    RESPONSE_SECURITY = "{ns}/up/{device_id}/response/security"  # 布防/撤防响应
     
     # ==================== 下行话题（平台→设备）====================
     
@@ -58,6 +59,7 @@ class TopicManager:
     COMMAND_STREAM = "{ns}/down/{device_id}/command/stream"
     COMMAND_AUDIO = "{ns}/down/{device_id}/command/audio"
     COMMAND_DEVICE = "{ns}/down/{device_id}/command/device"
+    COMMAND_SECURITY = "{ns}/down/{device_id}/command/security"  # 布防/撤防
     
     # 3.2 配置管理
     CONFIG_UPDATE = "{ns}/down/{device_id}/config/update"
