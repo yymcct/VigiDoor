@@ -15,6 +15,9 @@ from huaweicloudsdkiotda.v5 import (
     IoTDAClient,
     CreateMessageRequest,
     DeviceMessageRequest,
+    ListDevicesRequest,
+    CreateCommandRequest,
+    DeviceCommandRequest,
 )
 
 logger = logging.getLogger(__name__)
@@ -356,3 +359,197 @@ def send_security_command(
         error_msg = f"安防指令下发异常: {e}"
         logger.exception(error_msg)
         return {"success": False, "error": error_msg}
+
+
+# ---------------------------------------------------------------------------
+# 设备状态响应结构体
+# ---------------------------------------------------------------------------
+
+class DeviceStatus:
+    """
+    设备状态结构体。
+
+    当前字段:
+        is_armed (bool): 布防状态，True=布防，False=撤防
+
+    后期可在此扩展更多属性（如在线状态、固件版本等）。
+    """
+
+    def __init__(self, is_armed: bool = False):
+        self.is_armed = is_armed
+
+    def to_dict(self) -> dict:
+        return {
+            "is_armed": self.is_armed,
+        }
+
+
+def query_device_status(device_id: str) -> dict:
+    """
+    通过华为云 IoTDA 同步命令接口查询设备当前状态。
+
+    平台以同步方式将 GET_STATUS 命令下发给设备，等待设备执行并返回结果。
+    平台侧超时时间为 20 秒；超时时设备未响应则返回错误。
+
+    命令参数:
+        command_name = "GET_STATUS"
+        service_id   = "vigidoor"
+        paras        = {}  （查询命令无需额外参数）
+
+    设备应答格式（response.paras）:
+        { "is_armed": true | false }
+
+    返回:
+    {
+        "success": True,
+        "device_id": "VIGIDOOR_xxx_RPI",
+        "status": {
+            "is_armed": true   # 布防:true 撤防:false
+        }
+    }
+    """
+    client = get_iotda_client()
+    if not client:
+        return {"success": False, "error": "IoTDA 客户端未初始化"}
+
+    try:
+        logger.info(f"查询设备状态: {device_id}")
+
+        req = CreateCommandRequest()
+        req.device_id = device_id
+        req.body = DeviceCommandRequest(
+            service_id="vigidoor",
+            command_name="GET_STATUS",
+            paras={},
+        )
+
+        response = client.create_command(req)
+
+        # 从设备应答中提取 paras
+        raw_response = getattr(response, "response", None) or {}
+        if hasattr(raw_response, "to_dict"):
+            raw_response = raw_response.to_dict()
+        paras = raw_response.get("paras", {}) if isinstance(raw_response, dict) else {}
+
+        is_armed = paras.get("is_armed", None)
+        status = DeviceStatus(is_armed=is_armed)
+
+        logger.info(f"查询设备状态成功: {device_id}, is_armed={is_armed}")
+        return {
+            "success": True,
+            "device_id": device_id,
+            "status": status.to_dict(),
+        }
+
+    except exceptions.ClientRequestException as e:
+        error_msg = f"IoTDA API 错误: {e.status_code}"
+        logger.error(f"{error_msg} - {e.error_code}: {e.error_msg}")
+        return {
+            "success": False,
+            "error": error_msg,
+            "error_code": e.error_code,
+            "error_msg": e.error_msg,
+            "request_id": e.request_id,
+        }
+
+    except Exception as e:
+        error_msg = f"查询设备状态异常: {e}"
+        logger.exception(error_msg)
+        return {"success": False, "error": error_msg}
+
+
+def list_devices(
+    product_id: Optional[str] = None,
+    device_name: Optional[str] = None,
+    limit: int = 50,
+    marker: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    查询华为云 IoTDA 设备列表。
+
+    参数:
+        product_id:  按产品 ID 过滤（可选）
+        device_name: 按设备名称模糊匹配（可选）
+        limit:       每页最大返回条数（默认 50，最大 50）
+        marker:      分页游标，首次查询传 None
+
+    返回:
+    {
+        "success": True,
+        "count": 4,
+        "devices": [ { device fields ... }, ... ],
+        "marker": null | "<next_marker>"
+    }
+    """
+    client = get_iotda_client()
+    if not client:
+        return {"success": False, "error": "IoTDA 客户端未初始化", "devices": [], "count": 0}
+
+    try:
+        request = ListDevicesRequest()
+        request.limit = limit
+        if product_id:
+            request.product_id = product_id
+        if device_name:
+            request.device_name = device_name
+        if marker:
+            request.marker = marker
+
+        response = client.list_devices(request)
+
+        # SDK 的 DeviceInfo 对象支持 to_dict()，字段名与 API 文档一致
+        raw_devices = getattr(response, "devices", []) or []
+        devices = []
+        for dev in raw_devices:
+            if hasattr(dev, "to_dict"):
+                devices.append(dev.to_dict())
+            else:
+                # 兜底：手动摘取关键字段
+                devices.append({
+                    "app_id": getattr(dev, "app_id", None),
+                    "app_name": getattr(dev, "app_name", None),
+                    "description": getattr(dev, "description", None),
+                    "device_id": getattr(dev, "device_id", None),
+                    "device_name": getattr(dev, "device_name", None),
+                    "device_sdk_version": getattr(dev, "device_sdk_version", None),
+                    "fw_version": getattr(dev, "fw_version", None),
+                    "gateway_id": getattr(dev, "gateway_id", None),
+                    "node_id": getattr(dev, "node_id", None),
+                    "node_type": getattr(dev, "node_type", None),
+                    "product_id": getattr(dev, "product_id", None),
+                    "product_name": getattr(dev, "product_name", None),
+                    "status": getattr(dev, "status", None),
+                    "sw_version": getattr(dev, "sw_version", None),
+                    "tags": getattr(dev, "tags", []),
+                })
+
+        next_marker = getattr(response, "marker", None)
+        if hasattr(next_marker, "marker"):
+            # 部分版本 SDK 将 marker 包在 page 对象中
+            next_marker = getattr(next_marker, "marker", None)
+
+        logger.info(f"查询设备列表成功，共 {len(devices)} 台设备")
+        return {
+            "success": True,
+            "count": len(devices),
+            "devices": devices,
+            "marker": next_marker,
+        }
+
+    except exceptions.ClientRequestException as e:
+        error_msg = f"IoTDA API 错误: {e.status_code}"
+        logger.error(f"{error_msg} - {e.error_code}: {e.error_msg}")
+        return {
+            "success": False,
+            "error": error_msg,
+            "error_code": e.error_code,
+            "error_msg": e.error_msg,
+            "request_id": e.request_id,
+            "devices": [],
+            "count": 0,
+        }
+
+    except Exception as e:
+        error_msg = f"查询设备列表异常: {e}"
+        logger.exception(error_msg)
+        return {"success": False, "error": error_msg, "devices": [], "count": 0}
