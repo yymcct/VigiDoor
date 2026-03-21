@@ -12,7 +12,7 @@ opencv-python>=4.8.0
 # picamera2  # 树莓派专用，需要在树莓派上安装
 
 # AI 推理
-ultralytics>=8.3.100  # YOLO，初版可选
+#ultralytics>=8.3.100  # YOLO，初版可选
 #numpy==2.2.4 #
 numpy<2
 
@@ -35,3 +35,4 @@ python-dateutil>=2.8.2
 # 开发工具（可选）
 # pytest>=7.4.0
 # black>=23.0.0
+gpiozero>=1.7.0  # 树莓派 GPIO 控制

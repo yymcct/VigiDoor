@@ -9,6 +9,7 @@ import numpy as np
 from collections import deque
 from typing import Optional, Callable
 from utils.logger import setup_logger
+from utils.system import is_raspberry_pi
 
 logger = setup_logger('audio_capture')
 
@@ -82,12 +83,13 @@ class AudioCaptureManager:
             # 初始化 sounddevice
             import sounddevice as sd
 
+            device = "seedsnoop_plug" if is_raspberry_pi() else None
             self.stream = sd.InputStream(
                 samplerate=self.sample_rate,
                 channels=self.channels,
                 dtype="float32",
                 blocksize=self.chunk_size,
-                device="seedsnoop_plug",
+                device=device,
                 callback=self._audio_callback
             )
             
