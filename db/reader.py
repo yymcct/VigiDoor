@@ -226,6 +226,26 @@ class DBReader:
             logger.error(f"按严重程度查询事件失败: {e}")
             return []
     
+    # ==================== 布撤防查询 ====================
+
+    def get_last_arm_status(self) -> Optional[str]:
+        """
+        获取最后一次布撤防状态
+
+        Returns:
+            'arm'（已布防）或 'disarm'（已撤防），无记录时返回 None
+        """
+        try:
+            conn = self._get_conn("events")
+            cursor = conn.execute(
+                "SELECT action FROM arm_disarm_log ORDER BY ts DESC LIMIT 1"
+            )
+            row = cursor.fetchone()
+            return row["action"] if row else None
+        except Exception as e:
+            logger.error(f"读取布撤防状态失败: {e}")
+            return None
+
     # ==================== 统计查询 (预留) ====================
     
     def get_people_stats(

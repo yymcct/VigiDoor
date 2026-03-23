@@ -166,7 +166,24 @@ class DatabaseInitializer:
                 CREATE INDEX IF NOT EXISTS idx_events_type 
                 ON events(event_type)
             """)
-            
+
+            # 创建布撤防记录表
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS arm_disarm_log (
+                    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                    action    TEXT NOT NULL,
+                    source    TEXT NOT NULL,
+                    operator  TEXT,
+                    ts        REAL NOT NULL,
+                    created   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_arm_disarm_ts
+                ON arm_disarm_log(ts)
+            """)
+
             conn.commit()
             logger.info("事件数据库初始化完成")
         finally:
@@ -293,6 +310,53 @@ def init_databases(db_dir: Optional[Path] = None) -> None:
     
     initializer = DatabaseInitializer(db_dir)
     initializer.init_all()
+
+
+def ensure_migrations(db_dir: Optional[Path] = None) -> None:
+    """
+    幂等数据库迁移：确保所有新增表结构在已有数据库中存在
+
+    用于系统升级时补全旧数据库缺少的表，可安全重复调用。
+
+    Args:
+        db_dir: 数据库目录，默认为 ./data
+    """
+    if db_dir is None:
+        db_dir = Path(__file__).parent.parent / "data"
+
+    events_db = db_dir / "events.db"
+    if not events_db.exists():
+        # events.db 不存在则跳过，init_all() 会在后续完整初始化
+        return
+
+    conn = sqlite3.connect(str(events_db))
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=NORMAL")
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS arm_disarm_log (
+                id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                action    TEXT NOT NULL,
+                source    TEXT NOT NULL,
+                operator  TEXT,
+                ts        REAL NOT NULL,
+                created   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_arm_disarm_ts
+            ON arm_disarm_log(ts)
+        """)
+
+        conn.commit()
+        logger.info("数据库迁移完成：arm_disarm_log 表已就绪")
+    except Exception as e:
+        logger.error(f"数据库迁移失败: {e}")
+        raise
+    finally:
+        conn.close()
 
 
 if __name__ == "__main__":

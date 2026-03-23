@@ -35,6 +35,7 @@ class DBManager:
     # 数据保留期限 (天)
     RETENTION_DAYS = {
         "events": 7,           # 事件日志保留7天
+        "arm_disarm_log": 180,  # 布撤防记录保留90天
         "metrics": 30,         # 统计数据保留30天
         "health_metrics": 7    # 健康指标保留7天
     }
@@ -160,6 +161,8 @@ class DBManager:
         try:
             if action == "write_event":
                 self._write_event(msg["data"])
+            elif action == "write_arm_disarm":
+                self._write_arm_disarm(msg["data"])
             elif action == "write_metric":
                 self._write_metric(msg["data"])
             elif action == "write_health_metric":
@@ -198,6 +201,34 @@ class DBManager:
         except Exception as e:
             logger.error(f"写入事件失败: {e}", exc_info=True)
     
+    def _write_arm_disarm(self, data: Dict[str, Any]) -> None:
+        """
+        写入布撤防操作记录
+
+        Args:
+            data: 记录数据
+                - action: 'arm' / 'disarm'
+                - source: 触发来源 (mqtt/local/api 等)
+                - operator: 操作者（可选）
+                - ts: Unix 时间戳
+        """
+        try:
+            conn = self._connections["events"]
+            conn.execute(
+                """INSERT INTO arm_disarm_log (action, source, operator, ts)
+                   VALUES (:action, :source, :operator, :ts)""",
+                {
+                    "action": data["action"],
+                    "source": data["source"],
+                    "operator": data.get("operator"),
+                    "ts": data["ts"],
+                }
+            )
+            conn.commit()
+            logger.info(f"布撤防记录已写入: {data.get('action')} (来源: {data.get('source')})")
+        except Exception as e:
+            logger.error(f"写入布撤防记录失败: {e}", exc_info=True)
+
     def _write_metric(self, data: Dict[str, Any]) -> None:
         """
         写入统计数据 (预留)
@@ -277,7 +308,17 @@ class DBManager:
             conn_events.commit()
             
             logger.info(f"已删除 {deleted_events} 条过期事件")
-            
+
+            # 清理布撤防记录
+            arm_cutoff = now - timedelta(days=self.RETENTION_DAYS["arm_disarm_log"])
+            cursor = conn_events.execute(
+                "DELETE FROM arm_disarm_log WHERE created < ?",
+                (arm_cutoff,)
+            )
+            deleted_arm = cursor.rowcount
+            conn_events.commit()
+            logger.info(f"已删除 {deleted_arm} 条过期布撤防记录")
+
             # 清理统计数据 (预留)
             metrics_cutoff = now - timedelta(days=self.RETENTION_DAYS["metrics"])
             conn_metrics = self._connections["metrics"]
@@ -303,7 +344,7 @@ class DBManager:
             logger.info(f"已删除 {deleted_health} 条过期健康指标")
             
             # 执行 VACUUM 回收空间
-            if deleted_events > 0:
+            if deleted_events > 0 or deleted_arm > 0:
                 conn_events.execute("VACUUM")
                 logger.info("events.db VACUUM 完成")
             

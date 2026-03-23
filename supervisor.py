@@ -64,8 +64,11 @@ class ProcessSupervisor:
         # 创建消息总线
         self.message_bus = MessageBus(max_queue_size=1000)
         
+        # 从数据库加载初始布撤防状态
+        initial_armed = self._load_initial_arm_status()
+
         # 创建共享状态管理器
-        self.state_manager = SharedStateManager(self.config_manager)
+        self.state_manager = SharedStateManager(self.config_manager, initial_armed=initial_armed)
         
         # 创建进程配置
         process_configs = create_process_configs(self.config_manager)
@@ -89,10 +92,12 @@ class ProcessSupervisor:
         )
         
         # 创建消息路由器
+        from db.writer_helper import DBWriterHelper
         message_handler_ctx = SupervisorHandlerContext(
             message_bus=self.message_bus,
             shared_state=self.state_manager.state,  # 传递底层字典
-            logger=logger
+            logger=logger,
+            db_writer=DBWriterHelper(self.message_bus.get_client(ProcessName.SUPERVISOR))
         )
         self.message_router = MessageRouter(message_handler_ctx)
         
@@ -116,7 +121,7 @@ class ProcessSupervisor:
     def _ensure_db_initialized(self):
         """确保数据库已初始化"""
         from pathlib import Path
-        from db.init_db import init_databases
+        from db.init_db import init_databases, ensure_migrations
         
         db_dir = Path("./data")
         config_db = db_dir / "config.db"
@@ -127,6 +132,26 @@ class ProcessSupervisor:
             logger.info("✅ 数据库初始化完成")
         else:
             logger.info("📊 配置数据库已存在，跳过初始化")
+
+        # 执行幂等迁移，确保新增表结构在已有数据库中存在
+        ensure_migrations(db_dir)
+
+    def _load_initial_arm_status(self) -> bool:
+        """从数据库加载初始布撤防状态，无记录时默认撤防"""
+        try:
+            from db.reader import DBReader
+            reader = DBReader()
+            last_status = reader.get_last_arm_status()
+            reader.close()
+            if last_status is None:
+                logger.info("📊 无布撤防记录，默认撤防状态")
+                return False
+            is_armed = last_status == 'arm'
+            logger.info(f"📊 从数据库恢复布撤防状态: {'布防' if is_armed else '撤防'}")
+            return is_armed
+        except Exception as e:
+            logger.warning(f"⚠️ 读取布撤防状态失败，默认撤防: {e}")
+            return False
     
     def start(self):
         """启动所有服务"""

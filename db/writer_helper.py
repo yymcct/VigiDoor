@@ -160,6 +160,35 @@ class DBWriterHelper:
         """
         return self._send_db_message("set_config", {"key": key, "value": value})
     
+    # ==================== 布撤防记录写入 ====================
+
+    def write_arm_disarm(
+        self,
+        action: str,
+        source: str,
+        operator: Optional[str] = None
+    ) -> bool:
+        """
+        写入布撤防操作记录
+
+        Args:
+            action: 动作类型，'arm'（布防）或 'disarm'（撤防）
+            source: 触发来源，如 'mqtt'、'local'、'api'
+            operator: 操作者标识（可选）
+
+        Returns:
+            是否发送成功
+        """
+        import time as _time
+        data: Dict[str, Any] = {
+            "action": action,
+            "source": source,
+            "ts": _time.time(),
+        }
+        if operator is not None:
+            data["operator"] = operator
+        return self._send_db_message("write_arm_disarm", {"data": data})
+
     # ==================== 触发清理 ====================
     
     def trigger_cleanup(self) -> bool:

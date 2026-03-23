@@ -25,12 +25,13 @@ class SharedStateManager:
     STATE_ALERT = "alert"    # 警戒状态（黄灯）
     STATE_ALARM = "alarm"    # 报警状态（红灯闪烁）
     
-    def __init__(self, config_manager: 'ConfigManager'):
+    def __init__(self, config_manager: 'ConfigManager', initial_armed: bool = False):
         """
         初始化共享状态管理器
         
         Args:
             config_manager: ConfigManager 实例
+            initial_armed: 初始布防状态
         """
         alarm_auto_reset_seconds = config_manager.supervisor.alarm_auto_reset_seconds or 0
         
@@ -42,7 +43,7 @@ class SharedStateManager:
             'start_time': time.time(),  # 启动时间，用于计算 uptime
             'alarm_until': 0.0,
             'alarm_auto_reset_seconds': alarm_auto_reset_seconds,
-            'is_armed': True,           #TODO 默认布防应当是从数据库中读取，而不是写死在代码里
+            'is_armed': initial_armed,
         })
     
     @property
