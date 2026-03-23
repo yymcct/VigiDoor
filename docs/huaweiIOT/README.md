@@ -45,7 +45,7 @@ source .venv/bin/activate
 
 1. 安装依赖：
 ```bash
-pip install -r requirements.txt
+pip install -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com
 ```
 
 2. 配置环境变量：

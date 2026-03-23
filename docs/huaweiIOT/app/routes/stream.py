@@ -31,9 +31,8 @@ def start_stream():
         if not device_id:
             return jsonify({"success": False, "error": "device_id 为必填项"}), 400
 
-        rtmp_url = data.get("rtmp_url") or Config.DEFAULT_RTMP_URL_TEMPLATE.format(
-            device_id=device_id
-        )
+        rtmp_url = data.get("rtmp_url") or f"rtmp://{Config.ZLM_SERVER}:{Config.ZLM_RTMP_PORT}/live/{device_id}"
+        
         params = data.get("params", {})
 
         command_data = {

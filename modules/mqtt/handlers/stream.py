@@ -23,11 +23,10 @@ class CommandStreamHandler(MQTTMessageHandler):
         - stop: 停止推流
         """
         action = message.get_action()
-        self.logger.info(f"📥 收到推流控制指令: {action}")
+        self.logger.info(f"📥 收到推流控制指令: {action}, 消息内容: {message}")
         
         try:
             if action == 'start':
-                # 使用强类型消息直接发送给 stream_manager 进程
                 stream_msg = IPCCommandMessage(
                     cmd_type=MessageType.CMD_START_STREAM,
                     target=ProcessName.STREAM_MANAGER,
@@ -37,7 +36,6 @@ class CommandStreamHandler(MQTTMessageHandler):
                 self.send_response('stream', message.msg_id, 'success', '推流指令已接收')
                 
             elif action == 'stop':
-                # 使用强类型消息直接发送给 stream_manager 进程
                 stream_msg = IPCCommandMessage(
                     cmd_type=MessageType.CMD_STOP_STREAM,
                     target=ProcessName.STREAM_MANAGER,

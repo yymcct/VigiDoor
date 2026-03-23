@@ -130,7 +130,8 @@ class StreamManagerProcess:
         
         if msg_type == MessageType.CMD_START_STREAM.value:
             logger.info("📤 收到开始推流指令")
-            self._start_stream()
+            stream_url = msg_data.get('rtmp_url') or None
+            self._start_stream(stream_url=stream_url)
         
         elif msg_type == MessageType.CMD_STOP_STREAM.value:
             logger.info("⏹️  收到停止推流指令")
@@ -144,8 +145,12 @@ class StreamManagerProcess:
             logger.info("收到关闭信号")
             self.running = False
     
-    def _start_stream(self):
-        """启动推流"""
+    def _start_stream(self, stream_url: str = None):
+        """启动推流
+        
+        Args:
+            stream_url: 推流地址，优先级高于本地配置；为 None 时使用本地配置
+        """
         if not self.state_manager.can_transition_to(StreamState.STARTING):
             logger.warning(
                 f"当前状态 {self.state_manager.state.value}，无法启动推流"
@@ -154,13 +159,19 @@ class StreamManagerProcess:
         
         try:
             self.state_manager.transition_to(StreamState.STARTING)
-            logger.info("开始启动推流...")
+            
+            effective_url = stream_url if stream_url else self.stream_url
+            logger.info(f"开始启动推流，推流地址: {effective_url}")
+            if stream_url:
+                logger.info("  (地址来源: 指令)")
+            else:
+                logger.info("  (地址来源: 本地配置)")
             
             # 1. 初始化共享内存
             self._init_shared_memory()
             
             # 2. 初始化组件
-            self._init_components()
+            self._init_components(effective_url)
             
             # 3. 启动处理管道
             if not self.pipeline.start(lambda: self.state_manager.state):
@@ -231,8 +242,12 @@ class StreamManagerProcess:
             logger.error(f"共享内存连接失败: {e}")
             raise
     
-    def _init_components(self):
-        """初始化所有组件"""
+    def _init_components(self, stream_url: str = None):
+        """初始化所有组件
+        
+        Args:
+            stream_url: 推流地址，为 None 时回退到 self.stream_url
+        """
         # 1. 创建 OSD 元素
         osd_elements = CompositeOSDElement()
         
@@ -261,7 +276,7 @@ class StreamManagerProcess:
         )
         logger.info("使用 AVMuxer 进行音视频混流推流")
         
-        if not self.encoder.initialize(self.stream_url):
+        if not self.encoder.initialize(stream_url or self.stream_url):
             raise RuntimeError("编码器初始化失败")
         
         logger.info("✅ 编码器初始化完成")
