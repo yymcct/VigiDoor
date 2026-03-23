@@ -10,6 +10,7 @@ from typing import Optional
 from urllib.parse import urlparse
 import numpy as np
 from utils.logger import setup_logger
+from utils.system import is_raspberry_pi
 
 from .base import EncoderBase
 
@@ -59,7 +60,12 @@ class AVMuxer(EncoderBase):
         """
         super().__init__(width, height, fps, video_bitrate)
         self.video_bitrate = video_bitrate
-        self.audio_device = audio_device
+        if is_raspberry_pi():
+            self.audio_fmt = 'alsa'
+            self.audio_device = 'seedsnoop_plug'
+        else:
+            self.audio_fmt = 'pulse'
+            self.audio_device = 'default'
         self.audio_bitrate = audio_bitrate
         self.audio_sample_rate = audio_sample_rate
         self.audio_channels = audio_channels
@@ -171,8 +177,8 @@ class AVMuxer(EncoderBase):
         # === 音频输入配置（始终启用）===
         cmd.extend([
             '-thread_queue_size', '4096',  # 增加音频输入线程队列
-            '-f', 'alsa',
-            '-i', self.audio_device,  # ALSA 设备
+            '-f', self.audio_fmt,
+            '-i', self.audio_device,
         ])
         
         # === 视频编码配置 ===
