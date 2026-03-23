@@ -96,6 +96,7 @@ class StreamManagerProcess:
         logger.info("📹 流媒体管理进程启动")
         
         last_heartbeat = time.time()
+        last_arm_sync = 0.0  # 上次布防状态同步时间
         
         #TODO 测试代码，启动时自动开始推流，需要重构掉
         # stream_msg = IPCCommandMessage(
@@ -106,10 +107,16 @@ class StreamManagerProcess:
         # self.ipc.send_message(stream_msg)
         try:
             while self.running:
-                # 处理消息
                 msg = self.ipc.receive(timeout=1.0)
                 if msg:
                     self._handle_message(msg)
+                
+                # 每秒同步一次布防状态到 data_store（渲染器使用）
+                now = time.time()
+                if now - last_arm_sync >= 1.0:
+                    is_armed = bool(self.state.get('is_armed', True))
+                    self.data_store.update_arm_status(is_armed)
+                    last_arm_sync = now
                 
                 # 定期发送心跳
                 if time.time() - last_heartbeat > 10:

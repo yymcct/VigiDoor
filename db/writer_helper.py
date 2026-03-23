@@ -53,14 +53,14 @@ class DBWriterHelper:
         """
         try:
             msg = IPCMessage(
-                type=MessageType.DB_WRITE,
+                msg_type=MessageType.DB_WRITE,
                 data={
                     "action": action,
                     **data
                 }
             )
             msg.target = "supervisor"
-            self.ipc_client.send(msg)
+            self.ipc_client.send_message(msg)
             logger.debug(f"DB写入请求已发送: {action}")
             return True
         except Exception as e:

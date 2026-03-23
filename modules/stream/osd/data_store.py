@@ -65,7 +65,10 @@ class OSDDataStore:
             OSDDataCategory.ANNOTATIONS: 0.0,
             OSDDataCategory.METADATA: 0.0
         }
-        
+
+        # 布撤防状态（持久字段，不受 TTL 影响）
+        self._arm_status: bool = True
+
         logger.info(f"OSD数据仓库初始化完成，TTL={ttl}秒")
     
     def update_detections(self, detections: List[Dict[str, Any]]):
@@ -160,8 +163,21 @@ class OSDDataStore:
                     else:
                         result[key] = None
             
+            result['is_armed'] = self._arm_status
             return result
     
+    def update_arm_status(self, is_armed: bool):
+        """
+        更新布撤防状态（不受 TTL 影响，永久生效）
+
+        Args:
+            is_armed: True 表示已布防，False 表示已撤防
+        """
+        with self._lock:
+            self._arm_status = is_armed
+            status_str = "已布防" if is_armed else "已撤防"
+            logger.debug(f"布撤防状态更新: {status_str}")
+
     def is_data_fresh(self, category: str) -> bool:
         """
         检查指定类别的数据是否新鲜（未过期）

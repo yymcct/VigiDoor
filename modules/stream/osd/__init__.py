@@ -10,6 +10,7 @@ from .elements import (
     SkeletonElement,
     RegionOverlayElement,
     FootTrafficElement,
+    ArmStatusElement,
     CompositeOSDElement
 )
 from .renderer import OSDRenderer
@@ -24,6 +25,7 @@ __all__ = [
     'SkeletonElement',
     'RegionOverlayElement',
     'FootTrafficElement',
+    'ArmStatusElement',
     'CompositeOSDElement',
     'OSDRenderer',
     'OSDDataStore',

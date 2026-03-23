@@ -342,7 +342,8 @@ class CompositeOSDElement(OSDElement):
             FootTrafficElement(
                 position=None,  # 自动定位到右上角
                 font_scale=0.8
-            )
+            ),
+            ArmStatusElement(),
         ]
     
     def render(self, frame: np.ndarray, **kwargs) -> np.ndarray:
@@ -683,4 +684,55 @@ class FootTrafficElement(OSDElement):
             )
         
         return frame
+
+
+class ArmStatusElement(OSDElement):
+    """
+    布撤防状态元素
+    在画面右上角实时显示当前布防/撤防状态
+    """
+
+    def __init__(
+        self,
+        font_size: int = 26,
+        armed_color: tuple = (0, 255, 0),        # 布防：绿色 (RGB)
+        disarmed_color: tuple = (180, 180, 180), # 撤防：浅灰 (RGB)
+        armed_text: str = "● 已布防",
+        disarmed_text: str = "○ 已撤防",
+        margin_x: int = 20,
+        margin_y: int = 14,  #
+    ):
+        """
+        Args:
+            font_size:       字体大小（像素）
+            armed_color:     布防状态文字颜色 (R, G, B)
+            disarmed_color:  撤防状态文字颜色 (R, G, B)
+            armed_text:      布防状态显示文字
+            disarmed_text:   撤防状态显示文字
+            margin_x:        距右边缘水平间距（像素）
+            margin_y:        距上边缘垂直间距（像素）
+        """
+        self.font_size = font_size
+        self.armed_color = armed_color
+        self.disarmed_color = disarmed_color
+        self.armed_text = armed_text
+        self.disarmed_text = disarmed_text
+        self.margin_x = margin_x
+        self.margin_y = margin_y
+
+    def render(self, frame: np.ndarray, **kwargs) -> np.ndarray:
+        """渲染布撤防状态文字到帧右上角"""
+        is_armed = kwargs.get('is_armed', True)
+        text = self.armed_text if is_armed else self.disarmed_text
+        color = self.armed_color if is_armed else self.disarmed_color
+
+        height, width = frame.shape[:2]
+
+        # 估算文字宽度：每个字符约占 font_size 宽度（中文字符），加少量余量
+        approx_text_width = len(text) * self.font_size
+        x = max(width - approx_text_width - self.margin_x, 0)
+        # margin_y 为 PIL top-left y 坐标，使底部与时间戳 OpenCV baseline(y=40) 对齐
+        y = self.margin_y
+
+        return put_chinese_text(frame, text, (x, y), self.font_size, color)
 
