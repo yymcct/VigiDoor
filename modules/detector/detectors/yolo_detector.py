@@ -170,11 +170,25 @@ class YOLODetector(BaseDetector):
     # ONNX 推理（核心快路径）
     # ------------------------------------------------------------------
 
+    def _letterbox(self, frame: np.ndarray) -> np.ndarray:
+        """保持宽高比 resize，不足部分用灰色(114)填充（letterbox）"""
+        h, w = frame.shape[:2]
+        scale = self.input_size / max(h, w)
+        nh, nw = int(h * scale), int(w * scale)
+        resized = cv2.resize(frame, (nw, nh))
+        pad = np.full((self.input_size, self.input_size, 3), 114, dtype=np.uint8)
+        dh, dw = (self.input_size - nh) // 2, (self.input_size - nw) // 2
+        pad[dh:dh + nh, dw:dw + nw] = resized
+        return pad
+
     def _preprocess(self, frame: np.ndarray) -> np.ndarray:
-        """BGR → RGB → resize → normalize → NCHW float32"""
-        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        resized = cv2.resize(rgb, (self.input_size, self.input_size))
-        blob = resized.astype(np.float32) / 255.0
+        """RGB → letterbox → normalize → NCHW float32
+
+        共享内存帧格式为 RGB888，无需颜色空间转换。
+        使用 letterbox 保持宽高比，与模型训练预处理一致。
+        """
+        letterboxed = self._letterbox(frame)
+        blob = letterboxed.astype(np.float32) / 255.0
         return blob.transpose(2, 0, 1)[np.newaxis]  # (1, 3, H, W)
 
     def _detect_onnx(self, frame: np.ndarray) -> list:
@@ -222,7 +236,12 @@ class YOLODetector(BaseDetector):
                 'class': 0,
                 'class_name': 'person',
                 'confidence': score,
-                'bbox': [bx1, by1, bx2 - bx1, by2 - by1],  # [x, y, w, h] 归一化
+                'bbox': [  # [x, y, w, h] 归一化到 [0, 1]
+                    bx1 / self.input_size,
+                    by1 / self.input_size,
+                    (bx2 - bx1) / self.input_size,
+                    (by2 - by1) / self.input_size,
+                ],
                 'detector': 'yolo_onnx',
             }
 
