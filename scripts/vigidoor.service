@@ -32,7 +32,7 @@ Environment="NUMEXPR_NUM_THREADS=1"
 
 # 资源限制
 MemoryMax=2048M
-CPUQuota=80%
+#CPUQuota=80%
 TasksMax=512
 
 # 日志配置
