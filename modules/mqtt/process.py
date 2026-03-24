@@ -9,6 +9,7 @@ import os
 from utils.logger import setup_logger
 from core.ipc import IPCClient, MessageType
 from core.ipc.registry import ProcessName
+from core.state import GlobalState, StateKey
 from modules.mqtt import TopicManager, MQTTPublisher, MQTTMessageDispatcher
 from modules.mqtt.handlers import OcCommandHandler
 
@@ -235,8 +236,8 @@ class MQTTClientProcess:
             if self.is_connected:
                 try:
                     # 获取当前全局状态
-                    global_state = self.state.get('global_state', 'safe')
-                    uptime = int(time.time() - self.state.get('start_time', time.time()))
+                    global_state = self.state.get(StateKey.GLOBAL_STATE, GlobalState.SAFE)
+                    uptime = int(time.time() - self.state.get(StateKey.START_TIME, time.time()))
                     
                     # 使用 Publisher 发送心跳
                     self.publisher.publish_lifecycle_heartbeat(

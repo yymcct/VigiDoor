@@ -4,3 +4,7 @@ VigiDoor 核心架构层
 """
 
 __version__ = "2.0.0"
+
+from .state import GlobalState, StateKey
+
+__all__ = ["GlobalState", "StateKey"]

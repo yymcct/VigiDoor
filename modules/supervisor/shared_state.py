@@ -8,6 +8,8 @@ import multiprocessing as mp
 import time
 from typing import Dict, Optional, TYPE_CHECKING
 
+from core.state import GlobalState, StateKey
+
 if TYPE_CHECKING:
     from utils.config import ConfigManager
 
@@ -20,10 +22,10 @@ class SharedStateManager:
     提供类型安全和语义清晰的接口
     """
     
-    # 全局状态常量
-    STATE_SAFE = "safe"      # 安全状态（绿灯）
-    STATE_ALERT = "alert"    # 警戒状态（黄灯）
-    STATE_ALARM = "alarm"    # 报警状态（红灯闪烁）
+    # 全局状态常量（向后兼容别名）
+    STATE_SAFE = GlobalState.SAFE
+    STATE_ALERT = GlobalState.ALERT
+    STATE_ALARM = GlobalState.ALARM
     
     def __init__(self, config_manager: 'ConfigManager', initial_armed: bool = False):
         """
@@ -36,14 +38,14 @@ class SharedStateManager:
         alarm_auto_reset_seconds = config_manager.supervisor.alarm_auto_reset_seconds or 0
         
         self._state = mp.Manager().dict({
-            'global_state': self.STATE_SAFE,
-            'device_id': config_manager.device.id,
-            'is_streaming': False,
-            'last_heartbeat': {},
-            'start_time': time.time(),  # 启动时间，用于计算 uptime
-            'alarm_until': 0.0,
-            'alarm_auto_reset_seconds': alarm_auto_reset_seconds,
-            'is_armed': initial_armed,
+            StateKey.GLOBAL_STATE: GlobalState.SAFE,
+            StateKey.DEVICE_ID: config_manager.device.id,
+            StateKey.IS_STREAMING: False,
+            StateKey.LAST_HEARTBEAT: {},
+            StateKey.START_TIME: time.time(),  # 启动时间，用于计算 uptime
+            StateKey.ALARM_UNTIL: 0.0,
+            StateKey.ALARM_AUTO_RESET_SECONDS: alarm_auto_reset_seconds,
+            StateKey.IS_ARMED: initial_armed,
         })
     
     @property
@@ -53,32 +55,30 @@ class SharedStateManager:
     
     # ==================== 全局状态管理 ====================
     
-    def get_global_state(self) -> str:
+    def get_global_state(self) -> GlobalState:
         """获取全局状态"""
-        return self._state.get('global_state', self.STATE_SAFE)
+        return GlobalState(self._state.get(StateKey.GLOBAL_STATE, GlobalState.SAFE))
     
-    def set_global_state(self, state: str) -> None:
+    def set_global_state(self, state: GlobalState) -> None:
         """
         设置全局状态
         
         Args:
-            state: 状态值（STATE_SAFE, STATE_ALERT, STATE_ALARM）
+            state: 状态值（GlobalState.SAFE / ALERT / ALARM）
         """
-        if state not in (self.STATE_SAFE, self.STATE_ALERT, self.STATE_ALARM):
-            raise ValueError(f"Invalid state: {state}")
-        self._state['global_state'] = state
+        self._state[StateKey.GLOBAL_STATE] = GlobalState(state)
     
     def is_safe(self) -> bool:
         """检查是否处于安全状态"""
-        return self.get_global_state() == self.STATE_SAFE
+        return self.get_global_state() == GlobalState.SAFE
     
     def is_alert(self) -> bool:
         """检查是否处于警戒状态"""
-        return self.get_global_state() == self.STATE_ALERT
+        return self.get_global_state() == GlobalState.ALERT
     
     def is_alarm(self) -> bool:
         """检查是否处于报警状态"""
-        return self.get_global_state() == self.STATE_ALARM
+        return self.get_global_state() == GlobalState.ALARM
     
     # ==================== 报警管理 ====================
     
@@ -89,19 +89,19 @@ class SharedStateManager:
         Args:
             timestamp: 报警结束时间戳
         """
-        self._state['alarm_until'] = timestamp
+        self._state[StateKey.ALARM_UNTIL] = timestamp
     
     def get_alarm_until(self) -> float:
         """获取报警结束时间戳"""
-        return float(self._state.get('alarm_until', 0) or 0)
+        return float(self._state.get(StateKey.ALARM_UNTIL, 0) or 0)
     
     def clear_alarm(self) -> None:
         """清除报警状态"""
-        self._state['alarm_until'] = 0
+        self._state[StateKey.ALARM_UNTIL] = 0
     
     def get_alarm_auto_reset_seconds(self) -> float:
         """获取报警自动恢复秒数"""
-        return float(self._state.get('alarm_auto_reset_seconds', 0) or 0)
+        return float(self._state.get(StateKey.ALARM_AUTO_RESET_SECONDS, 0) or 0)
     
     # ==================== 心跳管理 ====================
     
@@ -116,9 +116,9 @@ class SharedStateManager:
         if timestamp is None:
             timestamp = time.time()
         
-        heartbeats = dict(self._state.get('last_heartbeat', {}))
+        heartbeats = dict(self._state.get(StateKey.LAST_HEARTBEAT, {}))
         heartbeats[process_name] = timestamp
-        self._state['last_heartbeat'] = heartbeats
+        self._state[StateKey.LAST_HEARTBEAT] = heartbeats
     
     def get_last_heartbeat(self, process_name: str) -> Optional[float]:
         """
@@ -130,21 +130,21 @@ class SharedStateManager:
         Returns:
             心跳时间戳，如果不存在返回 None
         """
-        return self._state.get('last_heartbeat', {}).get(process_name)
+        return self._state.get(StateKey.LAST_HEARTBEAT, {}).get(process_name)
     
     def get_all_heartbeats(self) -> Dict[str, float]:
         """获取所有进程的心跳时间"""
-        return dict(self._state.get('last_heartbeat', {}))
+        return dict(self._state.get(StateKey.LAST_HEARTBEAT, {}))
     
     # ==================== 设备信息 ====================
     
     def get_device_id(self) -> str:
         """获取设备 ID"""
-        return self._state.get('device_id', '')
+        return self._state.get(StateKey.DEVICE_ID, '')
     
     def get_start_time(self) -> float:
         """获取系统启动时间戳"""
-        return self._state.get('start_time', time.time())
+        return self._state.get(StateKey.START_TIME, time.time())
     
     def get_uptime(self) -> float:
         """获取系统运行时间（秒）"""
@@ -159,21 +159,21 @@ class SharedStateManager:
         Args:
             is_streaming: 是否正在推流
         """
-        self._state['is_streaming'] = is_streaming
+        self._state[StateKey.IS_STREAMING] = is_streaming
     
     def is_streaming(self) -> bool:
         """检查是否正在推流"""
-        return self._state.get('is_streaming', False)
+        return self._state.get(StateKey.IS_STREAMING, False)
 
     # ==================== 布防/撤防管理 ====================
 
     def set_armed(self, armed: bool) -> None:
         """设置布防/撤防状态（仅 Supervisor 调用）"""
-        self._state['is_armed'] = armed
+        self._state[StateKey.IS_ARMED] = armed
 
     def get_armed(self) -> bool:
         """读取布防/撤防状态"""
-        return bool(self._state.get('is_armed', True))
+        return bool(self._state.get(StateKey.IS_ARMED, True))
 
     # ==================== 通用访问 ====================
     

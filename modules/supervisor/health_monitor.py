@@ -17,6 +17,7 @@ from core.ipc.bus import IPCClient
 from core.ipc.message import MessageType, StatusMessage, AlarmMessage, MessagePriority, CommandMessage
 from core.ipc.registry import ProcessName
 from .process_manager import ProcessManager
+from core.state import GlobalState
 from .shared_state import SharedStateManager
 
 if TYPE_CHECKING:
@@ -244,7 +245,7 @@ class HealthMonitor:
 
             # 检查是否到达恢复时间
             if time.time() >= alarm_until:
-                self.state_manager.set_global_state(SharedStateManager.STATE_SAFE)
+                self.state_manager.set_global_state(GlobalState.SAFE)
                 self.state_manager.clear_alarm()
                 self.logger.info("✅ 报警自动恢复：状态切换为 safe")
 

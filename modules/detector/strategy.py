@@ -4,6 +4,7 @@
 """
 
 from typing import Dict, Any
+from core.state import GlobalState, StateKey
 from utils.logger import setup_logger
 
 logger = setup_logger('detection_strategy')
@@ -50,7 +51,7 @@ class DetectionStrategy:
             bool: 是否应该检测
         """
         # 撤防状态：禁止所有 AI 检测
-        if not self.state.get('is_armed', True):
+        if not self.state.get(StateKey.IS_ARMED, True):
             return False
 
         # 根据系统状态获取检测间隔
@@ -61,11 +62,11 @@ class DetectionStrategy:
     
     def _get_current_interval(self) -> int:
         """根据系统状态获取当前检测间隔"""
-        system_state = self.state.get('global_state', 'safe')
+        system_state = self.state.get(StateKey.GLOBAL_STATE, GlobalState.SAFE)
         
-        if system_state == 'alarm':
+        if system_state == GlobalState.ALARM:
             return self.alarm_interval
-        elif system_state == 'alert':
+        elif system_state == GlobalState.ALERT:
             return self.alert_interval
         else:
             return self.safe_interval
@@ -73,7 +74,7 @@ class DetectionStrategy:
     def get_stats(self) -> Dict[str, Any]:
         """获取策略统计信息"""
         return {
-            'current_state': self.state.get('global_state', 'safe'),
+            'current_state': self.state.get(StateKey.GLOBAL_STATE, GlobalState.SAFE),
             'current_interval': self._get_current_interval(),
             'config': {
                 'safe_interval': self.safe_interval,

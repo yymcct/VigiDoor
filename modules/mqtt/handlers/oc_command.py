@@ -4,6 +4,7 @@
 
 import logging
 from typing import Optional
+from core.state import StateKey
 
 
 class OcCommandHandler:
@@ -35,7 +36,7 @@ class OcCommandHandler:
             )
 
             if command_name == 'GET_STATUS':
-                is_armed = bool(self.state.get('is_armed', False))
+                is_armed = bool(self.state.get(StateKey.IS_ARMED, False))
                 self.publisher.publish_oc_command_response(
                     request_id=request_id,
                     result_code=0,

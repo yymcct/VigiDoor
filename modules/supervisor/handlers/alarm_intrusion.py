@@ -5,6 +5,7 @@ from typing import Any, Dict
 
 from core.ipc.message import MessageType, IPCMessage, CommandMessage, create_message
 from core.ipc.registry import ProcessName
+from core.state import GlobalState, StateKey
 from .context import SupervisorHandlerContext
 
 
@@ -13,7 +14,7 @@ def handle_alarm_intrusion(ctx: SupervisorHandlerContext, msg: IPCMessage) -> No
     data: Dict[str, Any] = msg.data or {}
     ctx.logger.warning(f"🚨 检测到异常: {data}")
 
-    _set_global_state(ctx, 'alarm')
+    _set_global_state(ctx, GlobalState.ALARM)
     _set_alarm_auto_reset(ctx)
 
     alarm_msg = create_message(
@@ -41,11 +42,11 @@ def handle_alarm_intrusion(ctx: SupervisorHandlerContext, msg: IPCMessage) -> No
     ctx.message_bus.send(ProcessName.AUDIO_PROCESSOR, audio_msg)
 
 
-def _set_global_state(ctx: SupervisorHandlerContext, state: str) -> None:
+def _set_global_state(ctx: SupervisorHandlerContext, state: GlobalState) -> None:
     """设置全局状态"""
-    old_state = ctx.shared_state['global_state']
+    old_state = ctx.shared_state[StateKey.GLOBAL_STATE]
     if old_state != state:
-        ctx.shared_state['global_state'] = state
+        ctx.shared_state[StateKey.GLOBAL_STATE] = state
         ctx.logger.info(f"🔄 全局状态切换: {old_state} → {state}")
 
 
@@ -106,9 +107,9 @@ def handle_audio_anomaly(ctx: SupervisorHandlerContext, msg: IPCMessage) -> None
 
 def _set_alarm_auto_reset(ctx: SupervisorHandlerContext) -> None:
     """设置报警自动恢复时间"""
-    reset_seconds = float(ctx.shared_state.get('alarm_auto_reset_seconds', 0) or 0)
+    reset_seconds = float(ctx.shared_state.get(StateKey.ALARM_AUTO_RESET_SECONDS, 0) or 0)
     if reset_seconds > 0:
-        ctx.shared_state['alarm_until'] = time.time() + reset_seconds
+        ctx.shared_state[StateKey.ALARM_UNTIL] = time.time() + reset_seconds
         ctx.logger.info(f"⏱️ 报警自动恢复计时启动: {reset_seconds:.0f}s")
     else:
-        ctx.shared_state['alarm_until'] = 0
+        ctx.shared_state[StateKey.ALARM_UNTIL] = 0

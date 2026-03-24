@@ -4,10 +4,12 @@
 """
 
 import time
+from core.process_context import ProcessContext
 from utils.logger import setup_logger
 from utils.config import ConfigManager
 from core.ipc import IPCClient, MessageType
 from core.ipc.registry import ProcessName
+from core.state import StateKey
 
 from .capture import AudioCaptureManager
 from .baseline_monitor import EnvironmentBaselineMonitor
@@ -247,7 +249,7 @@ class AudioProcess:
                 return
 
             # 撤防状态：继续更新基线，但不触发报警
-            if not self.state.get('is_armed', True):
+            if not self.state.get(StateKey.IS_ARMED, True):
                 return
 
             # 4. 音量突变检测

@@ -3,13 +3,14 @@
 import time
 from core.ipc.message import MessageType, IPCMessage, CommandMessage
 from core.ipc.registry import ProcessName
+from core.state import StateKey
 from .context import SupervisorHandlerContext
 
 
 def handle_arm(ctx: SupervisorHandlerContext, msg: IPCMessage) -> None:
     """处理布防指令"""
-    was_armed = ctx.shared_state.get('is_armed', True)
-    ctx.shared_state['is_armed'] = True #TODO is_armed 改成枚举状态
+    was_armed = ctx.shared_state.get(StateKey.IS_ARMED, True)
+    ctx.shared_state[StateKey.IS_ARMED] = True
     ctx.logger.info(f"🔒 布防: {'已是布防，重复确认' if was_armed else '撤防 → 布防'}")
 
     ctx.db_writer.write_arm_disarm(action='arm', source='mqtt')
@@ -29,8 +30,8 @@ def handle_arm(ctx: SupervisorHandlerContext, msg: IPCMessage) -> None:
 
 def handle_disarm(ctx: SupervisorHandlerContext, msg: IPCMessage) -> None:
     """处理撤防指令"""
-    was_armed = ctx.shared_state.get('is_armed', True)
-    ctx.shared_state['is_armed'] = False
+    was_armed = ctx.shared_state.get(StateKey.IS_ARMED, True)
+    ctx.shared_state[StateKey.IS_ARMED] = False
     ctx.logger.info(f"🔓 撤防: {'布防 → 撤防' if was_armed else '已是撤防，重复确认'}")
 
     

@@ -6,6 +6,7 @@ import time
 import threading
 from core.ipc import IPCClient, MessageType
 from core.ipc.registry import ProcessName
+from core.state import StateKey
 from modules.stream.osd.elements import RegionOverlayElement
 from utils.logger import setup_logger
 from utils.frame_buffer import SharedFrameBuffer
@@ -114,7 +115,7 @@ class StreamManagerProcess:
                 # 每秒同步一次布防状态到 data_store（渲染器使用）
                 now = time.time()
                 if now - last_arm_sync >= 1.0:
-                    is_armed = bool(self.state.get('is_armed', True))
+                    is_armed = bool(self.state.get(StateKey.IS_ARMED, True))
                     self.data_store.update_arm_status(is_armed)
                     last_arm_sync = now
                 
@@ -186,7 +187,7 @@ class StreamManagerProcess:
             
             # 4. 更新状态
             self.state_manager.transition_to(StreamState.STREAMING)
-            self.state['is_streaming'] = True
+            self.state[StateKey.IS_STREAMING] = True
             logger.info("✅ 推流已启动")
             
         except Exception as e:
@@ -216,7 +217,7 @@ class StreamManagerProcess:
             
             # 更新状态
             self.state_manager.transition_to(StreamState.IDLE)
-            self.state['is_streaming'] = False
+            self.state[StateKey.IS_STREAMING] = False
             logger.info("✅ 推流已停止")
             
         except Exception as e:
