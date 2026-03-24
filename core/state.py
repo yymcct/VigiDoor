@@ -25,4 +25,4 @@ class StateKey(str, Enum):
     START_TIME = 'start_time'
     ALARM_UNTIL = 'alarm_until'
     ALARM_AUTO_RESET_SECONDS = 'alarm_auto_reset_seconds'
-    IS_ARMED = 'is_armed'
+    IS_ARMED = 'is_armed' # 是否处于布防状态

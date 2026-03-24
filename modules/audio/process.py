@@ -9,7 +9,7 @@ from utils.logger import setup_logger
 from utils.config import ConfigManager
 from core.ipc import IPCClient, MessageType
 from core.ipc.registry import ProcessName
-from core.state import StateKey
+from core.state import StateKey, GlobalState
 
 from .capture import AudioCaptureManager
 from .baseline_monitor import EnvironmentBaselineMonitor
@@ -246,6 +246,10 @@ class AudioProcess:
             # 基线学习期间，跳过检测
             if baseline_db is None:
                 #logger.debug(f"基线学习中... 当前音量: {current_db:.1f}dB")
+                return
+
+            # 全局已处于报警状态时，跳过声音检测（避免喇叭声触发二次报警）
+            if self.state.get(StateKey.GLOBAL_STATE) == GlobalState.ALARM:
                 return
 
             # 撤防状态：继续更新基线，但不触发报警
