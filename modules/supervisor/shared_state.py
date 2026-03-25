@@ -43,7 +43,7 @@ class SharedStateManager:
             StateKey.IS_STREAMING: False,
             StateKey.LAST_HEARTBEAT: {},
             StateKey.START_TIME: time.time(),  # 启动时间，用于计算 uptime
-            StateKey.ALARM_UNTIL: 0.0,
+            StateKey.ALARM_UNTIL: 15.0,
             StateKey.ALARM_AUTO_RESET_SECONDS: alarm_auto_reset_seconds,
             StateKey.IS_ARMED: initial_armed,
         })

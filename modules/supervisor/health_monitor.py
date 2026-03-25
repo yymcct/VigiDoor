@@ -14,7 +14,7 @@ import logging
 from typing import Optional, TYPE_CHECKING
 
 from core.ipc.bus import IPCClient
-from core.ipc.message import MessageType, StatusMessage, AlarmMessage, MessagePriority, CommandMessage
+from core.ipc.message import MessageType, StatusMessage, AlarmMessage, MessagePriority
 from core.ipc.registry import ProcessName
 from .process_manager import ProcessManager
 from core.state import GlobalState
@@ -247,19 +247,7 @@ class HealthMonitor:
             if time.time() >= alarm_until:
                 self.state_manager.set_global_state(GlobalState.SAFE)
                 self.state_manager.clear_alarm()
-
-                # 根据布防状态恢复对应灯光
-                is_armed = self.state_manager.get_armed()
-                light_mode = 'guard' if is_armed else 'daily'
-                self.logger.info(f"✅ 报警自动恢复：状态切换为 {light_mode}")
-
-                # 发送灯光控制命令
-                light_msg = CommandMessage(
-                    cmd_type=MessageType.CMD_SET_LIGHT,
-                    target=ProcessName.DEVICE_CONTROLLER,
-                    cmd_data={'mode': light_mode}
-                )
-                self.ipc_client.send_message(light_msg)
+                self.logger.info("✅ 报警自动恢复：全局状态已重置为 SAFE")
                 
         except Exception as e:
             self.logger.error(f"报警自动恢复异常: {e}")

@@ -6,6 +6,7 @@
 import time
 from typing import Dict, Any
 from core.ipc import IPCClient, MessageType
+from core.state import GlobalState, StateKey
 from utils.logger import setup_logger
 from .mode import DeviceMode, ModeManager
 from .manager import DeviceManager
@@ -84,6 +85,9 @@ class DeviceControllerProcess:
                 # 处理 IPC 消息
                 self._process_messages()
                 
+                # 轮询共享状态，自维护设备模式
+                self._poll_state()
+                
                 # 更新所有输出设备（驱动动画）
                 self.device_manager.update_all_outputs()
                 
@@ -150,45 +154,34 @@ class DeviceControllerProcess:
             msg_dict = msg.to_dict() if hasattr(msg, 'to_dict') else msg
             msg_type = msg_dict.get('type')
             
-            # 处理设置灯光指令
-            if msg_type == MessageType.CMD_SET_LIGHT.value:
-                mode_str = msg_dict.get('mode') or msg_dict.get('data', {}).get('mode')
-                if mode_str:
-                    self._handle_set_light(mode_str)
-            
             # 处理关闭指令
-            elif msg_type in ['shutdown', MessageType.SHUTDOWN.value]:
+            if msg_type in ['shutdown', MessageType.SHUTDOWN.value]:
                 logger.info("收到关闭信号")
                 self.running = False
             
         except Exception as e:
             logger.error(f"处理消息失败: {e}")
     
-    def _handle_set_light(self, mode_str: str):
-        """
-        处理设置灯光指令
-        
-        Args:
-            mode_str: 模式字符串 ("safe", "alert", "alarm")
-        """
+    def _poll_state(self):
+        """轮询共享状态，根据 GLOBAL_STATE + IS_ARMED 自维护设备模式"""
         try:
-            # 映射字符串到枚举
-            mode_map = {
-                'daily': DeviceMode.DAILY,
-                'guard': DeviceMode.GUARD,
-                'safe': DeviceMode.GUARD,   # 向后兼容
-                'alert': DeviceMode.ALERT,
-                'alarm': DeviceMode.ALARM,
-            }
-            
-            mode = mode_map.get(mode_str.lower())
-            if mode:
-                self.mode_manager.set_mode(mode)
+            global_state = GlobalState(self.state.get(StateKey.GLOBAL_STATE, GlobalState.SAFE))
+            is_armed = bool(self.state.get(StateKey.IS_ARMED, False))
+
+            if global_state == GlobalState.ALARM:
+                target_mode = DeviceMode.ALARM
+            elif global_state == GlobalState.ALERT:
+                target_mode = DeviceMode.ALERT
+            elif is_armed:
+                target_mode = DeviceMode.GUARD
             else:
-                logger.warning(f"未知模式: {mode_str}")
-                
+                target_mode = DeviceMode.DAILY
+
+            if self.mode_manager.current_mode != target_mode:
+                self.mode_manager.set_mode(target_mode)
+
         except Exception as e:
-            logger.error(f"设置灯光失败: {e}")
+            logger.error(f"轮询状态失败: {e}")
     
     def _on_mode_changed(self, old_mode: DeviceMode, new_mode: DeviceMode):
         """

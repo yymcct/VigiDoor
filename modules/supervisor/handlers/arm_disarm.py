@@ -27,12 +27,6 @@ def handle_arm(ctx: SupervisorHandlerContext, msg: IPCMessage) -> None:
         cmd_data={'status': 'armed', 'timestamp': int(time.time() * 1000)}
     ))
 
-    ctx.message_bus.send(ProcessName.DEVICE_CONTROLLER, CommandMessage(
-        cmd_type=MessageType.CMD_SET_LIGHT,
-        target=ProcessName.DEVICE_CONTROLLER,
-        cmd_data={'mode': 'guard'}
-    ))
-
 
 def handle_disarm(ctx: SupervisorHandlerContext, msg: IPCMessage) -> None:
     """处理撤防指令"""
@@ -54,10 +48,3 @@ def handle_disarm(ctx: SupervisorHandlerContext, msg: IPCMessage) -> None:
         target=ProcessName.MQTT_CLIENT,
         cmd_data={'status': 'disarmed', 'timestamp': int(time.time() * 1000)}
     ))
-
-    ctx.message_bus.send(ProcessName.DEVICE_CONTROLLER, CommandMessage(
-        cmd_type=MessageType.CMD_SET_LIGHT,
-        target=ProcessName.DEVICE_CONTROLLER,
-        cmd_data={'mode': 'daily'}
-    ))
- 

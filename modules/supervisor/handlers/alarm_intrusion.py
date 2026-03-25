@@ -24,14 +24,6 @@ def handle_alarm_intrusion(ctx: SupervisorHandlerContext, msg: IPCMessage) -> No
     )
     ctx.message_bus.send(ProcessName.MQTT_CLIENT, alarm_msg)
 
-
-    light_msg = CommandMessage(
-        cmd_type=MessageType.CMD_SET_LIGHT,
-        target=ProcessName.DEVICE_CONTROLLER,
-        cmd_data={'mode': 'alarm'}
-    )
-    ctx.message_bus.send(ProcessName.DEVICE_CONTROLLER, light_msg)
-
     audio_msg = CommandMessage(
         cmd_type=MessageType.CMD_PLAY_AUDIO,
         target=ProcessName.AUDIO_PROCESSOR,
