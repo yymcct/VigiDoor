@@ -193,10 +193,13 @@ class LEDStripDevice(OutputDevice):
         
         try:
             if self._current_effect.is_running():
-                # 获取效果当前帧的颜色
-                color = self._current_effect.update()
-                if color is not None:
-                    self._apply_color(color)
+                result = self._current_effect.update()
+                if result is None:
+                    return
+                if isinstance(result, list):
+                    self._apply_pixels(result)
+                else:
+                    self._apply_color(result)
             
         except Exception as e:
             logger.error(f"更新 LED 效果失败: {e}")
@@ -250,6 +253,16 @@ class LEDStripDevice(OutputDevice):
             self._current_color = color
         else:
             logger.warning("硬件像素对象未就绪，无法应用颜色")
+
+    def _apply_pixels(self, colors: list):
+        """内部方法：将逐像素颜色列表写入硬件"""
+        if self.simulate:
+            return
+        if self._pixels:
+            self._pixels[:] = colors
+            self._pixels.show()
+        else:
+            logger.warning("硬件像素对象未就绪，无法应用逐像素颜色")
 
     def _enable_simulation_mode(self) -> None:
         self.simulate = True

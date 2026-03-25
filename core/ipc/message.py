@@ -62,7 +62,6 @@ class MessageType(str, Enum):
     RESPONSE = "response"
     
     # ==========TODO重构掉 兼容旧代码 ==========
-    SET_LIGHT = "set_light"
     PLAY_AUDIO = "play_audio"
     STREAM_STATUS_CHANGED = "stream_status_changed"
     HARDWARE_STATUS_CHANGED = "hardware_status_changed"

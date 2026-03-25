@@ -12,11 +12,10 @@ from .manager import DeviceManager
 from .devices.output.led_strip import LEDStripDevice
 from .devices.output.relay import RelayDevice
 from .effects.led_effects import (
-    SolidColorEffect,
-    BlinkEffect,
-    BreathEffect,
-    RainbowEffect,
-    PulseEffect
+    BusinessHoursEffect,
+    GuardIdleEffect,
+    AlertGuardEffect,
+    AlarmEffect,
 )
 from .effects.relay_effects import RelayBlinkEffect
 
@@ -72,10 +71,11 @@ class DeviceControllerProcess:
             logger.error("设备初始化失败")
             return
         
-        # 设置初始模式
-        self.mode_manager.set_mode(DeviceMode.SAFE)
-        # 确保初始模式效果被应用
-        self._apply_mode_effect(self.mode_manager.current_mode)
+        # 根据布防状态选择初始模式
+        is_armed = bool(self.state.get('is_armed', False))
+        initial_mode = DeviceMode.GUARD if is_armed else DeviceMode.DAILY
+        self.mode_manager.set_mode(initial_mode)
+        self._apply_mode_effect(initial_mode)
         
         last_heartbeat = time.time()
         
@@ -151,7 +151,7 @@ class DeviceControllerProcess:
             msg_type = msg_dict.get('type')
             
             # 处理设置灯光指令
-            if msg_type in ['set_light', MessageType.CMD_SET_LIGHT.value]:
+            if msg_type == MessageType.CMD_SET_LIGHT.value:
                 mode_str = msg_dict.get('mode') or msg_dict.get('data', {}).get('mode')
                 if mode_str:
                     self._handle_set_light(mode_str)
@@ -174,9 +174,11 @@ class DeviceControllerProcess:
         try:
             # 映射字符串到枚举
             mode_map = {
-                'safe': DeviceMode.SAFE,
+                'daily': DeviceMode.DAILY,
+                'guard': DeviceMode.GUARD,
+                'safe': DeviceMode.GUARD,   # 向后兼容
                 'alert': DeviceMode.ALERT,
-                'alarm': DeviceMode.ALARM
+                'alarm': DeviceMode.ALARM,
             }
             
             mode = mode_map.get(mode_str.lower())
@@ -197,53 +199,37 @@ class DeviceControllerProcess:
             new_mode: 新模式
         """
         logger.info(f"💡 切换模式: {old_mode.value} -> {new_mode.value}")
-        #self._apply_mode_effect(new_mode)
+        self._apply_mode_effect(new_mode)
 
     def _apply_mode_effect(self, mode: DeviceMode):
         """根据模式应用 LED 效果（启动时也可复用）"""
         if not self._led_strip:
             return
 
-        if mode == DeviceMode.SAFE:
-            # 绿色纯色
-            color = tuple(self.colors['safe'])
-            effect = SolidColorEffect(color)
-            self._led_strip.set_effect(effect)
-            # 关闭警示灯（先停止效果）
+        n = self._led_strip.count
+
+        if mode in (DeviceMode.DAILY,):
+            self._led_strip.set_effect(BusinessHoursEffect(n))
             if self._warning_light:
-                logger.info(f"🔴 SAFE 模式：关闭警示灯")
-                self._warning_light.stop_effect()  # 显式停止效果
-                result = self._warning_light.turn_off()
-                if not result:
-                    logger.error("警示灯关闭失败！")
-                else:
-                    logger.info(f"✅ 警示灯已关闭，当前状态: {self._warning_light.is_on()}")
+                self._warning_light.stop_effect()
+                self._warning_light.turn_off()
+
+        elif mode in (DeviceMode.GUARD, DeviceMode.SAFE):
+            self._led_strip.set_effect(GuardIdleEffect(n))
+            if self._warning_light:
+                self._warning_light.stop_effect()
+                self._warning_light.turn_off()
 
         elif mode == DeviceMode.ALERT:
-            # 黄色纯色
-            color = tuple(self.colors['alert'])
-            effect = SolidColorEffect(color)
-            self._led_strip.set_effect(effect)
-            # 打开警示灯
+            self._led_strip.set_effect(AlertGuardEffect(n))
             if self._warning_light:
-                logger.info(f"🟡 ALERT 模式：打开警示灯")
-                self._warning_light.stop_effect()  # 先停止可能存在的闪烁效果
-                result = self._warning_light.turn_on()
-                if not result:
-                    logger.error("警示灯打开失败！")
-                else:
-                    logger.info(f"✅ 警示灯已打开，当前状态: {self._warning_light.is_on()}")
+                self._warning_light.stop_effect()
+                self._warning_light.turn_on()
 
         elif mode == DeviceMode.ALARM:
-            # 红蓝黄暴闪
-            effect = BlinkEffect(interval=0.1)
-            self._led_strip.set_effect(effect)
-            # 警示灯闪烁（使用 Effect 系统）
+            self._led_strip.set_effect(AlarmEffect(n))
             if self._warning_light:
-                logger.info(f"🔴 ALARM 模式：警示灯闪烁")
-                relay_effect = RelayBlinkEffect(interval=0.5)
-                self._warning_light.set_effect(relay_effect)
-                logger.info(f"✅ 警示灯闪烁效果已启动")
+                self._warning_light.set_effect(RelayBlinkEffect(interval=0.5))
     
     def _cleanup(self):
         """清理资源"""

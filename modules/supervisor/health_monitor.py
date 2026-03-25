@@ -247,13 +247,17 @@ class HealthMonitor:
             if time.time() >= alarm_until:
                 self.state_manager.set_global_state(GlobalState.SAFE)
                 self.state_manager.clear_alarm()
-                self.logger.info("✅ 报警自动恢复：状态切换为 safe")
+
+                # 根据布防状态恢复对应灯光
+                is_armed = self.state_manager.get_armed()
+                light_mode = 'guard' if is_armed else 'daily'
+                self.logger.info(f"✅ 报警自动恢复：状态切换为 {light_mode}")
 
                 # 发送灯光控制命令
                 light_msg = CommandMessage(
                     cmd_type=MessageType.CMD_SET_LIGHT,
                     target=ProcessName.DEVICE_CONTROLLER,
-                    cmd_data={'mode': 'safe'}
+                    cmd_data={'mode': light_mode}
                 )
                 self.ipc_client.send_message(light_msg)
                 

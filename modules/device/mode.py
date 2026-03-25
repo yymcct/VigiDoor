@@ -11,9 +11,11 @@ logger = setup_logger('device_mode')
 
 class DeviceMode(Enum):
     """设备工作模式"""
-    SAFE = "safe"      # 安全模式 - 绿色
-    ALERT = "alert"    # 警戒模式 - 黄色
-    ALARM = "alarm"    # 报警模式 - 红色闪烁
+    DAILY = "daily"    # 撤防 / 日常经营
+    GUARD = "guard"    # 布防 / 守卫中
+    SAFE = "safe"      # 向后兼容别名（等同于 GUARD）
+    ALERT = "alert"    # 布防 / 警戒状态
+    ALARM = "alarm"    # 布防 / 异常告警
 
 
 class ModeManager:
