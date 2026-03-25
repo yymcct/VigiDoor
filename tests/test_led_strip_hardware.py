@@ -210,13 +210,13 @@ def business_hours_effect(pixels, clock: FrameClock, duration: float) -> None:
 			sparkle[spark_idx] = 1.0
 		sparkle = [max(0.0, s - 0.07) for s in sparkle]
 
-		breath = 0.55 + 0.45 * math.sin(frame * 0.020)
-		comet_a = (frame * 2.3) % n
-		comet_b = (frame * 1.1 + n * 0.55) % n
+		breath = 0.55 + 0.45 * math.sin(frame * 0.014)
+		comet_a = (frame * 1.2) % n
+		comet_b = (frame * 0.6 + n * 0.55) % n
 
 		frame_buffer = []
 		for index in range(n):
-			palette_t = (index / n + frame * 0.0015) % 1.0
+			palette_t = (index / n + frame * 0.0008) % 1.0
 			color = sample_palette(palette_t)
 
 			wave = 0.5 + 0.5 * math.sin(index * 0.06 - frame * 0.04)
@@ -257,13 +257,13 @@ def guard_idle_effect(pixels, clock: FrameClock, duration: float) -> None:
 		frame_buffer = []
 		for index in range(pixels.n):
 			base_mix = 0.5 + 0.5 * math.sin(index * 0.08 + frame * 0.03)
-			base_color = blend_color((0, 35, 15), (20, 160, 70), base_mix)
+			base_color = blend_color((0, 28, 88), (0, 135, 165), base_mix)
 			distance = abs(index - patrol_position)
 			patrol_glow = max(0.0, 1.0 - distance / 22.0)
 			patrol_glow = ease_in_out(patrol_glow)
-			color = blend_color(base_color, (140, 255, 170), patrol_glow)
-			level = 0.08 + 0.10 * breathe + 0.52 * patrol_glow
-			frame_buffer.append(scale_color(color, min(0.82, level)))
+			color = blend_color(base_color, (170, 255, 255), patrol_glow)
+			level = 0.06 + 0.08 * breathe + 0.56 * patrol_glow
+			frame_buffer.append(scale_color(color, min(0.85, level)))
 
 		pixels[:] = frame_buffer
 		pixels.show()
@@ -277,16 +277,16 @@ def alert_guard_effect(pixels, clock: FrameClock, duration: float) -> None:
 	frames = max(1, int(duration * TARGET_FPS))
 	max_position = max(1, pixels.n - 1)
 	for frame in range(frames):
-		pulse = ease_in_out(0.5 + 0.5 * math.sin(frame * 0.28))
-		sweep_phase = (frame * 1.6) % (max_position * 2)
+		pulse = ease_in_out(0.5 + 0.5 * math.sin(frame * 0.45))
+		sweep_phase = (frame * 2.2) % (max_position * 2)
 		sweep = sweep_phase if sweep_phase <= max_position else 2 * max_position - sweep_phase
 		frame_buffer = []
 		for index in range(pixels.n):
 			distance = abs(index - sweep)
-			sweep_glow = ease_in_out(max(0.0, 1.0 - distance / 35.0))
+			sweep_glow = ease_in_out(max(0.0, 1.0 - distance / 22.0))
 			color = blend_color(_AMBER, _BRIGHT, sweep_glow)
-			level = 0.18 + 0.45 * pulse + 0.37 * sweep_glow
-			frame_buffer.append(scale_color(color, min(0.95, level)))
+			level = 0.03 + 0.62 * pulse + 0.35 * sweep_glow
+			frame_buffer.append(scale_color(color, min(0.98, level)))
 
 		pixels[:] = frame_buffer
 		pixels.show()
@@ -294,24 +294,25 @@ def alert_guard_effect(pixels, clock: FrameClock, duration: float) -> None:
 
 
 def alarm_effect(pixels, clock: FrameClock, duration: float) -> None:
-	# Police strobe: left=red, right=blue, each side double-burst then swap
+	# Police strobe: left/right both lit simultaneously, colors swap each burst pair
+	# Phase A: left=RED  right=BLUE  |  Phase B: left=BLUE  right=RED
 	_RED = (255, 0, 0)
 	_BLUE = (0, 0, 255)
 	_CYCLE = 32  # ≈ 0.53 s per full cycle at 60 FPS
-	_LEFT_ON = frozenset({0, 1, 2, 3, 7, 8, 9, 10})
-	_RIGHT_ON = frozenset({18, 19, 20, 21, 25, 26, 27, 28})
 	frames = max(1, int(duration * TARGET_FPS))
 	split = pixels.n // 2
 	for frame in range(frames):
 		tick = frame % _CYCLE
-		left_active = tick in _LEFT_ON
-		right_active = tick in _RIGHT_ON
+		phase_a = tick < 5 or 8 <= tick < 13   # left=RED, right=BLUE
+		phase_b = 18 <= tick < 23 or 26 <= tick < 31  # left=BLUE, right=RED
 		frame_buffer = []
 		for index in range(pixels.n):
-			if index < split:
-				color = _RED if left_active else BLACK
+			if phase_a:
+				color = _RED if index < split else _BLUE
+			elif phase_b:
+				color = _BLUE if index < split else _RED
 			else:
-				color = _BLUE if right_active else BLACK
+				color = BLACK
 			frame_buffer.append(scale_color(color))
 
 		pixels[:] = frame_buffer
