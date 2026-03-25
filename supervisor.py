@@ -24,7 +24,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from utils.logger import setup_logger
 from utils.frame_buffer import SharedFrameBuffer
 from core.ipc import MessageBus
-from core.ipc.message import MessageType, IPCMessage
+from core.ipc.message import MessageType, IPCMessage, CommandMessage
 from core.ipc.registry import ProcessName
 
 from modules.supervisor import (
@@ -180,10 +180,25 @@ class ProcessSupervisor:
         
         # 启动消息处理线程
         self._start_message_consumer()
+
+        # 延迟播放启动提示音（等待音频进程就绪）
+        threading.Timer(5.0, self._play_startup_sound).start()
         
         # 进入主循环
         self._main_loop()
     
+    def _play_startup_sound(self):
+        """播放系统启动提示音"""
+        try:
+            self.message_bus.send(ProcessName.AUDIO_PROCESSOR, CommandMessage(
+                cmd_type=MessageType.CMD_PLAY_AUDIO,
+                target=ProcessName.AUDIO_PROCESSOR,
+                cmd_data={'path': 'assets/audio/serverStar.mp3'}
+            ))
+            logger.info("🔊 系统启动提示音已发送")
+        except Exception as e:
+            logger.warning(f"播放启动提示音失败: {e}")
+
     def _create_directories(self):
         """创建必要的目录"""
         dirs = [
