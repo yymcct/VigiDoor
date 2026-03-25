@@ -182,35 +182,62 @@ def rainbow_cycle(pixels, clock: FrameClock, cycles: int = 1) -> None:
 
 
 def business_hours_effect(pixels, clock: FrameClock, duration: float) -> None:
+	# Aurora palette: cyan -> blue-violet -> violet -> amber-gold -> teal -> cyan
+	_PALETTE = [
+		(0, 210, 255),
+		(80, 60, 255),
+		(180, 0, 255),
+		(255, 160, 0),
+		(0, 255, 160),
+		(0, 210, 255),
+	]
+	_STOPS = len(_PALETTE) - 1
+
+	def sample_palette(t: float) -> tuple[int, int, int]:
+		t = t % 1.0
+		pos = t * _STOPS
+		idx = int(pos)
+		frac = pos - idx
+		return blend_color(_PALETTE[idx], _PALETTE[min(idx + 1, _STOPS)], frac)
+
 	frames = max(1, int(duration * TARGET_FPS))
+	n = pixels.n
+	sparkle = [0.0] * n
+
 	for frame in range(frames):
+		if frame % 5 == 0:
+			spark_idx = (frame * 73 + (frame // 5) * 137) % n
+			sparkle[spark_idx] = 1.0
+		sparkle = [max(0.0, s - 0.07) for s in sparkle]
+
+		breath = 0.55 + 0.45 * math.sin(frame * 0.020)
+		comet_a = (frame * 2.3) % n
+		comet_b = (frame * 1.1 + n * 0.55) % n
+
 		frame_buffer = []
-		lead_wave = (frame * 1.8) % max(1, pixels.n)
-		trail_wave = (frame * 1.1 + pixels.n * 0.42) % max(1, pixels.n)
-		breath = 0.5 + 0.5 * math.sin(frame * 0.04)
-		for index in range(pixels.n):
-			base_wave = 0.5 + 0.5 * math.sin(index * 0.08 - frame * 0.08)
-			cross_wave = 0.5 + 0.5 * math.sin(index * 0.21 + frame * 0.16)
-			color = blend_color((198, 218, 238), (240, 247, 255), base_wave)
-			level = 0.05 + 0.10 * base_wave + 0.10 * cross_wave + 0.10 * breath
+		for index in range(n):
+			palette_t = (index / n + frame * 0.0015) % 1.0
+			color = sample_palette(palette_t)
 
-			lead_glow = max(0.0, 1.0 - abs(index - lead_wave) / 14.0)
-			trail_glow = max(0.0, 1.0 - abs(index - trail_wave) / 24.0)
-			travel_glow = max(ease_in_out(lead_glow), ease_in_out(trail_glow) * 0.8)
+			wave = 0.5 + 0.5 * math.sin(index * 0.06 - frame * 0.04)
+			level = 0.08 + 0.18 * breath * wave
 
-			wave_front = 0.5 + 0.5 * math.sin((index - frame * 1.35) * 0.16)
-			wave_back = 0.5 + 0.5 * math.sin((index + frame * 0.9) * 0.09)
-			wave_energy = max(0.0, wave_front - 0.45) * 0.9 + max(0.0, wave_back - 0.62) * 0.45
+			dist_a = min(abs(index - comet_a), n - abs(index - comet_a))
+			glow_a = ease_in_out(max(0.0, 1.0 - dist_a / 18.0))
+			color = blend_color(color, (220, 255, 255), glow_a * 0.75)
+			level += 0.45 * glow_a
 
-			if index % 24 in {0, 1}:
-				color = blend_color(color, (120, 220, 255), 0.18)
-				level += 0.05
+			dist_b = min(abs(index - comet_b), n - abs(index - comet_b))
+			glow_b = ease_in_out(max(0.0, 1.0 - dist_b / 30.0))
+			color = blend_color(color, (255, 200, 60), glow_b * 0.65)
+			level += 0.36 * glow_b
 
-			color = blend_color(color, (138, 228, 255), min(1.0, wave_energy) * 0.28)
-			color = blend_color(color, (188, 250, 255), travel_glow * 0.82)
-			level += 0.18 * min(1.0, wave_energy) + 0.34 * travel_glow
+			if sparkle[index] > 0.0:
+				s = ease_in_out(sparkle[index])
+				color = blend_color(color, (255, 255, 255), s * 0.9)
+				level += 0.40 * s
 
-			frame_buffer.append(scale_color(color, min(0.72, level)))
+			frame_buffer.append(scale_color(color, min(0.94, level)))
 
 		pixels[:] = frame_buffer
 		pixels.show()
@@ -230,11 +257,11 @@ def guard_idle_effect(pixels, clock: FrameClock, duration: float) -> None:
 		frame_buffer = []
 		for index in range(pixels.n):
 			base_mix = 0.5 + 0.5 * math.sin(index * 0.08 + frame * 0.03)
-			base_color = blend_color((0, 28, 88), (0, 135, 165), base_mix)
+			base_color = blend_color((0, 35, 15), (20, 160, 70), base_mix)
 			distance = abs(index - patrol_position)
 			patrol_glow = max(0.0, 1.0 - distance / 22.0)
 			patrol_glow = ease_in_out(patrol_glow)
-			color = blend_color(base_color, (170, 255, 255), patrol_glow)
+			color = blend_color(base_color, (140, 255, 170), patrol_glow)
 			level = 0.08 + 0.10 * breathe + 0.52 * patrol_glow
 			frame_buffer.append(scale_color(color, min(0.82, level)))
 
@@ -244,22 +271,22 @@ def guard_idle_effect(pixels, clock: FrameClock, duration: float) -> None:
 
 
 def alert_guard_effect(pixels, clock: FrameClock, duration: float) -> None:
+	# Pure amber warning — no mixed hues, back-and-forth scanner sweep
+	_AMBER = (255, 140, 0)
+	_BRIGHT = (255, 210, 80)
 	frames = max(1, int(duration * TARGET_FPS))
+	max_position = max(1, pixels.n - 1)
 	for frame in range(frames):
-		pulse = 0.5 + 0.5 * math.sin(frame * 0.18)
-		sweep = (frame * 2.4) % max(1, pixels.n)
+		pulse = ease_in_out(0.5 + 0.5 * math.sin(frame * 0.28))
+		sweep_phase = (frame * 1.6) % (max_position * 2)
+		sweep = sweep_phase if sweep_phase <= max_position else 2 * max_position - sweep_phase
 		frame_buffer = []
 		for index in range(pixels.n):
-			bar_on = ((index // 16) + (frame // 10)) % 2 == 0
-			base_color = (255, 108, 0) if bar_on else (38, 8, 0)
-			base_level = 0.30 if bar_on else 0.03
-
 			distance = abs(index - sweep)
-			sweep_glow = max(0.0, 1.0 - distance / 24.0)
-			sweep_glow = ease_in_out(sweep_glow)
-			color = blend_color(base_color, (255, 214, 120), sweep_glow)
-			level = base_level + 0.18 * pulse + 0.42 * sweep_glow
-			frame_buffer.append(scale_color(color, min(0.92, level)))
+			sweep_glow = ease_in_out(max(0.0, 1.0 - distance / 35.0))
+			color = blend_color(_AMBER, _BRIGHT, sweep_glow)
+			level = 0.18 + 0.45 * pulse + 0.37 * sweep_glow
+			frame_buffer.append(scale_color(color, min(0.95, level)))
 
 		pixels[:] = frame_buffer
 		pixels.show()
@@ -267,31 +294,25 @@ def alert_guard_effect(pixels, clock: FrameClock, duration: float) -> None:
 
 
 def alarm_effect(pixels, clock: FrameClock, duration: float) -> None:
+	# Police strobe: left=red, right=blue, each side double-burst then swap
+	_RED = (255, 0, 0)
+	_BLUE = (0, 0, 255)
+	_CYCLE = 32  # ≈ 0.53 s per full cycle at 60 FPS
+	_LEFT_ON = frozenset({0, 1, 2, 3, 7, 8, 9, 10})
+	_RIGHT_ON = frozenset({18, 19, 20, 21, 25, 26, 27, 28})
 	frames = max(1, int(duration * TARGET_FPS))
+	split = pixels.n // 2
 	for frame in range(frames):
-		cycle = frame % 24
-		left_active = cycle < 8 or 16 <= cycle < 18
-		right_active = 8 <= cycle < 16 or 18 <= cycle < 20
-		white_flash = cycle in {0, 8, 16, 17, 18, 19}
-		split = pixels.n // 2
+		tick = frame % _CYCLE
+		left_active = tick in _LEFT_ON
+		right_active = tick in _RIGHT_ON
 		frame_buffer = []
 		for index in range(pixels.n):
 			if index < split:
-				color = (255, 0, 0) if left_active else (32, 0, 0)
-				level = 1.0 if left_active else 0.05
+				color = _RED if left_active else BLACK
 			else:
-				color = (0, 60, 255) if right_active else (0, 0, 32)
-				level = 1.0 if right_active else 0.05
-
-			edge_flash = max(0.0, 1.0 - min(index, pixels.n - 1 - index) / 18.0)
-			edge_flash = ease_in_out(edge_flash)
-			level += 0.10 * edge_flash
-
-			if white_flash:
-				color = add_color(color, (255, 255, 255))
-				level = 1.0
-
-			frame_buffer.append(scale_color(color, min(1.0, level)))
+				color = _BLUE if right_active else BLACK
+			frame_buffer.append(scale_color(color))
 
 		pixels[:] = frame_buffer
 		pixels.show()
