@@ -30,10 +30,17 @@ class Picamera2Driver(CameraDriverBase):
             self.camera = Picamera2()
             
             # 配置摄像头
-            config = self.camera.create_preview_configuration(
+            config = self.camera.create_video_configuration(
                 main={
                     "size": (self.width, self.height),
                     "format": self.format
+                },
+                controls={
+                    "Sharpness": 1.5,         # 锐度 (0.0-16.0，默认1.0)
+                    "Contrast": 1.2,          # 对比度
+                    "Saturation": 1.1,        # 饱和度
+                    "NoiseReductionMode": 2,  # 降噪模式
+                    "AwbMode": 0,             # AWB: 0=Auto, 1=Tungsten, 2=Fluorescent
                 }
             )
             self.camera.configure(config)
