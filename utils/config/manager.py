@@ -23,7 +23,8 @@ from .sections import (
     LoggingConfig,
     SupervisorConfig,
     MonitoringConfig,
-    StorageConfig
+    StorageConfig,
+    RecordingConfig,
 )
 from ..device_id import generate_device_id
 
@@ -73,6 +74,7 @@ class ConfigManager:
         self.supervisor: Optional[SupervisorConfig] = None
         self.monitoring: Optional[MonitoringConfig] = None
         self.storage: Optional[StorageConfig] = None
+        self.recording: Optional[RecordingConfig] = None
         
         if config_path:
             self.load(config_path)
@@ -338,6 +340,16 @@ class ConfigManager:
             cache_dir=storage_raw.get('cache_dir', './data/cache'),
             max_snapshot_age=storage_raw.get('max_snapshot_age', 86400),
             max_cache_size=storage_raw.get('max_cache_size', 1073741824)
+        )
+
+        recording_raw = raw.get('recording', {})
+        self.recording = RecordingConfig(
+            enabled=recording_raw.get('enabled', True),
+            dir=recording_raw.get('dir', './data/recordings'),
+            segment_duration=recording_raw.get('segment_duration', 60),
+            retention_days=recording_raw.get('retention_days', 7),
+            bitrate=recording_raw.get('bitrate', '800k'),
+            fps=recording_raw.get('fps', 10),
         )
     
     def get_raw_dict(self) -> Dict[str, Any]:

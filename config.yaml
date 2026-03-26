@@ -121,6 +121,7 @@ supervisor:
     audio_processor: 1.5
     ai_detector: 2.0
     stream_manager: 2.5
+    recorder: 3.0            # 录像进程（等共享内存就绪后启动）
 
 # 系统监控配置
 monitoring:
@@ -140,6 +141,15 @@ storage:
   cache_dir: "./data/cache"  # 临时缓存目录
   max_snapshot_age: 86400  # 快照保留时间（秒，1天）
   max_cache_size: 1073741824  # 最大缓存大小（字节，1GB）
+
+# 录像配置
+recording:
+  enabled: true                   # 是否启用本地录像
+  dir: "./data/recordings"        # 录像文件存放目录
+  segment_duration: 60            # 每段时长（秒）
+  retention_days: 3               # 文件保留天数（0=不自动清理）
+  bitrate: "800k"                 # 视频码率
+  fps: 10                         # 录像帧率（低于推流帧率，节省空间）
 
 # OSD 配置（新增）
 osd:

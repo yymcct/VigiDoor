@@ -205,6 +205,7 @@ class ProcessSupervisor:
             './logs',
             './data/snapshots',
             './data/cache',
+            './data/recordings',
         ]
         for d in dirs:
             os.makedirs(d, exist_ok=True)

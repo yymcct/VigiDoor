@@ -169,6 +169,12 @@ class DBManager:
                 self._write_health_metric(msg["data"])
             elif action == "set_config":
                 self._set_config(msg["key"], msg["value"])
+            elif action == "write_recording_start":
+                self._write_recording_start(msg["data"])
+            elif action == "finalize_recording_clip":
+                self._finalize_recording_clip(msg["data"])
+            elif action == "tag_clip_alarm":
+                self._tag_clip_alarm(msg["data"])
             elif action == "cleanup":
                 self._cleanup()
             else:
@@ -229,10 +235,79 @@ class DBManager:
         except Exception as e:
             logger.error(f"写入布撤防记录失败: {e}", exc_info=True)
 
+    # ==================== 录像片段索引 ====================
+
+    def _write_recording_start(self, data: Dict[str, Any]) -> None:
+        """插入新录像片段行（片段开始时调用）"""
+        try:
+            conn = self._connections["events"]
+            conn.execute(
+                """INSERT OR IGNORE INTO recording_clips (file_path, start_time)
+                   VALUES (:file_path, :start_time)""",
+                data,
+            )
+            conn.commit()
+            logger.debug(f"录像片段已记录: {data.get('file_path')}")
+        except Exception as e:
+            logger.error(f"写入录像片段失败: {e}", exc_info=True)
+
+    def _finalize_recording_clip(self, data: Dict[str, Any]) -> None:
+        """更新录像片段的结束时间、时长和文件大小（片段写完时调用）"""
+        try:
+            conn = self._connections["events"]
+            file_path = data["file_path"]
+            end_time = data["end_time"]
+            file_size_bytes = data.get("file_size_bytes")
+
+            row = conn.execute(
+                "SELECT start_time FROM recording_clips WHERE file_path = ?",
+                (file_path,),
+            ).fetchone()
+
+            duration = (end_time - row[0]) if row else None
+
+            conn.execute(
+                """UPDATE recording_clips
+                   SET end_time = :end_time,
+                       duration_seconds = :duration,
+                       file_size_bytes = :file_size_bytes
+                   WHERE file_path = :file_path""",
+                {
+                    "end_time": end_time,
+                    "duration": duration,
+                    "file_size_bytes": file_size_bytes,
+                    "file_path": file_path,
+                },
+            )
+            conn.commit()
+            if duration:
+                logger.debug(f"录像片段已完成: {file_path} ({duration:.1f}s)")
+            else:
+                logger.debug(f"录像片段已完成: {file_path}")
+        except Exception as e:
+            logger.error(f"更新录像片段失败: {e}", exc_info=True)
+
+    def _tag_clip_alarm(self, data: Dict[str, Any]) -> None:
+        """为录像片段打上报警标签（有 AI 事件时调用）"""
+        try:
+            conn = self._connections["events"]
+            conn.execute(
+                """UPDATE recording_clips
+                   SET has_ai_event = 1,
+                       alarm_level  = :alarm_level
+                   WHERE file_path  = :file_path
+                     AND alarm_level != 'alarm'""",
+                data,
+            )
+            conn.commit()
+            logger.info(f"录像片段已打标: {data.get('file_path')} → {data.get('alarm_level')}")
+        except Exception as e:
+            logger.error(f"打标录像片段失败: {e}", exc_info=True)
+
     def _write_metric(self, data: Dict[str, Any]) -> None:
         """
         写入统计数据 (预留)
-        
+
         Args:
             data: 统计数据
         """

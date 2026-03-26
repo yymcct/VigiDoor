@@ -176,3 +176,14 @@ class StorageConfig:
     cache_dir: str
     max_snapshot_age: int
     max_cache_size: int
+
+
+@dataclass
+class RecordingConfig:
+    """本地录像配置"""
+    enabled: bool = True
+    dir: str = "./data/recordings"
+    segment_duration: int = 60
+    retention_days: int = 7
+    bitrate: str = "800k"
+    fps: int = 10

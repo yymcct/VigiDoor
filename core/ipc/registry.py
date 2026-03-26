@@ -24,6 +24,7 @@ class ProcessName:
     DEVICE_CONTROLLER = "device_controller"
     MQTT_CLIENT = "mqtt_client"
     STREAM_MANAGER = "stream_manager"
+    RECORDER = "recorder"
     
     @classmethod
     def all_processes(cls) -> list:
@@ -36,6 +37,7 @@ class ProcessName:
             cls.DEVICE_CONTROLLER,
             cls.MQTT_CLIENT,
             cls.STREAM_MANAGER,
+            cls.RECORDER,
         ]
     
     @classmethod

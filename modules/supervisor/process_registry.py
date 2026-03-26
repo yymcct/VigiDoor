@@ -127,6 +127,13 @@ def run_device_controller(ctx: ProcessContext):
     device.run()
 
 
+def run_recorder(ctx: ProcessContext):
+    """录像进程入口"""
+    from modules.recorder import RecorderProcess
+    recorder = RecorderProcess(ctx)
+    recorder.run()
+
+
 # ==================== 进程配置生成 ====================
 
 def create_process_configs(config_manager: 'ConfigManager') -> List[ProcessConfig]:
@@ -177,5 +184,11 @@ def create_process_configs(config_manager: 'ConfigManager') -> List[ProcessConfi
             target=run_stream_manager,
             critical=False,
             startup_delay=delays['stream_manager']
+        ),
+        ProcessConfig(
+            name='recorder',
+            target=run_recorder,
+            critical=False,
+            startup_delay=delays.get('recorder', 3.0)
         ),
     ]

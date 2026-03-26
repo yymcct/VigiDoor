@@ -189,8 +189,65 @@ class DBWriterHelper:
             data["operator"] = operator
         return self._send_db_message("write_arm_disarm", {"data": data})
 
+    # ==================== 录像片段索引写入 ====================
+
+    def write_recording_start(self, file_path: str, start_time: float) -> bool:
+        """
+        录像片段开始：在 recording_clips 表中插入新行
+
+        Args:
+            file_path: 录像文件绝对/相对路径（唯一标识）
+            start_time: 片段开始的 Unix 时间戳
+
+        Returns:
+            是否发送成功
+        """
+        return self._send_db_message("write_recording_start", {
+            "data": {"file_path": file_path, "start_time": start_time}
+        })
+
+    def finalize_recording_clip(
+        self,
+        file_path: str,
+        end_time: float,
+        file_size_bytes: int
+    ) -> bool:
+        """
+        录像片段结束：更新结束时间、时长和文件大小
+
+        Args:
+            file_path: 录像文件路径（对应 write_recording_start 中的 file_path）
+            end_time: 片段结束的 Unix 时间戳
+            file_size_bytes: 文件字节数
+
+        Returns:
+            是否发送成功
+        """
+        return self._send_db_message("finalize_recording_clip", {
+            "data": {
+                "file_path": file_path,
+                "end_time": end_time,
+                "file_size_bytes": file_size_bytes,
+            }
+        })
+
+    def tag_clip_alarm(self, file_path: str, alarm_level: str) -> bool:
+        """
+        为录像片段打上报警标签
+
+        Args:
+            file_path: 录像文件路径
+            alarm_level: 报警等级，'alert' 或 'alarm'
+
+        Returns:
+            是否发送成功
+        """
+        return self._send_db_message("tag_clip_alarm", {
+            "data": {"file_path": file_path, "alarm_level": alarm_level}
+        })
+
     # ==================== 触发清理 ====================
-    
+
     def trigger_cleanup(self) -> bool:
         """
         触发数据库清理任务（手动触发，通常不需要）

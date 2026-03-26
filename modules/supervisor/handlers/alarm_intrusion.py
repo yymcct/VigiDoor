@@ -33,6 +33,14 @@ def handle_alarm_intrusion(ctx: SupervisorHandlerContext, msg: IPCMessage) -> No
     )
     ctx.message_bus.send(ProcessName.AUDIO_PROCESSOR, audio_msg)
 
+    # 通知录像进程给当前片段打上 alarm 标签
+    tag_msg = create_message(
+        msg_type=MessageType.CMD_TAG_RECORDING,
+        target=ProcessName.RECORDER,
+        data={"alarm_level": "alarm"}
+    )
+    ctx.message_bus.send(ProcessName.RECORDER, tag_msg)
+
 
 def _set_global_state(ctx: SupervisorHandlerContext, state: GlobalState) -> None:
     """设置全局状态"""
@@ -77,6 +85,14 @@ def handle_audio_anomaly(ctx: SupervisorHandlerContext, msg: IPCMessage) -> None
         data=alarm_data
     )
     ctx.message_bus.send(ProcessName.MQTT_CLIENT, alarm_msg)
+
+    # 通知录像进程给当前片段打标（音频异常归为 alert 级别）
+    tag_msg = create_message(
+        msg_type=MessageType.CMD_TAG_RECORDING,
+        target=ProcessName.RECORDER,
+        data={"alarm_level": "alert"}
+    )
+    ctx.message_bus.send(ProcessName.RECORDER, tag_msg)
 
     audio_msg = CommandMessage(
         cmd_type=MessageType.CMD_PLAY_AUDIO,

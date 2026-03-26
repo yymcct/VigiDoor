@@ -184,6 +184,32 @@ class DatabaseInitializer:
                 ON arm_disarm_log(ts)
             """)
 
+            # 创建录像片段索引表
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS recording_clips (
+                    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                    file_path        TEXT NOT NULL UNIQUE,
+                    start_time       REAL NOT NULL,
+                    end_time         REAL,
+                    duration_seconds REAL,
+                    has_ai_event     INTEGER NOT NULL DEFAULT 0,
+                    alarm_level      TEXT NOT NULL DEFAULT 'none'
+                                         CHECK(alarm_level IN ('none', 'alert', 'alarm')),
+                    file_size_bytes  INTEGER,
+                    created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_clips_start_time
+                ON recording_clips(start_time)
+            """)
+
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_clips_alarm_level
+                ON recording_clips(alarm_level)
+            """)
+
             conn.commit()
             logger.info("事件数据库初始化完成")
         finally:
@@ -350,8 +376,34 @@ def ensure_migrations(db_dir: Optional[Path] = None) -> None:
             ON arm_disarm_log(ts)
         """)
 
+        # 录像片段索引表（migration 新增）
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS recording_clips (
+                id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                file_path        TEXT NOT NULL UNIQUE,
+                start_time       REAL NOT NULL,
+                end_time         REAL,
+                duration_seconds REAL,
+                has_ai_event     INTEGER NOT NULL DEFAULT 0,
+                alarm_level      TEXT NOT NULL DEFAULT 'none'
+                                     CHECK(alarm_level IN ('none', 'alert', 'alarm')),
+                file_size_bytes  INTEGER,
+                created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_clips_start_time
+            ON recording_clips(start_time)
+        """)
+
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_clips_alarm_level
+            ON recording_clips(alarm_level)
+        """)
+
         conn.commit()
-        logger.info("数据库迁移完成：arm_disarm_log 表已就绪")
+        logger.info("数据库迁移完成：arm_disarm_log / recording_clips 表已就绪")
     except Exception as e:
         logger.error(f"数据库迁移失败: {e}")
         raise

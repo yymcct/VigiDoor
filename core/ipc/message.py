@@ -57,6 +57,9 @@ class MessageType(str, Enum):
     DB_WRITE = "db_write"                   # 数据库写入请求（唯一入口）
     REPORT_ALARM = "report_alarm"           # 上报告警
     REPORT_HEALTH = "report_health"         # 上报健康状态
+
+    # ========== 录像相关 ==========
+    CMD_TAG_RECORDING = "cmd_tag_recording"  # 给当前录像片段打报警标签
     
     # ========== 请求-响应 ==========
     REQUEST = "request"
