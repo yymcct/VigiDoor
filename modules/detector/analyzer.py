@@ -35,13 +35,15 @@ class ResultAnalyzer:
         
         # 配置参数
         self.alarm_cooldown = self.ai_config.get('alarm_cooldown', 5.0)  # 报警冷却时间（秒）
+        self.alert_cooldown = self.ai_config.get('alert_cooldown', 5.0)  # 警戒冷却时间（秒）
         self.min_confidence = self.ai_config.get('confidence_threshold', 0.5)
         
         # 状态
         self.last_alarm_time = 0
+        self.last_alert_time = 0
         self.alarm_count = 0
         
-        logger.info(f"结果分析器初始化: 冷却时间={self.alarm_cooldown}秒")
+        logger.info(f"结果分析器初始化: 报警冷却={self.alarm_cooldown}秒, 警戒冷却={self.alert_cooldown}秒")
     
     def analyze(self, detections: List[Dict[str, Any]], metadata: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -53,50 +55,55 @@ class ResultAnalyzer:
         
         Returns:
             dict: 分析结果，包含:
-                - is_anomaly: 是否为异常
-                - should_alarm: 是否应该报警
+                - is_anomaly: 是否为入侵异常
+                - should_alarm: 是否应该报警（入侵+防抖通过）
+                - should_alert: 是否应该触发警戒（有人但不在警戒区+防抖通过）
+                - person_visible: 当前帧是否有人出现
                 - alarm_data: 报警数据（如果需要报警）
         """
+        person_visible = self._is_person_visible(detections)
+
         # 检查是否有检测结果
         if not detections:
             return {
                 'is_anomaly': False,
                 'should_alarm': False,
+                'should_alert': False,
+                'person_visible': False,
                 'alarm_data': None
             }
         
-        # 判断是否为异常
+        # 判断是否为入侵异常
         is_anomaly = self._is_anomaly(detections, metadata)
         
-        if not is_anomaly:
-            return {
-                'is_anomaly': False,
-                'should_alarm': False,
-                'alarm_data': None
-            }
-        
-        # 检查是否应该报警（防抖）
-        should_alarm = self._should_alarm()
-        
-        if should_alarm:
-            # 生成报警数据
-            alarm_data = self._generate_alarm_data(detections, metadata)
-            
-            # 更新报警时间
-            self.last_alarm_time = time.time()
-            self.alarm_count += 1
-            
+        if is_anomaly:
+            # 入侵场景：检查防抖后决定是否报警
+            should_alarm = self._should_alarm()
+            if should_alarm:
+                alarm_data = self._generate_alarm_data(detections, metadata)
+                self.last_alarm_time = time.time()
+                self.alarm_count += 1
+            else:
+                alarm_data = None
             return {
                 'is_anomaly': True,
-                'should_alarm': True,
+                'should_alarm': should_alarm,
+                'should_alert': False,
+                'person_visible': person_visible,
                 'alarm_data': alarm_data
             }
-        else:
-            return {
-                'is_anomaly': True,
-                'should_alarm': False,
-                'alarm_data': None
-            }
+
+        # 非入侵场景：有人但不在警戒区，检查是否触发警戒
+        should_alert = self._should_alert_trigger(detections, metadata)
+        if should_alert:
+            self.last_alert_time = time.time()
+        return {
+            'is_anomaly': False,
+            'should_alarm': False,
+            'should_alert': should_alert,
+            'person_visible': person_visible,
+            'alarm_data': None
+        }
     
     def _is_anomaly(self, detections: List[Dict[str, Any]], metadata: Dict[str, Any]) -> bool:
         """
@@ -120,6 +127,25 @@ class ResultAnalyzer:
         
         return False
     
+    def _is_person_visible(self, detections: List[Dict[str, Any]]) -> bool:
+        """判断当前帧是否有人出现（置信度达到阈值）"""
+        return any(d.get('confidence', 0) >= self.min_confidence for d in detections)
+
+    def _should_alert_trigger(self, detections: List[Dict[str, Any]], metadata: Dict[str, Any]) -> bool:
+        """
+        判断是否应触发警戒状态（有人但不在警戒区，防抖通过）。
+        仅当配置了区域检测器时才有效。
+        """
+        if not metadata.get('has_region_detector', False):
+            return False
+        if not self._is_person_visible(detections):
+            return False
+        current_time = time.time()
+        if current_time - self.last_alert_time < self.alert_cooldown:
+            logger.debug(f"警戒冷却中（剩余 {self.alert_cooldown - (current_time - self.last_alert_time):.1f}秒）")
+            return False
+        return True
+
     def _should_alarm(self) -> bool:
         """
         判断是否应该报警（防抖逻辑）
@@ -200,10 +226,14 @@ class ResultAnalyzer:
         """获取统计信息"""
         current_time = time.time()
         time_since_last_alarm = current_time - self.last_alarm_time if self.last_alarm_time > 0 else -1
+        time_since_last_alert = current_time - self.last_alert_time if self.last_alert_time > 0 else -1
         
         return {
             'alarm_count': self.alarm_count,
             'last_alarm_time': self.last_alarm_time,
             'time_since_last_alarm': time_since_last_alarm,
-            'is_in_cooldown': time_since_last_alarm >= 0 and time_since_last_alarm < self.alarm_cooldown
+            'is_in_cooldown': time_since_last_alarm >= 0 and time_since_last_alarm < self.alarm_cooldown,
+            'last_alert_time': self.last_alert_time,
+            'time_since_last_alert': time_since_last_alert,
+            'is_in_alert_cooldown': time_since_last_alert >= 0 and time_since_last_alert < self.alert_cooldown,
         }

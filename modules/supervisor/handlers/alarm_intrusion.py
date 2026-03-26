@@ -77,13 +77,6 @@ def handle_audio_anomaly(ctx: SupervisorHandlerContext, msg: IPCMessage) -> None
         data=alarm_data
     )
     ctx.message_bus.send(ProcessName.MQTT_CLIENT, alarm_msg)
-    
-    light_msg = CommandMessage(
-        cmd_type=MessageType.CMD_SET_LIGHT,
-        target=ProcessName.DEVICE_CONTROLLER,
-        cmd_data={'mode': 'alarm'}
-    )
-    ctx.message_bus.send(ProcessName.DEVICE_CONTROLLER, light_msg)
 
     audio_msg = CommandMessage(
         cmd_type=MessageType.CMD_PLAY_AUDIO,
@@ -105,3 +98,20 @@ def _set_alarm_auto_reset(ctx: SupervisorHandlerContext) -> None:
         ctx.logger.info(f"⏱️ 报警自动恢复计时启动: {reset_seconds:.0f}s")
     else:
         ctx.shared_state[StateKey.ALARM_UNTIL] = 0
+
+
+def handle_alert_trigger(ctx: SupervisorHandlerContext, msg: IPCMessage) -> None:
+    """处理警戒触发（有人出现在画面但未入侵警戒区域）"""
+    ctx.logger.info("⚠️ 检测到人员出现，进入警戒状态")
+    _set_global_state(ctx, GlobalState.ALERT)
+    _set_alert_auto_reset(ctx)
+
+
+def _set_alert_auto_reset(ctx: SupervisorHandlerContext) -> None:
+    """设置警戒自动恢复时间"""
+    reset_seconds = float(ctx.shared_state.get(StateKey.ALERT_AUTO_RESET_SECONDS, 0) or 0)
+    if reset_seconds > 0:
+        ctx.shared_state[StateKey.ALERT_UNTIL] = time.time() + reset_seconds
+        ctx.logger.info(f"⏱️ 警戒自动恢复计时启动: {reset_seconds:.0f}s")
+    else:
+        ctx.shared_state[StateKey.ALERT_UNTIL] = 0

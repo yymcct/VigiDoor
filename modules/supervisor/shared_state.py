@@ -36,6 +36,7 @@ class SharedStateManager:
             initial_armed: 初始布防状态
         """
         alarm_auto_reset_seconds = config_manager.supervisor.alarm_auto_reset_seconds or 0
+        alert_auto_reset_seconds = config_manager.supervisor.alert_auto_reset_seconds or 0
         
         self._state = mp.Manager().dict({
             StateKey.GLOBAL_STATE: GlobalState.SAFE,
@@ -43,8 +44,10 @@ class SharedStateManager:
             StateKey.IS_STREAMING: False,
             StateKey.LAST_HEARTBEAT: {},
             StateKey.START_TIME: time.time(),  # 启动时间，用于计算 uptime
-            StateKey.ALARM_UNTIL: 15.0,
+            StateKey.ALARM_UNTIL: 0,
             StateKey.ALARM_AUTO_RESET_SECONDS: alarm_auto_reset_seconds,
+            StateKey.ALERT_UNTIL: 0,
+            StateKey.ALERT_AUTO_RESET_SECONDS: alert_auto_reset_seconds,
             StateKey.IS_ARMED: initial_armed,
         })
     
@@ -102,7 +105,25 @@ class SharedStateManager:
     def get_alarm_auto_reset_seconds(self) -> float:
         """获取报警自动恢复秒数"""
         return float(self._state.get(StateKey.ALARM_AUTO_RESET_SECONDS, 0) or 0)
-    
+
+    # ==================== 警戒自动恢复 ====================
+
+    def set_alert_until(self, timestamp: float) -> None:
+        """设置警戒持续到指定时间戳"""
+        self._state[StateKey.ALERT_UNTIL] = timestamp
+
+    def get_alert_until(self) -> float:
+        """获取警戒结束时间戳"""
+        return float(self._state.get(StateKey.ALERT_UNTIL, 0) or 0)
+
+    def clear_alert_until(self) -> None:
+        """清除警戒计时器"""
+        self._state[StateKey.ALERT_UNTIL] = 0
+
+    def get_alert_auto_reset_seconds(self) -> float:
+        """获取警戒自动恢复秒数"""
+        return float(self._state.get(StateKey.ALERT_AUTO_RESET_SECONDS, 0) or 0)
+
     # ==================== 心跳管理 ====================
     
     def update_heartbeat(self, process_name: str, timestamp: Optional[float] = None) -> None:

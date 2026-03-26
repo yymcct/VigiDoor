@@ -23,6 +23,7 @@ class MessageType(str, Enum):
     # ========== 告警消息 ==========
     ALARM_INTRUSION = "alarm_intrusion"           # 视觉告警（检测到异常）
     ALARM_SYSTEM = "alarm_system"           # 系统告警（严重错误）
+    ALERT_TRIGGER = "alert_trigger"         # 警戒触发（有人出现但未入侵警戒区）
     
     # ========== 音频相关消息 ==========
     AUDIO_ANOMALY = "audio_anomaly"               # 音频异常事件（玻璃破碎、呼救等）

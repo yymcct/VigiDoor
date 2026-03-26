@@ -282,8 +282,9 @@ class ProcessSupervisor:
         
         try:
             while self.running:
-                # 检查报警自动恢复
+                # 检查报警/警戒自动恢复
                 self.health_monitor.check_alarm_auto_reset()
+                self.health_monitor.check_alert_auto_reset()
                 time.sleep(1)
         except KeyboardInterrupt:
             logger.info("⚠️ 收到中断信号")

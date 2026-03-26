@@ -317,6 +317,7 @@ class ConfigManager:
             restart_limit=supervisor_raw.get('restart_limit', 5),
             restart_window=supervisor_raw.get('restart_window', 300),
             alarm_auto_reset_seconds=supervisor_raw.get('alarm_auto_reset_seconds', 0),
+            alert_auto_reset_seconds=supervisor_raw.get('alert_auto_reset_seconds', 0),
             heartbeat_interval=supervisor_raw.get('heartbeat_interval', 5),
             heartbeat_timeout=supervisor_raw.get('heartbeat_timeout', 30),
             startup_delays=supervisor_raw.get('startup_delays', {})

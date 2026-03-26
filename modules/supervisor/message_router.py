@@ -3,6 +3,7 @@
 from core.ipc.message import MessageType, IPCMessage
 from .handlers import handle_heartbeat, handle_alarm_intrusion, handle_audio_anomaly, handle_mqtt_command
 from .handlers import handle_arm, handle_disarm
+from .handlers import handle_alert_trigger
 from .handlers import SupervisorHandlerContext
 
 
@@ -21,6 +22,7 @@ class MessageRouter:
             'mqtt_command': handle_mqtt_command,
             MessageType.CMD_ARM: handle_arm,
             MessageType.CMD_DISARM: handle_disarm,
+            MessageType.ALERT_TRIGGER: handle_alert_trigger,
         }
 
     def dispatch(self, msg: IPCMessage) -> None:

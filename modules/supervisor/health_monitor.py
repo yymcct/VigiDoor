@@ -251,3 +251,21 @@ class HealthMonitor:
                 
         except Exception as e:
             self.logger.error(f"报警自动恢复异常: {e}")
+
+    def check_alert_auto_reset(self) -> None:
+        """检查并执行警戒状态自动恢复"""
+        try:
+            if not self.state_manager.is_alert():
+                return
+
+            alert_until = self.state_manager.get_alert_until()
+            if alert_until <= 0:
+                return
+
+            if time.time() >= alert_until:
+                self.state_manager.set_global_state(GlobalState.SAFE)
+                self.state_manager.clear_alert_until()
+                self.logger.info("✅ 警戒自动恢复：全局状态已重置为 SAFE")
+
+        except Exception as e:
+            self.logger.error(f"警戒自动恢复异常: {e}")

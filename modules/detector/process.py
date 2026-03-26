@@ -113,7 +113,9 @@ class AIDetectorProcess:
                     # 报警处理
                     if analysis['should_alarm']:
                         self._report_alarm(analysis['alarm_data'])
-                    
+                    elif analysis.get('should_alert'):
+                        self._send_alert_trigger()
+
                     self.detection_count += 1
                     
                     # 定期发送心跳
@@ -217,6 +219,16 @@ class AIDetectorProcess:
         )
         self.ipc.send_message(msg)
     
+    def _send_alert_trigger(self):
+        """发送警戒触发消息（有人出现但未入侵警戒区）"""
+        logger.info("⚠️ 发送警戒触发消息")
+        msg = create_message(
+            msg_type=MessageType.ALERT_TRIGGER,
+            target=ProcessName.SUPERVISOR,
+            data={}
+        )
+        self.ipc.send_message(msg)
+
     def _print_stats(self):
         """打印统计信息"""
         logger.info("=" * 60)
