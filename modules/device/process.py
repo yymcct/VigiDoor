@@ -72,11 +72,18 @@ class DeviceControllerProcess:
             logger.error("设备初始化失败")
             return
         
-        # 根据布防状态选择初始模式
-        is_armed = bool(self.state.get('is_armed', False))
-        initial_mode = DeviceMode.GUARD if is_armed else DeviceMode.DAILY
+        # 根据当前共享状态决定初始模式（与 _poll_state 逻辑一致）
+        global_state = self.state.get(StateKey.GLOBAL_STATE, GlobalState.SAFE)
+        is_armed = bool(self.state.get(StateKey.IS_ARMED, False))
+        if global_state == GlobalState.ALARM:
+            initial_mode = DeviceMode.ALARM
+        elif global_state == GlobalState.ALERT:
+            initial_mode = DeviceMode.ALERT
+        elif is_armed:
+            initial_mode = DeviceMode.GUARD
+        else:
+            initial_mode = DeviceMode.DAILY
         self.mode_manager.set_mode(initial_mode)
-        self._apply_mode_effect(initial_mode)
         
         last_heartbeat = time.time()
         
@@ -165,9 +172,13 @@ class DeviceControllerProcess:
     def _poll_state(self):
         """轮询共享状态，根据 GLOBAL_STATE + IS_ARMED 自维护设备模式"""
         try:
-            global_state = GlobalState(self.state.get(StateKey.GLOBAL_STATE, GlobalState.SAFE))
+            global_state = self.state.get(StateKey.GLOBAL_STATE, GlobalState.SAFE)
             is_armed = bool(self.state.get(StateKey.IS_ARMED, False))
+        except Exception as e:
+            logger.error(f"读取共享状态失败: {e}")
+            return
 
+        try:
             if global_state == GlobalState.ALARM:
                 target_mode = DeviceMode.ALARM
             elif global_state == GlobalState.ALERT:
@@ -178,10 +189,11 @@ class DeviceControllerProcess:
                 target_mode = DeviceMode.DAILY
 
             if self.mode_manager.current_mode != target_mode:
+                logger.debug(f"状态变更检测: global_state={global_state}, is_armed={is_armed} → {target_mode.value}")
                 self.mode_manager.set_mode(target_mode)
 
         except Exception as e:
-            logger.error(f"轮询状态失败: {e}")
+            logger.error(f"模式切换失败: {e}", exc_info=True)
     
     def _on_mode_changed(self, old_mode: DeviceMode, new_mode: DeviceMode):
         """
