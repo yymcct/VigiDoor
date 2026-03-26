@@ -110,8 +110,7 @@ class SegmentRecorder:
                     time.sleep(0.05)
                     continue
 
-                frame, meta = frame_data
-                frame_id = meta.get("frame_id")
+                frame, frame_id, _ = frame_data
 
                 # 去重：跳过同一帧
                 if frame_id is not None and frame_id == self._last_frame_id:
@@ -179,6 +178,9 @@ class SegmentRecorder:
         """构建并启动 FFmpeg 进程"""
         output_pattern = os.path.join(self._output_dir, "%Y%m%d_%H%M%S.mp4")
 
+        # 关键帧间隔 = fps × 分段时长，确保分段边界处恰好有关键帧
+        gop_size = self._fps * self._segment_duration
+
         cmd = [
             "ffmpeg", "-y",
             # 输入：raw video from stdin
@@ -193,6 +195,10 @@ class SegmentRecorder:
             "-crf", "28",
             "-b:v", self._bitrate,
             "-pix_fmt", "yuv420p",
+            # 强制关键帧与分段边界对齐（防止 segment muxer 等待下一个关键帧导致时长偏移）
+            "-g", str(gop_size),
+            "-keyint_min", str(gop_size),
+            "-force_key_frames", f"expr:gte(t,n_forced*{self._segment_duration})",
             # 分段输出
             "-f", "segment",
             "-segment_time", str(self._segment_duration),
