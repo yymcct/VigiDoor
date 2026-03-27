@@ -1,4 +1,7 @@
-.PHONY: help install start stop restart clean logs test db-init dev format check
+.PHONY: help install start stop restart clean logs test db-init dev format check build deploy
+
+# 树莓派 SSH 地址，可通过命令行覆盖: make deploy RPI_HOST=ubuntu@192.168.1.100
+RPI_HOST ?= ubuntu@raspberrypi.local
 
 # 默认目标
 help:
@@ -15,6 +18,13 @@ help:
 	@echo "make clean      - 清理缓存文件"
 	@echo "make format     - 格式化代码（需要 black）"
 	@echo "make check      - 代码检查（需要 flake8）"
+	@echo ""
+	@echo "部署相关（建议流程）"
+	@echo "make build      - 在本机（树莓派）用 Nuitka 编译为原生二进制"
+	@echo "make deploy     - 同步源码到树莓派并重启服务"
+	@echo "                  可覆盖目标地址: make deploy RPI_HOST=ubuntu@192.168.1.100"
+	@echo "make deploy-build - 同步源码到树莓派并触发远程编译"
+	@echo "make deploy-release - 上传本地编译好的 release 包到树莓派"
 
 # 安装依赖
 install:
@@ -73,3 +83,25 @@ format:
 check:
 	@echo "代码检查..."
 	flake8 modules/ core/ db/ mqtt/ utils/ supervisor.py --max-line-length=100 --ignore=E203,W503
+
+# ── 编译 & 部署 ────────────────────────────────────────────────────────────────
+
+# 在当前机器（树莓派）上用 Nuitka 编译为原生二进制
+build:
+	@echo "Nuitka 编译（需在树莓派上执行）..."
+	bash scripts/build_nuitka.sh
+
+# 同步源码到树莓派（不编译，源码模式运行）
+deploy:
+	@echo "同步源码到树莓派: $(RPI_HOST)..."
+	bash scripts/deploy.sh --host $(RPI_HOST)
+
+# 同步源码到树莓派并触发远程 Nuitka 编译
+deploy-build:
+	@echo "同步并在树莓派上编译: $(RPI_HOST)..."
+	bash scripts/deploy.sh --host $(RPI_HOST) --build
+
+# 上传本地编译好的 release 包（dist/vigidoor-release-*.tar.gz）
+deploy-release:
+	@echo "上传 release 包到树莓派: $(RPI_HOST)..."
+	bash scripts/deploy.sh --host $(RPI_HOST) --release $(shell ls -t dist/vigidoor-release-*.tar.gz 2>/dev/null | head -1)
