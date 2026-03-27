@@ -12,7 +12,7 @@ FFmpeg 命令示意：
   ffmpeg -f rawvideo -pix_fmt bgr24 -s WxH -r FPS -i pipe:0
          -c:v libx264 -preset ultrafast -tune stillimage -crf 28
          -f segment -segment_time 60 -reset_timestamps 1
-         -strftime 1 "<dir>/%Y%m%d_%H%M%S.mp4"
+         -strftime 1 "<dir>/%Y%m%d_%H%M%S.ts"
 """
 
 import os
@@ -176,7 +176,7 @@ class SegmentRecorder:
 
     def _launch_ffmpeg(self) -> subprocess.Popen:
         """构建并启动 FFmpeg 进程"""
-        output_pattern = os.path.join(self._output_dir, "%Y%m%d_%H%M%S.mp4")
+        output_pattern = os.path.join(self._output_dir, "%Y%m%d_%H%M%S.ts")
 
         # 关键帧间隔 = fps × 分段时长，确保分段边界处恰好有关键帧
         gop_size = self._fps * self._segment_duration
@@ -203,7 +203,7 @@ class SegmentRecorder:
             "-f", "segment",
             "-segment_time", str(self._segment_duration),
             "-reset_timestamps", "1",
-            "-segment_format", "mp4",
+            "-segment_format", "mpegts",
             "-strftime", "1",
             output_pattern,
         ]

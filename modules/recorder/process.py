@@ -199,7 +199,7 @@ class RecorderProcess:
         from pathlib import Path
 
         cutoff = time.time() - self._retention_days * 86400
-        pattern = os.path.join(self._output_dir, "*.mp4")
+        pattern = os.path.join(self._output_dir, "*.ts")
         removed = 0
 
         for fpath in glob.glob(pattern):
