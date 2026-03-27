@@ -19,7 +19,7 @@ mqtt:
   client_id: "{device_id}"  # 自动使用系统生成的设备ID
   keepalive: 60
   qos: 1
-  tls_ca: "./certs/root.pem"  # 华为云根证书路径（root.pem）
+  tls_ca: "./assets/certs/root.pem"  # 华为云根证书路径（root.pem）
   tls_insecure: true  # 仅排查时可设为 true，跳过证书校验
 
 
