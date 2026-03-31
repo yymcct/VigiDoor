@@ -301,7 +301,8 @@ class ConfigManager:
         # 解析硬件配置
         hardware_raw = raw.get('hardware', {})
         self.hardware = HardwareConfig(
-            led_strip=hardware_raw.get('led_strip', {})
+            led_strip=hardware_raw.get('led_strip', {}),
+            oled=hardware_raw.get('oled', {}),
         )
         
         # 解析日志配置

@@ -12,6 +12,7 @@ from .mode import DeviceMode, ModeManager
 from .manager import DeviceManager
 from .devices.output.led_strip import LEDStripDevice
 from .devices.output.relay import RelayDevice
+from .devices.output.mosier_oled import MosierOLEDDevice
 from .effects.led_effects import (
     BusinessHoursEffect,
     GuardIdleEffect,
@@ -61,6 +62,9 @@ class DeviceControllerProcess:
         
         # 警示灯继电器（GPIO 26，低电平触发）
         self._warning_light: RelayDevice = None
+        
+        # 摩西尔 OLED 屏幕（可选，由配置决定是否启用）
+        self._oled: MosierOLEDDevice = None
         
         logger.info("设备控制进程初始化完成")
     
@@ -144,6 +148,21 @@ class DeviceControllerProcess:
                 logger.error("警示灯继电器注册失败")
                 return False
             
+            # 创建摩西尔 OLED 屏幕（可选）
+            oled_config = self.config.hardware.oled
+            if oled_config.get('enabled', False):
+                self._oled = MosierOLEDDevice(
+                    ip=oled_config['ip'],
+                    port=int(oled_config.get('port', 8080)),
+                    timeout=int(oled_config.get('timeout', 5)),
+                    simulate=False,
+                )
+                if not self.device_manager.register_device(self._oled):
+                    logger.warning("摩西尔 OLED 注册失败，跳过")
+                    self._oled = None
+            else:
+                logger.info("摩西尔 OLED 未启用（config.hardware.oled.enabled=false）")
+
             logger.info("✅ 所有设备初始化成功")
             return True
             
@@ -206,6 +225,20 @@ class DeviceControllerProcess:
         logger.info(f"💡 切换模式: {old_mode.value} -> {new_mode.value}")
         self._apply_mode_effect(new_mode)
 
+    def _oled_play(self, program_name: str):
+        """
+        OLED 屏幕播放指定节目（失败时只记录日志，不影响其他设备）
+
+        Args:
+            program_name: 节目名称，'daily' / 'guard' / 'alert' / 'alarm'
+        """
+        if not self._oled:
+            return
+        try:
+            self._oled.play_by_name(program_name)
+        except Exception as e:
+            logger.error(f'OLED 播放节目 "{program_name}" 失败: {e}')
+
     def _apply_mode_effect(self, mode: DeviceMode):
         """根据模式应用 LED 效果（启动时也可复用）"""
         if not self._led_strip:
@@ -218,23 +251,27 @@ class DeviceControllerProcess:
             if self._warning_light:
                 self._warning_light.stop_effect()
                 self._warning_light.turn_off()
+            self._oled_play('daily')
 
         elif mode in (DeviceMode.GUARD, DeviceMode.SAFE):
             self._led_strip.set_effect(GuardIdleEffect(n))
             if self._warning_light:
                 self._warning_light.stop_effect()
                 self._warning_light.turn_off()
+            self._oled_play('guard')
 
         elif mode == DeviceMode.ALERT:
             self._led_strip.set_effect(AlertGuardEffect(n))
             if self._warning_light:
                 self._warning_light.stop_effect()
                 self._warning_light.turn_on()
+            self._oled_play('alert')
 
         elif mode == DeviceMode.ALARM:
             self._led_strip.set_effect(AlarmEffect(n))
             if self._warning_light:
                 self._warning_light.set_effect(RelayBlinkEffect(interval=0.5))
+            self._oled_play('alarm')
     
     def _cleanup(self):
         """清理资源"""

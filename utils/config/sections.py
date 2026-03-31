@@ -138,6 +138,7 @@ class AudioConfig:
 class HardwareConfig:
     """硬件配置"""
     led_strip: Dict[str, Any] = field(default_factory=dict)
+    oled: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass

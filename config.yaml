@@ -92,6 +92,13 @@ hardware:
       alert: [255, 255, 0]   # 黄色
       alarm: [255, 0, 0]     # 红色
 
+  # 摩西尔 OLED 屏幕
+  oled:
+    enabled: false          # 是否启用（true 时需配置正确 IP）
+    ip: "192.168.38.237"    # 屏幕设备 IP
+    port: 8080             # HTTP API 端口
+    timeout: 5             # HTTP 请求超时秒数
+
 # 日志配置
 logging:
   level: "INFO"  # DEBUG, INFO, WARNING, ERROR
