@@ -154,8 +154,7 @@ class DeviceControllerProcess:
                 self._oled = MosierOLEDDevice(
                     ip=oled_config['ip'],
                     port=int(oled_config.get('port', 8080)),
-                    timeout=int(oled_config.get('timeout', 5)),
-                    simulate=False,
+                    timeout=int(oled_config.get('timeout', 5))
                 )
                 if not self.device_manager.register_device(self._oled):
                     logger.warning("摩西尔 OLED 注册失败，跳过")
