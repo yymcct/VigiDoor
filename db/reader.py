@@ -160,7 +160,7 @@ class DBReader:
         try:
             conn = self._get_conn("events")
             
-            sql = "SELECT * FROM events WHERE created >= datetime('now', ?)"
+            sql = "SELECT * FROM events WHERE created >= datetime('now', 'localtime', ?)"
             args = [f"-{hours} hours"]
             
             if event_type:
@@ -186,7 +186,7 @@ class DBReader:
         try:
             conn = self._get_conn("events")
             cursor = conn.execute(
-                "SELECT COUNT(*) as count FROM events WHERE DATE(created) = DATE('now')"
+                "SELECT COUNT(*) as count FROM events WHERE DATE(created) = DATE('now', 'localtime')"
             )
             row = cursor.fetchone()
             return row["count"] if row else 0
@@ -216,7 +216,7 @@ class DBReader:
             cursor = conn.execute(
                 """SELECT * FROM events 
                    WHERE severity = ? 
-                   AND created >= datetime('now', ?)
+                   AND created >= datetime('now', 'localtime', ?)
                    ORDER BY created DESC 
                    LIMIT ?""",
                 (severity, f"-{hours} hours", limit)
@@ -269,7 +269,7 @@ class DBReader:
                        SUM(count_out) as total_out,
                        MAX(count_peak) as peak
                    FROM people_count
-                   WHERE window_start >= datetime('now', ?)""",
+                   WHERE window_start >= datetime('now', 'localtime', ?)""",
                 (f"-{hours} hours",)
             )
             row = cursor.fetchone()
@@ -305,7 +305,7 @@ class DBReader:
             conn = self._get_conn("metrics")
             cursor = conn.execute(
                 """SELECT * FROM audio_metrics
-                   WHERE sampled_at >= datetime('now', ?)
+                   WHERE sampled_at >= datetime('now', 'localtime', ?)
                    ORDER BY sampled_at DESC
                    LIMIT ?""",
                 (f"-{hours} hours", limit)

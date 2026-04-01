@@ -198,8 +198,8 @@ class DBManager:
             conn = self._connections["events"]
             conn.execute(
                 """INSERT INTO events
-                   (event_type, severity, source, confidence, detail)
-                   VALUES (:event_type, :severity, :source, :confidence, :detail)""",
+                   (event_type, severity, source, confidence, detail, created)
+                   VALUES (:event_type, :severity, :source, :confidence, :detail, datetime('now','localtime'))""",
                 data
             )
             conn.commit()
@@ -221,8 +221,8 @@ class DBManager:
         try:
             conn = self._connections["events"]
             conn.execute(
-                """INSERT INTO arm_disarm_log (action, source, operator, ts)
-                   VALUES (:action, :source, :operator, :ts)""",
+                """INSERT INTO arm_disarm_log (action, source, operator, ts, created)
+                   VALUES (:action, :source, :operator, :ts, datetime('now','localtime'))""",
                 {
                     "action": data["action"],
                     "source": data["source"],
@@ -242,8 +242,8 @@ class DBManager:
         try:
             conn = self._connections["events"]
             conn.execute(
-                """INSERT OR IGNORE INTO recording_clips (file_path, start_time)
-                   VALUES (:file_path, :start_time)""",
+                """INSERT OR IGNORE INTO recording_clips (file_path, start_time, created_at)
+                   VALUES (:file_path, :start_time, datetime('now','localtime'))""",
                 data,
             )
             conn.commit()
@@ -331,8 +331,8 @@ class DBManager:
             conn = self._connections["metrics"]
             conn.execute(
                 """INSERT INTO health_metrics
-                   (timestamp, cpu_usage, memory_usage, disk_usage, temperature, uptime)
-                   VALUES (:timestamp, :cpu_usage, :memory_usage, :disk_usage, :temperature, :uptime)""",
+                   (timestamp, cpu_usage, memory_usage, disk_usage, temperature, uptime, recorded_at)
+                   VALUES (:timestamp, :cpu_usage, :memory_usage, :disk_usage, :temperature, :uptime, datetime('now','localtime'))""",
                 data
             )
             conn.commit()

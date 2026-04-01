@@ -102,7 +102,7 @@ class DatabaseInitializer:
                 CREATE TABLE IF NOT EXISTS kv_config (
                     key      TEXT PRIMARY KEY,
                     value    TEXT NOT NULL,
-                    updated  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    updated  TIMESTAMP DEFAULT (datetime('now','localtime'))
                 )
             """)
             
@@ -112,7 +112,7 @@ class DatabaseInitializer:
                     device_id    TEXT PRIMARY KEY,
                     location     TEXT,
                     firmware_ver TEXT,
-                    registered   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    registered   TIMESTAMP DEFAULT (datetime('now','localtime'))
                 )
             """)
             
@@ -152,7 +152,7 @@ class DatabaseInitializer:
                     source      TEXT NOT NULL,
                     confidence  REAL,
                     detail      TEXT,
-                    created     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    created     TIMESTAMP DEFAULT (datetime('now','localtime'))
                 )
             """)
             
@@ -175,7 +175,7 @@ class DatabaseInitializer:
                     source    TEXT NOT NULL,
                     operator  TEXT,
                     ts        REAL NOT NULL,
-                    created   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    created   TIMESTAMP DEFAULT (datetime('now','localtime'))
                 )
             """)
 
@@ -196,7 +196,7 @@ class DatabaseInitializer:
                     alarm_level      TEXT NOT NULL DEFAULT 'none'
                                          CHECK(alarm_level IN ('none', 'alert', 'alarm')),
                     file_size_bytes  INTEGER,
-                    created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    created_at       TIMESTAMP DEFAULT (datetime('now','localtime'))
                 )
             """)
 
@@ -259,7 +259,7 @@ class DatabaseInitializer:
                     disk_usage    REAL,
                     temperature   REAL,
                     uptime        REAL,
-                    recorded_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    recorded_at   TIMESTAMP DEFAULT (datetime('now','localtime'))
                 )
             """)
             
@@ -367,7 +367,7 @@ def ensure_migrations(db_dir: Optional[Path] = None) -> None:
                 source    TEXT NOT NULL,
                 operator  TEXT,
                 ts        REAL NOT NULL,
-                created   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created   TIMESTAMP DEFAULT (datetime('now','localtime'))
             )
         """)
 
@@ -388,7 +388,7 @@ def ensure_migrations(db_dir: Optional[Path] = None) -> None:
                 alarm_level      TEXT NOT NULL DEFAULT 'none'
                                      CHECK(alarm_level IN ('none', 'alert', 'alarm')),
                 file_size_bytes  INTEGER,
-                created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at       TIMESTAMP DEFAULT (datetime('now','localtime'))
             )
         """)
 
